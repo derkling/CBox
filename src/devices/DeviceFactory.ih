@@ -1,0 +1,12 @@
+
+#include "DeviceFactory.h"
+
+//-----[ Supported devices ]----------------------------------------------------
+#include <controlbox/devices/DeviceTime.h>
+#include <controlbox/devices/FileWriterCommandHandler.h>
+#include <controlbox/devices/PollEventGenerator.h>
+#include <controlbox/devices/DeviceAnalogSensors.h>
+#include <controlbox/devices/arduino/DeviceArdu.h>
+#include <controlbox/devices/wsproxy/WSProxyCommandHandler.h>
+#include <controlbox/devices/te/DeviceTE.h>
+#include <controlbox/base/comsys/CommandDispatcher.h>

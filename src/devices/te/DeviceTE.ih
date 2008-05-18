@@ -1,0 +1,16 @@
+
+#include "DeviceTE.h"
+
+#include "SampiTE.h"
+
+#include <controlbox/base/comsys/Command.h>
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <errno.h>
+#include <wait.h>
+#include <poll.h>
+
+
+#define EVENT_CODE(_vect_) char _vect_[] = "ASCO?";
+
+

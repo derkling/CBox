@@ -1,0 +1,9 @@
+
+#include "SampiTE.h"
+
+#include "DeviceTE.ih"
+
+#define DEVICE_TE_SAMPI_RX_BUFFER	512
+#define DEVICE_TE_SAMPI_RX_RETRY	3
+
+#include <iomanip>

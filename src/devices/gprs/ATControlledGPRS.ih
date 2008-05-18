@@ -1,0 +1,41 @@
+
+#include "DeviceGPRS.h"
+
+//------------------------------------------------------------------------------
+//		GPRS modem's specific implementations
+//------------------------------------------------------------------------------
+#include "SonyEricsson.h"
+#include "Enfora.h"
+
+//------------------------------------------------------------------------------
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <wait.h>
+#include <poll.h>
+#include <string.h>
+#include <unistd.h>
+#include <signal.h>
+
+#define DEVICEGPRS_MAX_PPPDLOGLINE		128
+
+#define MAX_RESP_LINES	30
+
+#define ATCMD_ESCAPE		"+++"
+#define ATCMD_BACK_ONLINE	"ATO"
+
+// The polltime waiting for PPP daemon to going up
+#define PPPD_SARTUP_POLLTIME	1000
+
+#define PPPD_SIGKILL		15
+// The average time needed by pppd to shutdown
+#define PPPD_SHUTDOWN_LATENCY	5000
+
+//#ifdef CONTROLBOX_CRIS
+//#  define PPPD_SUSPEND_SIGNAL	STOP
+//#  define PPPD_RESUME_SIGNAL	CONT
+//#else
+#  define PPPD_SUSPEND_SIGNAL	SIGSTOP
+#  define PPPD_RESUME_SIGNAL	SIGCONT
+//#endif

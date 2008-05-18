@@ -1,0 +1,10 @@
+
+#include "DistEndPoint.h"
+
+#ifdef DIST_DATAFORMAT_42
+#  include "ConcentratoreSoap.nsmap"
+#endif
+#ifdef DIST_DATAFORMAT_43
+#  include "Concentratore43Soap12.nsmap"
+#endif
+

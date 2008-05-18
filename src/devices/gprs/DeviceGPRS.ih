@@ -1,0 +1,25 @@
+
+#include "DeviceGPRS.h"
+
+//------------------------------------------------------------------------------
+//		GPRS modem's specific implementations
+//------------------------------------------------------------------------------
+//#include "SonyEricsson.h"
+//#include "Enfora.h"
+#include "EnforaAPI.h"
+
+//------------------------------------------------------------------------------
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <wait.h>
+#include <poll.h>
+#include <string.h>
+#include <unistd.h>
+#include <signal.h>
+
+// The signal used to kill (terminate) a PPP daemon
+#define PPPD_SIGKILL		15
+
+#define DEVICEGPRS_MAX_PPPDLOGLINE	128

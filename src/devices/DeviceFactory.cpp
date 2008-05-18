@@ -1,0 +1,424 @@
+//******************************************************************************
+//*************  Copyright (C) 2006 - Patrick Bellasi **************************
+//******************************************************************************
+//**
+//** The copyright to the computer programs here in is the property of
+//** Patrick Bellasi. The programs may be used and/or copied only with the
+//** written permission from the author or in accordance with the terms and
+//** conditions stipulated in the agreement/contract under which the
+//** programs have been supplied.
+//**
+//******************************************************************************
+//******************** Module information **************************************
+//**
+//** Project:       ControlBox (0.1)
+//** Description:   ModuleDescription
+//**
+//** Filename:      Filename
+//** Owner:         Patrick Bellasi
+//** Creation date:  21/06/2006
+//**
+//******************************************************************************
+//******************** Revision history ****************************************
+//** Revision Date       Comments                           Responsible
+//** -------- ---------- ---------------------------------- --------------------
+//**
+//**
+//******************************************************************************
+
+
+#include "DeviceFactory.ih"
+
+
+namespace controlbox {
+namespace device {
+
+DeviceFactory * DeviceFactory::d_instance = 0;
+
+
+DeviceFactory::DeviceFactory(std::string const & logName) :
+        log(log4cpp::Category::getInstance("controlbox."+logName)),
+        d_devDB(* DeviceDB::getInstance()) {
+}
+
+DeviceFactory * DeviceFactory::getInstance(std::string const & logName) {
+
+    if ( !d_instance ) {
+        d_instance = new DeviceFactory(logName);
+    }
+
+    LOG4CPP_DEBUG(d_instance->log, "DeviceFactory::getInstance()");
+
+    return d_instance;
+}
+
+DeviceFactory::~DeviceFactory() {
+
+    LOG4CPP_DEBUG(log, "DeviceFactory::~DeviceFactory()");
+
+
+}
+
+DeviceSignals * DeviceFactory::getDeviceSignals(std::string const & logName) {
+    Device * dev;
+    DeviceSignals * devSig;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_SINGALS);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device SIGNALS found on DeviceDB");
+        devSig = dynamic_cast<DeviceSignals *>(dev);
+        if ( ! devSig ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceSignals");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device SIGNALS not found on DeviceDB: building a new one");
+        devSig = DeviceSignals::getInstance(logName);
+    }
+
+    return devSig;
+
+}
+
+DeviceTime * DeviceFactory::getDeviceTime(std::string const & logName) {
+    Device * dev;
+    DeviceTime * devTime;
+
+//-----[ Dependencies required ]------------------------------------------------
+    // Firt we possibly build all time sources
+//     getDeviceGPS();
+//     getDeviceGPRS("DeviceGPRS"); NOTE if they are more than one, what GPRS we use to keep time?!?!
+//------------------------------------------------------------------------------
+
+    dev = d_devDB.getDevice(Device::DEVICE_TIME, logName);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "DeviceTime found on DeviceDB");
+        devTime = dynamic_cast<DeviceTime *>(dev);
+        if ( ! devTime ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceTime");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "DeviceTime not found on DeviceDB: building a new one");
+        devTime = DeviceTime::getInstance(logName);
+    }
+
+    return devTime;
+
+}
+
+FileWriterCommandHandler * DeviceFactory::getDeviceFileWriter(const std::string & fileName,
+        std::string const & logName, bool append) {
+    Device * dev;
+    FileWriterCommandHandler * fw;
+
+
+    dev = d_devDB.getDevice(Device::CH_FILEWRITER, fileName);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Filewriter found on DeviceDB");
+        fw = dynamic_cast<FileWriterCommandHandler *>(dev);
+        if ( ! fw ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to FileWriterCommandHandler");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Filewriter not found on DeviceDB: building a new one");
+        fw = new FileWriterCommandHandler(fileName, logName, append);
+    }
+
+    return fw;
+
+}
+
+PollEventGenerator * DeviceFactory::getDevicePoller(timeout_t pollTime, std::string const & logName) {
+    Device * dev;
+    PollEventGenerator * peg;
+
+
+    dev = d_devDB.getDevice(Device::EG_POLLER, pollTime);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "PollEventGenerator found on DeviceDB");
+        peg = dynamic_cast<PollEventGenerator *>(dev);
+        if ( ! peg ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to PollEventGenerator");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "PollEventGenerator not found on DeviceDB: building a new one");
+        peg = new PollEventGenerator(pollTime, logName);
+    }
+
+    return peg;
+
+}
+
+DeviceGPRS * DeviceFactory::getDeviceGPRS(std::string const & logName,
+		unsigned short module) {
+    Device * dev;
+    DeviceGPRS * devGPRS;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_GPRS, module);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device GPRS found on DeviceDB");
+        devGPRS = dynamic_cast<DeviceGPRS *>(dev);
+        if ( ! devGPRS ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceGPRS");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device GPRS not found on DeviceDB: building a new one");
+        devGPRS = DeviceGPRS::getInstance(module, logName);
+    }
+
+    return devGPRS;
+
+}
+
+DeviceGPS * DeviceFactory::getDeviceGPS(std::string const & logName, DeviceGPS::t_protocols proto) {
+    Device * dev = 0;
+    DeviceGPS * devGPS = 0;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_GPS, proto);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device GPS found on DeviceDB");
+        devGPS = dynamic_cast<DeviceGPS *>(dev);
+        if ( ! devGPS ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceGPS");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device GPS not found on DeviceDB: building a new one");
+        switch (proto) {
+        case DeviceGPS::DEVICEGPS_PROTO_ATGPS:
+        	devGPS = DeviceATGPS::getInstance(logName);
+        	break;
+        case DeviceGPS::DEVICEGPS_PROTO_ARDU:
+        	LOG4CPP_ERROR(log, "ARDU Protocol not MORE supported");
+		//devGPS = DeviceArdu::getInstance(logName);
+		break;
+        case DeviceGPS::DEVICEGPS_PROTO_NMEA:
+        	LOG4CPP_ERROR(log, "NMEA Protocol not MORE supported");
+        	//devGPS = DeviceGPS::getInstance(logName, proto);
+        	break;
+        }
+    }
+
+    return devGPS;
+
+}
+
+DeviceOdometer * DeviceFactory::getDeviceODO(std::string const & logName) {
+    Device * dev;
+    DeviceOdometer * devODO;
+
+    dev = d_devDB.getDevice(Device::DEVICE_ODO);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device ODO found on DeviceDB");
+        devODO = dynamic_cast<DeviceOdometer *>(dev);
+        if ( ! devODO ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceODO");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device ODO not found on DeviceDB: building a new one");
+        //devODO = DeviceArdu::getInstance(logName);
+        devODO = DeviceATGPS::getInstance(logName);
+    }
+
+    return devODO;
+
+}
+
+// DeviceArdu * DeviceFactory::getDeviceArdu(std::string const & logName) {
+//     Device * dev;
+//     DeviceArdu * devARDU;
+//
+//     dev = d_devDB.getDevice(Device::DEVICE_ARDU);
+//     if ( dev ) {
+//         LOG4CPP_DEBUG(log, "Device ARDU found on DeviceARDU");
+//         devARDU = dynamic_cast<DeviceArdu *>(dev);
+//         if ( ! devARDU ) {
+//             LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceArdu");
+//             return 0;
+//         }
+//     } else {
+//         LOG4CPP_DEBUG(log, "Device ARDU not found on DeviceDB: building a new one");
+//         devARDU = DeviceArdu::getInstance(logName);
+//     }
+//
+//     return devARDU;
+//
+// }
+
+DeviceATGPS * DeviceFactory::getDeviceATGPS(std::string const & logName) {
+    Device * dev;
+    DeviceATGPS * devATGPS;
+
+    dev = d_devDB.getDevice(Device::DEVICE_ATGPS);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device ATGPS found on DeviceDB");
+        devATGPS = dynamic_cast<DeviceATGPS *>(dev);
+        if ( ! devATGPS ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceATGPS");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device ATGPS not found on DeviceDB: building a new one");
+        devATGPS = DeviceATGPS::getInstance(logName);
+    }
+
+    return devATGPS;
+
+}
+
+DeviceAnalogSensors * DeviceFactory::getDeviceAS(std::string const & logName) {
+    Device * dev;
+    DeviceAnalogSensors * devAS;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_AS, 0);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device AS found on DeviceDB");
+        devAS = dynamic_cast<DeviceAnalogSensors *>(dev);
+        if ( ! devAS ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceAnalogSensors");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device AS not found on DeviceDB: building a new one");
+        devAS = DeviceAnalogSensors::getInstance(logName);
+    }
+
+    return devAS;
+
+}
+
+DeviceGPIO * DeviceFactory::getDeviceGPIO(std::string const & logName) {
+    Device * dev;
+    DeviceGPIO * devGPIO;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_GPIO, 0);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device GPIO found on DeviceDB");
+        devGPIO = dynamic_cast<DeviceGPIO *>(dev);
+        if ( ! devGPIO ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceGPIO");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device GPIO not found on DeviceDB: building a new one");
+        devGPIO = DeviceGPIO::getInstance(logName);
+    }
+
+    return devGPIO;
+
+}
+
+DeviceDigitalSensors * DeviceFactory::getDeviceDS(std::string const & logName) {
+    Device * dev;
+    DeviceDigitalSensors * devDS;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_DS, 0);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device DS found on DeviceDB");
+        devDS = dynamic_cast<DeviceDigitalSensors *>(dev);
+        if ( ! devDS ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceDigitalSensors");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device DS not found on DeviceDB: building a new one");
+        devDS = DeviceDigitalSensors::getInstance(logName);
+    }
+
+    return devDS;
+
+}
+
+DeviceTE * DeviceFactory::getDeviceTE(std::string const & logName) {
+    Device * dev;
+    DeviceTE * devTE;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_TE, 0);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device TE found on DeviceDB");
+        devTE = dynamic_cast<DeviceTE *>(dev);
+        if ( ! devTE ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceTE");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device TE not found on DeviceDB: building a new one");
+        devTE = DeviceTE::getInstance();
+    }
+
+    return devTE;
+
+}
+
+
+WSProxyCommandHandler * DeviceFactory::getWSProxy(std::string const & logName) {
+    static WSProxyCommandHandler * wsProxy = 0;
+    DeviceTime * devTime;
+    DeviceATGPS * devATGPS;
+//     DeviceArdu * devARDU;
+    DeviceAnalogSensors * devAS;
+    DeviceDigitalSensors * devDS;
+    DeviceTE * devTE;
+    comsys::CommandDispatcher * cd;
+
+    if (wsProxy) {
+        return wsProxy;
+    }
+
+//-----[ Generators required ]--------------------------------------------------
+    // Building a DeviceTime
+    devTime = getDeviceTime("DeviceTime");
+
+    // Building a DeviceATGPS, implementing GPS and ODO interfaces
+    devATGPS = getDeviceATGPS("DeviceATGPS");
+    //devARDU = getDeviceArdu("DeviceARDU");
+
+    // Building an Analog Sensor Device
+    devAS = getDeviceAS("DeviceAS");
+
+    // Building a Digital Sensor Device
+    devDS = getDeviceDS("DeviceDS");
+
+    // Building a TE Device
+    devTE = getDeviceTE("DeviceTE");
+
+    //NOTE We don't neede to build the GPRS devices since they will be builded
+    //	directly from the EndPoint as they need them
+
+//-----[ Handler ]--------------------------------------------------------------
+    // Building the WSProxy
+    wsProxy = WSProxyCommandHandler::getInstance("WSProxy");
+
+//-----[ Dispatcher ]-----------------------------------------------------------
+    LOG4CPP_DEBUG(log, "Building a WS CommandDispatcher");
+    cd = new comsys::CommandDispatcher(wsProxy, false);
+
+    LOG4CPP_DEBUG(log, "Binding DeviceTime to the WS CommandDispatcher");
+    devTime->setDispatcher(cd, true);
+//     LOG4CPP_DEBUG(log, "Binding DeviceArdu to the WS CommandDispatcher");
+//     devArdu->setDispatcher(cd, true);
+    LOG4CPP_DEBUG(log, "Binding DeviceAS to the WS CommandDispatcher");
+    devAS->setDispatcher(cd, true);
+    LOG4CPP_DEBUG(log, "Binding DeviceDS to the WS CommandDispatcher");
+    devDS->setDispatcher(cd, true);
+    LOG4CPP_DEBUG(log, "Binding DeviceTE to the WS CommandDispatcher");
+    devTE->setDispatcher(cd, true);
+
+    return wsProxy;
+
+}
+
+}// namespace device
+}// namespace controlbox

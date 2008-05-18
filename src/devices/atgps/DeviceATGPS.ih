@@ -1,0 +1,17 @@
+
+#include "DeviceATGPS.h"
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <fstream>
+#include <iomanip>
+#include <math.h>
+#include <errno.h>
+#include <string.h>
+#include <stdio.h>
+
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+
+#define DEVICE_ATGPS_RXTX_BUFFER	32
+

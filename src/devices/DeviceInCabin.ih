@@ -1,0 +1,10 @@
+
+#include "DeviceInCabin.h"
+
+#include <controlbox/base/QueryRegistry.h>
+#include <controlbox/base/comsys/Command.h>
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <controlbox/devices/gprs/DeviceGPRS.h>
+
+#include <iomanip>

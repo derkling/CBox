@@ -1,0 +1,10 @@
+
+#include "DeviceSerial.h"
+
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <errno.h>
+#include <wait.h>
+#include <poll.h>
+#include <string.h>
+#include <unistd.h>

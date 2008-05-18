@@ -1,0 +1,17 @@
+
+#include "DeviceAnalogSensors.h"
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <iomanip>
+#include <math.h>
+
+
+#ifdef CONTROLBOX_CRIS
+#include "sys/ioctl.h"
+#include "fcntl.h"
+#include <asm/etraxi2c.h>
+#include <errno.h>
+#ifndef _LINUX_ETRAXI2C_H
+# error CRIS no included
+#endif
+#endif

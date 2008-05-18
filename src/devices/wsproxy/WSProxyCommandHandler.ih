@@ -1,0 +1,19 @@
+
+#include "WSProxyCommandHandler.h"
+
+#include "EndPoint.h"
+#include "FileEndPoint.h"
+#include "DistEndPoint.h"
+
+#include <controlbox/base/comsys/Command.h>
+#include <cc++/thread.h>
+#include <iomanip>
+
+#include <iomanip>
+#include <controlbox/devices/DeviceFactory.h>
+#include <controlbox/devices/PollEventGenerator.h>
+#include <controlbox/base/QueryRegistry.h>
+#include <controlbox/devices/DeviceInCabin.h>
+#include <controlbox/devices/DeviceDigitalSensors.h>
+
+#include <sstream>
