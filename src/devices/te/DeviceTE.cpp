@@ -233,7 +233,7 @@ void DeviceTE::run (void) {
 				case TE_NO_NEW_EVENTS:
 					break;
 				case TE_NOT_RESPONDING:
-					LOG4CPP_ERROR(log, "Device TE not responding");
+					LOG4CPP_DEBUG(log, "Device TE not responding");
 					break;
 				case TE_RESTART_DOWNLOAD:
 					LOG4CPP_DEBUG(log, "Retrying download");

@@ -72,14 +72,14 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 		// modem's params
 		// Loading the TTY port configuration string
 		d_ttyConfig = d_config.param(paramName("tty"), DEVICEGPRS_DEFAULT_GPRS_DEVICE);
-	
+
 		sscanf(d_config.param(paramName("atDelay"),
 					DEVICEGPRS_DEFAULT_AT_RESPONCE_DELAY).c_str(),
 			"%i", &d_atResponceDelay);
-	
+
 		d_atCmdEscape = d_config.param(paramName("cmdEscape"),
 					DEVICEGPRS_DEFAULT_AT_CMD_ESCAPE);
-	
+
 		d_atInitString = d_config.param(paramName("atInitString"),
 					DEVICEGPRS_DEFAULT_AT_INIT_STRING);
 #else
@@ -89,13 +89,13 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 			throw new exceptions::SerialDeviceException("Unable to build a SerialDevice");
 		}
 #endif
-	
+
 		d_pppdLogFolder = d_config.param(paramName("pppd", "logpath"),
 			   DEVICEGPRS_DEFAULT_PPPD_LOGPATH);
-	
+
 		// loading supported linknames
 		loadNetLinks();
-		
+
 	}
 
 	// Registering device into the DeviceDB
@@ -138,7 +138,7 @@ DeviceGPRS::getInstance(unsigned short module, std::string const &logName) {
 
 	//TODO modem identifications should be done using AUTOSENSING,
 	//	using device IDs... ;-)
-	
+
 	_logName << logName << "_" << module;
 	try {
 		switch (d_model) {
@@ -165,7 +165,7 @@ DeviceGPRS::getInstance(unsigned short module, std::string const &logName) {
 	}
 
 	return gprs;
-	
+
 }
 
 
@@ -191,65 +191,65 @@ DeviceGPRS::getInstance(std::string const & linkname, std::string const &logName
 		//FIXME what if there is more than a DeviceGPRS supporting this linkname?!?
 		return (DeviceGPRS *)it->second;
 	}
-	
+
 	//TODO If not found, look within configuration for a modem supporting the
 	// required netlink, if any build it and return.
-	LOG4CPP_WARN(log, "Building a new DeviceGPRS for the required APN [%s]",
+	LOG4CPP_DEBUG(log, "Building a new DeviceGPRS for the required APN [%s]",
 				linkname.c_str());
-	
+
 	//TODO find a suitable configuration
 	//Find APN id if any...
 	id = 0;
 	while (id<DEVICEGPRS_MAX_NETLINKS) {
 		// Updating the apnId number
 		apnName[9] += (id%10);
-		
+
 		buff = d_config.param(string(apnName), "");
 		if (!buff.size()) {
 			LOG4CPP_DEBUG(log, "No more APN configuration availables");
 			id = -1;
 			break;
 		}
-		
+
 		if (buff == linkname) {
 			LOG4CPP_DEBUG(log, "Found required APN [%s] id [%d]", buff.c_str(), id);
 			break;
 		}
-		
+
 		id++;
 	}
-	
+
 	if (id<0 || id>=DEVICEGPRS_MAX_NETLINKS) {
 		// By default return null if the required netlink is unsupported
 		LOG4CPP_ERROR(log, "Unable to find a DeviceGPRS supporting the required APN [%s]",
 					linkname.c_str());
 		return 0;
 	}
-	
+
 	// Find a modem supporting this APN if any...
 	checkConf[1] += (id%10);
 	id = 0;
 	while (id<10) {
 		// Updating the apnId number
 		gprsAPN[11] += (id%10);
-		
+
 		buff = d_config.param(string(gprsAPN), "");
 		if (!buff.size()) {
 			LOG4CPP_DEBUG(log, "No more GPRS configuration availables");
 			id = -1;
 			break;
 		}
-		
+
 		if ( string::npos !=
 			buff.find((const char *)checkConf, 0, 2) ) {
 			LOG4CPP_DEBUG(log, "Found GPRS device [%d] supporting required APN [%s]",
 						id, linkname.c_str());
 			return getInstance(id, logName);
 		}
-		
+
 		id++;
 	}
-	
+
 	// By default return null if the required netlink is unsupported
 	LOG4CPP_ERROR(log, "Unable to find a DeviceGPRS supporting the required APN [%s]",
 					linkname.c_str());
@@ -265,13 +265,13 @@ DeviceGPRS::loadNetLinks() {
 	int error;
 	t_netlink * newConf;
 	std::string apnName;
-	
+
 	linkConf = d_config.param(paramName("links"), "");
 	if (!linkConf.size()) {
 		LOG4CPP_WARN(log, "Undefined APNs for GPRS module [%d]", d_module);
 		return GPRS_NETLINK_UNDEFINED;
 	}
-	
+
 	// Parsing the netlink configuration string, sintax is:
 	// 	sim,linkid[:sim,linkid[...]]
 	i = 0;
@@ -282,15 +282,15 @@ DeviceGPRS::loadNetLinks() {
 			return GPRS_NETLINK_PARSE_ERROR;
 		}
 		i+=4; // ther's a leading ':' if another configuration follow
-		
+
 		newConf = new t_netlink();
 		if (!newConf) {
 			LOG4CPP_ERROR(log, "Allocation of a new APN failed");
 			return OUT_OF_MEMORY;
 		}
-		
+
 		LOG4CPP_DEBUG(log, "Loading netlink configuration [%d] on SIM [%d]", apnId, simId);
-		
+
 		switch(simId) {
 		case 1:
 			newConf->sim = SIM1;
@@ -304,7 +304,7 @@ DeviceGPRS::loadNetLinks() {
 			delete newConf;
 			continue;
 		}
-		
+
 		error = loadAPNConf(apnId, apnName, *newConf);
 		if (!error) {
 			LOG4CPP_INFO(log, "Successfully loaded APN configuration for [%s] on SIM [%u]",
@@ -313,21 +313,21 @@ DeviceGPRS::loadNetLinks() {
 			delete newConf;
 			continue;
 		}
-		
+
 		// Updating list of linknames supported by this DeviceGPRS
 		d_supportedLinks[apnName] = newConf;
-		
+
 		// Updating list of DeviceGPRS supporting this linkname
 		d_mapLink2DeviceGPRS.insert(pair<std::string, DeviceGPRS*>(apnName, (DeviceGPRS*)this) );
-		
+
 		//FIXME More than a DeviceGPRS could support the same linkname
 		//	we should avoid this or at least have a way to define
 		//	which modem to use with a link...
-		
+
 	}
-	
+
 	return OK;
-	
+
 }
 
 
@@ -341,10 +341,10 @@ DeviceGPRS::loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & c
 	std::string aServer;
 
 	LOG4CPP_DEBUG(log, "Loading APN configuration [%u]", apnId);
-	
+
 	// Updating the apnId number
 	baseLabel[4] += (apnId%10);
-	
+
 	apnName = d_config.param(paramName(baseLabel, "name"), "");
 	if (!apnName.size()) {
 		LOG4CPP_ERROR(log, "APN configuration [%u] loading failed", apnId);
@@ -353,7 +353,7 @@ DeviceGPRS::loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & c
 	conf.pdpContext = d_config.param(paramName(baseLabel, "PDPContext"), "");
 	conf.smsCsca = d_config.param(paramName(baseLabel, "sms_csca"), "");
 	conf.AtDial = d_config.param(paramName(baseLabel, "dial"), "");
-	
+
 	// Loading friend servers
 	buf = d_config.param(paramName(baseLabel, "friendServers"), "");
 	DLOG4CPP_DEBUG(log, "Firends [%s]", buf.c_str());
@@ -365,7 +365,7 @@ DeviceGPRS::loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & c
 			DLOG4CPP_DEBUG(log, "bptr: %p, ptr: %p, eptr %p", bptr, ptr, eptr);
 			next = strchr(ptr, ';');
 			len = (next) ? ((unsigned)next-(unsigned)ptr) : (unsigned)eptr-(unsigned)ptr+1;
-			
+
 			aServer = buf.substr((unsigned)ptr-(unsigned)bptr, len);
 			DLOG4CPP_DEBUG(log, "Find firend server [%s], from: %d, len: %d",
 					buf.substr((unsigned)ptr-(unsigned)bptr, len).c_str(),
@@ -376,11 +376,11 @@ DeviceGPRS::loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & c
 			}
 			ptr = next+1; count++;
 		} while (next && count < DEVICEGPRS_MAX_FRIEND_SERVER);
-		
+
 		LOG4CPP_INFO(log, "Loaded %d friend server", count);
 		//TODO format list of friend server loaded
 	}
-	
+
 	return OK;
 }
 
@@ -394,9 +394,9 @@ DeviceGPRS::openSerial() {
 		LOG4CPP_ERROR(log, "Failed opening serial: missing configuration");
 		return GPRS_TTY_OPEN_FAILURE;
 	}
-	
+
 	LOG4CPP_INFO(log, "Opening serial port [%s]", d_ttyConfig.c_str());
-	
+
 	d_tty.open(d_ttyConfig.c_str());
 	if (!d_tty) {
 		LOG4CPP_ERROR(log, "Failed opening serial []", d_ttyConfig.c_str());
@@ -404,7 +404,7 @@ DeviceGPRS::openSerial() {
 	}
 	// Disabling TTY buffers
 	d_tty.interactive(true);
-	
+
 	return OK;
 }
 
@@ -475,7 +475,7 @@ DeviceGPRS::getDeviceIds() {
 	exitCode result;
 
 	if ( d_tty->sendSerial("AT+CNUM", &resp) == OK ) {
-		LOG4CPP_INFO(log, "SIM number [%s]", resp[0].c_str());
+		LOG4CPP_DEBUG(log, "SIM number [%s]", resp[0].c_str());
 		//TODO parse the output to retrive the SIM number...
 		// this command will return something like:
 		// +CNUM: "Line 1","12125551212",145
@@ -483,19 +483,19 @@ DeviceGPRS::getDeviceIds() {
 
 	resp.clear();
 	if ( d_tty->sendSerial("AT+CGMI", &resp) == OK ) {
-		LOG4CPP_INFO(log, "Manufacturer ID [%s]", resp[0].c_str());
+		LOG4CPP_DEBUG(log, "Manufacturer ID [%s]", resp[0].c_str());
 		d_ids.manufactor = resp[0];
 	}
 
 	resp.clear();
 	if ( d_tty->sendSerial("AT+CGMM", &resp) == OK ) {
-		LOG4CPP_INFO(log, "Model ID [%s]", resp[0].c_str());
+		LOG4CPP_DEBUG(log, "Model ID [%s]", resp[0].c_str());
 		d_ids.model = resp[0];
 	}
 
 	resp.clear();
 	if ( d_tty->sendSerial("AT+CGMR", &resp) == OK ) {
-		LOG4CPP_INFO(log, "Revision ID [%s]", resp[0].c_str());
+		LOG4CPP_DEBUG(log, "Revision ID [%s]", resp[0].c_str());
 		d_ids.revision = resp[0];
 	}
 
@@ -507,7 +507,7 @@ DeviceGPRS::getDeviceIds() {
 
 	resp.clear();
 	if ( d_tty->sendSerial("AT+CIMI", &resp) == OK ) {
-		LOG4CPP_INFO(log, "IMSI [%s]", resp[0].c_str());
+		LOG4CPP_DEBUG(log, "IMSI [%s]", resp[0].c_str());
 		d_ids.imsi = resp[0];
 	}
 
@@ -558,7 +558,7 @@ DeviceGPRS::sendSMS(std::string number, std::string text) {
 
 	LOG4CPP_WARN(log, "SMS sending failed: "
 		"functionality not supportd by DUMMY GPRS configuration");
-	
+
 	return GPRS_SMS_SEND_FAILED;
 }
 
@@ -566,7 +566,7 @@ exitCode
 DeviceGPRS::signalLevel(unsigned short & level) {
 	LOG4CPP_WARN(log, "Getting signal level failed: "
 		"functionality not supportd by DUMMY GPRS configuration");
-		
+
 	return GPRS_SIGNAL_LEVEL_FAILED;
 }
 
@@ -575,7 +575,7 @@ exitCode
 DeviceGPRS::gprsStatus(unsigned short & status) {
 	LOG4CPP_WARN(log, "Getting GPRS status failed: "
 		"functionality not supportd by DUMMY GPRS configuration");
-		
+
 	return GPRS_GPRS_STATUS_FAILED;
 }
 
@@ -596,7 +596,7 @@ DeviceGPRS::pppdTerminate() {
 				      strerror(errnoKill));
 			return GPRS_PPPD_KILL_FAILED;
 		}
-		
+
 		// Wait for PPP Daemon to completely shut down
 		//sleep(PPPD_SHUTDOWN_LATENCY);
 		return OK;
@@ -614,7 +614,7 @@ DeviceGPRS::getPppdPid(bool update) {
 	std::string pidFile;
 	FILE *fd;
 	short retry = 4;
-	
+
 	if (!update)
 		return d_pppdPid;
 
@@ -653,23 +653,23 @@ DeviceGPRS::getPppdPid(bool update) {
 exitCode
 DeviceGPRS::checkModem() {
 	t_stringVector resp;
-	
+
 	LOG4CPP_DEBUG(log, "Checking if modem is responding... ");
 	d_tty->sendSerial("AT", &resp);
-	
+
 	if (resp[0]!="OK")
 		return GPRS_AT_RESPONCE_KO;
-	
+
 	return OK;
-	
+
 }
 
 void
 DeviceGPRS::cleanUp() {
 	t_supportedLinks::iterator it;
-	
+
 	LOG4CPP_MARK(log);
-	
+
 	// Releasing netlink configurations
 	d_curNetlinkName = 0;
 	d_curNetlinkConf = 0;
@@ -679,20 +679,20 @@ DeviceGPRS::cleanUp() {
 		it++;
 	}
 	d_supportedLinks.clear();
-	
+
 	delete(d_tty);
-	
+
 }
 
 
 DeviceGPRS::~DeviceGPRS() {
 
 	//TODO clean the d_supportedLinks map
-	
+
 	if (d_netStatus > LINK_DOWN) {
 		disconnect();
 	}
-	
+
 	cleanUp();
 
 }
@@ -701,13 +701,13 @@ DeviceGPRS::~DeviceGPRS() {
 exitCode
 DeviceGPRS::updateState(t_netStatus state) {
 	comsys::Command * cGprsState;
-	
+
 	if ( state == d_netStatus) {
 		return OK;
 	}
-	
+
 	d_netStatus = state;
-	
+
 	//Notify a status change
 	cGprsState = comsys::Command::getCommand(GPRS_STATUS_UPDATE,
 		Device::DEVICE_GPRS, "DEVICE_GPRS", name());
@@ -717,12 +717,12 @@ DeviceGPRS::updateState(t_netStatus state) {
 	}
 	cGprsState->setParam( "state",  state);
 	cGprsState->setParam( "descr",  d_netStatusStr[state]);
-	
+
 	// Notifying command
 	notify(cGprsState);
-	
+
 	return OK;
-	
+
 }
 
 void
@@ -749,35 +749,35 @@ DeviceGPRS::notifyCaller(void) {
 
 exitCode
 DeviceGPRS::checkPipe(std::string const & pipe) {
-	
+
 	unlink(pipe.c_str());
 	if (mknod(pipe.c_str(), S_IFIFO|0644, 0)) {
 		LOG4CPP_FATAL(log, "Error on creating the PPPD log pipe [%s]",
 				pipe.c_str());
 		return GPRS_PPPD_PIPE_FAILURE;
 	}
-	
+
 	return OK;
 }
 
 inline std::string
 DeviceGPRS::pppDaemonLogfile(char *logFile, unsigned int size) {
 	char module[] = "gprs0";
-	
+
 	module[4] += d_module%10;
 	d_pppdLogFile = string(d_pppdLogFolder + "/ppp-" + module + ".log");
-	
+
 	if (size) {
 		strncpy(logFile, d_pppdLogFile.c_str(), size);
 	}
-	
+
 	return d_pppdLogFile;
 }
 
 exitCode
 DeviceGPRS::pppdParseLog(const char *logline) {
 	char buf[10];
-	
+
 // 	LOG4CPP_DEBUG(log, "PPPD: %s", logline);
 
 	// The current implementation of the log parser require the use
@@ -794,7 +794,7 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 		if (!strncmp(logline, "CTime", 5)) {
 			sscanf(logline, "%*s %9s", buf);
 			LOG4CPP_INFO(log, "Connection time [%s]", buf);
-			
+
 			//--- Notifying a LINK_DOWN
 			// NOTE when an API interface is down, the GPRS connection
 			//	is down too
@@ -869,7 +869,7 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 		// 'lIP: local IP address'
 		if (!strncmp(logline, "lIP", 3)) {
 			sscanf(logline, "%*s %15s", d_pppConf.ipLocal);
-			LOG4CPP_INFO(log, "Local IP [%s]", d_pppConf.ipLocal);
+			LOG4CPP_DEBUG(log, "Local IP [%s]", d_pppConf.ipLocal);
 			return OK;
 		}
 		break;
@@ -885,8 +885,8 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 		// 'rIP: remote IP address'
 		if (!strncmp(logline, "rIP", 3)) {
 			sscanf(logline, "%*s %15s", d_pppConf.ipRemote);
-			LOG4CPP_INFO(log, "Remote IP [%s]", d_pppConf.ipRemote);
-			
+			LOG4CPP_DEBUG(log, "Remote IP [%s]", d_pppConf.ipRemote);
+
 			//--- Notifying a LINK_UP
 			// NOTE when an API interface is UP, the GPRS connection
 			//	may NOT be up
@@ -913,7 +913,7 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 			      logline);
 		return GPRS_PPPD_UNKNOWED_SENTENCE;
 	}
-	
+
 	return GPRS_PPPD_UNKNOWED_SENTENCE;
 }
 
@@ -960,11 +960,11 @@ OPENFIFO:
 	plog.fd = d_fd;
 	plog.events = POLLIN;
 
-	LOG4CPP_INFO(log, "Monitoring PPP daemon logfile [%s]",
+	LOG4CPP_DEBUG(log, "Monitoring PPP daemon logfile [%s]",
 		     logFile.c_str());
 
 	while (!d_doExit) {
-		
+
 		if (poll(&plog, 1, -1) == -1) {
 			LOG4CPP_ERROR(log, "poll on logfile failed, %s",
 				      strerror(errno));
@@ -992,17 +992,17 @@ OPENFIFO:
 		if (strl==1) { // there is only the final '\n'
 			continue;
 		}
-		
+
 		pppdParseLog(ifsLogLine);
-		
+
 		if (strl >= DEVICEGPRS_MAX_PPPDLOGLINE) {
 			// Ignoring the remaining portion of a long message
 			fgets(ifsLogLine, DEVICEGPRS_MAX_PPPDLOGLINE, d_fs);
 		}
-		
-		
+
+
 	} // While
-	
+
 	d_parserRunning = false;
 	return OK;
 }
@@ -1022,19 +1022,19 @@ DeviceGPRS::run(void) {
 // void
 // PppLogParserThread::run(void) {
 // // 	std::ostringstream tName;
-// // 	
-// // 	
+// //
+// //
 // // 	tName << "run_" << d_name << "-" << d_module;
 // // 	PosixThread::setName(tName.str().c_str());
 // // 	d_runThread = this;
-// // 	
+// //
 // // 	LOG4CPP_INFO(log, "Starting thread [%s]", PosixThread::getName());
 // // 	LOG4CPP_DEBUG(log, "Run thread [%s] is @ [%p]",
 // // 			PosixThread::getName(),
 // // 			d_runThread);
-// 	
+//
 // 	pppdMonitor();
-// 
+//
 // }
 
 

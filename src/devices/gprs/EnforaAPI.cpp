@@ -110,7 +110,7 @@ EnforaAPI::powerOn(bool reset) {
 		return OK;
 	}
 
-	LOG4CPP_DEBUG(log, "Powering-on GPRS device");
+	LOG4CPP_INFO(log, "Powering-on GPRS device");
 	d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_ON);
 	return OK;
 }
@@ -171,7 +171,7 @@ exitCode EnforaAPI::initDeviceGPRS() {
 		return result;
 	}
 
-	LOG4CPP_INFO(log, "GPRS modem ready in AT command mode");
+	LOG4CPP_DEBUG(log, "GPRS modem ready in AT command mode");
 
 	return result;
 
@@ -195,7 +195,7 @@ exitCode EnforaAPI::loadConfiguration() {
 	value = d_config.param(paramName("api_localPort"), DEFAULT_LOCAL_PORT);
 	sscanf(value.c_str(), "%i", &d_apiLocalPort);
 
-	LOG4CPP_INFO(log, "API configuration, local %s:%d - remote %s:%d",
+	LOG4CPP_DEBUG(log, "API configuration, local %s:%d - remote %s:%d",
 				d_apiLocalIP.c_str(), d_apiLocalPort,
 				d_apiRemoteIP.c_str(), d_apiRemotePort);
 
@@ -206,7 +206,6 @@ exitCode EnforaAPI::loadConfiguration() {
 		return GPRS_TTY_MODEM_NOT_RESPONDING;
 	}
 
-cout << "1" << endl;
 	//TODO parse responce to get the current IOCFG
 	// responce format:
 	// "$IOCFG: 00000000000000000000 00000000000000000000"
@@ -214,7 +213,6 @@ cout << "1" << endl;
 		LOG4CPP_DEBUG(log, "Modem already configured");
 		return OK;
 	}
-cout << "2" << endl;
 
 	// Resetting to factory defaults
 	d_tty->sendSerial("AT&F;E0;Q0;V1;&C1");
@@ -313,7 +311,7 @@ EnforaAPI::enableAPI(std::string const & linkname) {
 	LOG4CPP_DEBUG(log, "Configurtion done: staring PPP daemon...");
 
 	// Start host-side PPP
-	LOG4CPP_INFO(log, "Starting non-GPRS connection [%s]...", d_pppdCommand.c_str());
+	LOG4CPP_DEBUG(log, "Starting non-GPRS connection [%s]...", d_pppdCommand.c_str());
 	result = system(d_pppdCommand.c_str());
 	if ( result ) {
 		LOG4CPP_ERROR(log, "Failed starting non-GPRS connection");
@@ -572,7 +570,7 @@ EnforaAPI::gprsUP() {
 		return OK;
 	}
 
-	LOG4CPP_INFO(log, "API, Activating GPRS connection...");
+	LOG4CPP_INFO(log, "Activating GPRS connection...");
 
 	memcpy(msg.field.data, "AT$CONN\0", 8);
 	result = sendAT(msg, resp);
@@ -1053,8 +1051,7 @@ EnforaAPI::run (void) {
 	PosixThread::setName(tName.str().c_str());
 	d_runThread = this;
 
-	LOG4CPP_INFO(log, "Starting thread [%s]", PosixThread::getName());
-	LOG4CPP_DEBUG(log, "Run thread [%s] is @ [%p]",
+	LOG4CPP_DEBUG(log, "Starting thread [%s], code @ [%p]",
 			PosixThread::getName(),
 			d_runThread);
 
