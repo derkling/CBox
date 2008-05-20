@@ -102,7 +102,7 @@ std::string Device::name() {
 exitCode Device::dbReg(bool override) {
     DeviceDB * d_devDB = DeviceDB::getInstance();
 
-    LOG4CPP_INFO(log, "Registering device [%s] into DeviceDB", d_name.c_str());
+    LOG4CPP_DEBUG(log, "Registering device [%s] into DeviceDB", d_name.c_str());
 
     // Registering the device into the DeviceDB
     if ( d_devDB->registerDevice(this, d_type, d_id, override) != OK ) {
@@ -117,7 +117,7 @@ exitCode Device::dbReg(bool override) {
 exitCode Device::dbRegInterface(Device::t_deviceType const & type, Device::t_deviceId const & id, bool override) {
     DeviceDB * d_devDB = DeviceDB::getInstance();
 
-    LOG4CPP_INFO(log, "Registering interface [%d:%s] for device [%s] into DeviceDB", type, id.c_str(), d_name.c_str());
+    LOG4CPP_DEBUG(log, "Registering interface [%d:%s] for device [%s] into DeviceDB", type, id.c_str(), d_name.c_str());
 
     // Registering the device into the DeviceDB
     if ( d_devDB->registerDevice(this, type, id, override) != OK ) {
