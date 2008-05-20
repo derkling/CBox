@@ -362,8 +362,8 @@ DistEndPoint::logSOAPFault(struct soap * csoap) {
                       csoap->version ? (int)csoap->version : csoap->error,
                       c,
                       v ? v : "no subcode");
-        LOG4CPP_ERROR(log, "\t\"%s\"", s ? s : "[no reason]");
-        LOG4CPP_ERROR(log, "\tDetail: %s", d && *d ? *d : "[no detail]");
+        LOG4CPP_ERROR(log, "  Error:   [%s]", s ? s : "[no reason]");
+        LOG4CPP_ERROR(log, "  Details: [%s]", d && *d ? *d : "[no detail]");
     }
 }
 

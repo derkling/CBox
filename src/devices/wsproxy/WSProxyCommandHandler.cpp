@@ -50,6 +50,7 @@ const WSProxyCommandHandler::t_product WSProxyCommandHandler::d_products[] = {
 WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
         comsys::CommandHandler(logName),
         d_name(logName),
+        d_msgCount(0),
         d_configurator(Configurator::getInstance()),
         d_gpsFixStatus(DeviceGPS::DEVICEGPS_FIX_NA),
         d_netStatus(DeviceGPRS::LINK_DOWN),
@@ -146,7 +147,7 @@ exitCode WSProxyCommandHandler::loadEndPoints() {
 		if ( !ep ) {
 			LOG4CPP_ERROR(log, "failed to load an EndPoint [%d]", epType);
 		} else {
-			LOG4CPP_INFO(log, "EndPoint [%s] successfully loaded", ep->name().c_str());
+			LOG4CPP_DEBUG(log, "EndPoint [%s] successfully loaded", ep->name().c_str());
 			d_endPoints.push_back(ep);
 		}
 
@@ -366,7 +367,6 @@ exitCode WSProxyCommandHandler::uploadMsg(t_wsData & wsData) {
 
     queueing = queueMsg(wsData);
     if ( queueing == OK ) {
-		LOG4CPP_INFO(log, "UPLOAD QUEUE: New data queued for upload");
 
 #if 0
 #ifdef CONTROLBOX_USELAN
@@ -483,7 +483,10 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     it = d_endPoints.begin();
     while ( it != d_endPoints.end() ) {
         LOG4CPP_DEBUG(log, "UPLOAD THREAD: Prosessing msg with EndPoint [%s]", ((*it)->name()).c_str() );
-        result = (*it)->process(msg.str(), wsData.endPoint, wsData.respList);
+
+	LOG4CPP_INFO(log, "==> %d [0x%02X]", wsData.msgCount, wsData.endPoint);
+
+        result = (*it)->process(wsData.msgCount, msg.str(), wsData.endPoint, wsData.respList);
 		checkEpCommands(wsData.respList);
         it++;
     }
@@ -493,7 +496,7 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     // Remove data ONLY if all endPoints have successfully completed
     // their processing
     if ( wsData.endPoint ) {
-        LOG4CPP_INFO(log, "UPLOAD THREAD: upload NOT completed: rescheduling for future processing");
+        LOG4CPP_DEBUG(log, "UPLOAD THREAD: upload NOT completed: rescheduling for future processing");
         result = WS_UPLOAD_FAULT;
     } else {
         LOG4CPP_DEBUG(log, "UPLOAD THREAD: data processing completed by all EndPoint");
@@ -526,10 +529,10 @@ void WSProxyCommandHandler::run(void) {
     // A pointer to a gSOAP message to upload
 	t_uploadList::iterator it;
 	t_wsData * wsData;
-	unsigned int msgCount;
 	exitCode result;
+	unsigned int queueCount;
 
-	LOG4CPP_DEBUG(log, "UPLOAD THREAD: started");
+	LOG4CPP_INFO(log, "Upload thread started");
 
 	while ( !d_doExit ) {
 
@@ -539,12 +542,11 @@ void WSProxyCommandHandler::run(void) {
 //         while ( !d_uploadList.empty() && (d_netStatus == DeviceGPRS::LINK_UP)) {
 // #endif
 
-	msgCount = d_uploadList.size();
-	LOG4CPP_DEBUG(log, "UPLOAD THREAD: [%d] messages queued for processing, RESUMING",
-				msgCount);
-
 	it = d_uploadList.begin();
         while ( it != d_uploadList.end() ) {
+
+		// Q1 to be implemented
+		LOG4CPP_INFO(log, "Q0: 0, Q1: %d, UPLOADING...", d_uploadList.size());
 
 // 		wsData = (t_wsData *) d_uploadList.front();
 // 		result = callEndPoints( *wsData );
@@ -585,11 +587,12 @@ void WSProxyCommandHandler::run(void) {
 		it++;
 	}
 
-	// On empty queue or link down
-	msgCount = d_uploadList.size();
-	LOG4CPP_DEBUG(log, "UPLOAD THREAD: [%d] messages queued for processing, SUSPENDING",
-				msgCount);
-	suspend();
+	queueCount = d_uploadList.size();
+	if (!queueCount) {
+		// Q1 to be implemented
+		LOG4CPP_INFO(log, "Q0: 0, Q1: %d, SUSPENDING", d_uploadList.size());
+		suspend();
+	}
 
 	}
 
@@ -601,7 +604,7 @@ void WSProxyCommandHandler::run(void) {
 
 void WSProxyCommandHandler::onPolling(void) {
 
-	LOG4CPP_INFO(log, "Resuming ready data messages's upload thread");
+	LOG4CPP_DEBUG(log, "Resuming ready data messages's upload thread");
 
     if ( isRunning() ) {
         resume();
@@ -639,12 +642,14 @@ WSProxyCommandHandler::t_wsData * WSProxyCommandHandler::newWsData(t_idSource sr
 
     wsData = new t_wsData();
 
-    // wsData DEFAULT initialization
-//     wsData->endPoint = epEnabled();
+    // DEFAULT initialization
+    wsData->msgCount = ++d_msgCount;
     wsData->endPoint = EndPoint::getEndPointQueuesMask();
     wsData->idSrc = src;
     strncpy(wsData->rx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
     (wsData->rx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
+    (wsData->cmm).str("");
+    (wsData->msg).str("");
 
     LOG4CPP_DEBUG(log, "Created new wsData struct at %p", wsData);
 

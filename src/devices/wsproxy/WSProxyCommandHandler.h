@@ -156,6 +156,9 @@ protected:
 
     std::string d_name;
 
+    /// Total number of messages received and queued for upload
+    unsigned int d_msgCount;
+
     //TODO complete the product list.
     /// The product list.
     static const t_product d_products[];
@@ -164,16 +167,17 @@ protected:
     /// Define a message to be uploaded to a WebService.
     /// Each message could be upladed to more than one EndPoint
     struct wsData {
-        unsigned int endPoint;				///< endPoint mask
-        t_idSource idSrc;					///< Source ID
-        t_timeStamp tx_date;				///< Trasmission data
-        t_timeStamp rx_date;				///< Reception data
-        t_timeStamp cx_date;				///< Creation data
-        char rx_lat[9];						///< Latitude at reception time
-        char rx_lon[10];					///< Longitude at reception time
-        std::ostringstream cmm;				///< Command common data
-        std::ostringstream msg;				///< Command specific data
-		EndPoint::t_epRespList respList;	///< Responces received by EndPoints
+	unsigned int msgCount;			///< local message ID (used for local debugging)
+	unsigned int endPoint;			///< endPoint mask
+	t_idSource idSrc;			///< Source ID
+	t_timeStamp tx_date;			///< Trasmission data
+	t_timeStamp rx_date;			///< Reception data
+	t_timeStamp cx_date;			///< Creation data
+	char rx_lat[9];				///< Latitude at reception time
+	char rx_lon[10];			///< Longitude at reception time
+	std::ostringstream cmm;			///< Command common data
+	std::ostringstream msg;			///< Command specific data
+	EndPoint::t_epRespList respList;	///< Responces received by EndPoints
     };
     typedef struct wsData t_wsData;
 

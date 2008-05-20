@@ -174,14 +174,14 @@ public:
 //         mask ^= d_epQueueMask;
 //     };
 
-    ///Process a data command
-    /// This method test if a
+    /// Process a data command
+    /// @param msgCount the number of this message
     /// @param epEnabledQueues the bitmask of EndPoint's Queues to witch 'msg' is
     ///		still to be send
     /// @return OK on upload success.
     /// @note if the EndPoint successfully process 'msg' it must clear the bit
     ///	inot epRequired corresponding to itself
-    exitCode process(std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList);
+    exitCode process(unsigned int msgCount, std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList);
 
 protected:
 

@@ -96,13 +96,13 @@ EndPoint::getEndPoint(unsigned short const type,
 
 }
 
-exitCode EndPoint::process(std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList) {
-    exitCode result;
+exitCode EndPoint::process(unsigned int msgCount, std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList) {
+	exitCode result;
 
-    // Checking if the current endpoint is required for this command
-    LOG4CPP_DEBUG(log, "Required Queues: 0x%02X, This EndPoint's Queues: 0x%02X => Enabled: %s",
-    			epEnabledQueues, d_epQueueMask,
-    			(epEnabledQueues & d_epQueueMask) ? "YES" : "NO");
+	// Checking if the current endpoint is required for this command
+	LOG4CPP_DEBUG(log, "Required Queues: 0x%02X, This EndPoint's Queues: 0x%02X => Enabled: %s",
+				epEnabledQueues, d_epQueueMask,
+				(epEnabledQueues & d_epQueueMask) ? "YES" : "NO");
 
 	if ( !(epEnabledQueues & d_epQueueMask) ) {
 		LOG4CPP_DEBUG(log, "Message processing not required for this EndPoint");
@@ -112,17 +112,11 @@ exitCode EndPoint::process(std::string const & msg, unsigned int & epEnabledQueu
 	LOG4CPP_DEBUG(log, "EP-SWITCH: message processing START, queue mask [0x%02X]", epEnabledQueues);
 
 	result = this->upload(epEnabledQueues, msg, respList);
-// 	switch(result) {
-// 	case OK:
-// 		// Command correctly processed
-// 		break;
-// 	case WS_UPLOAD_FAULT:
-// 		// Command processing
-// 		break;
-// 	case OUT_OF_MEMORY:
-// 		// Command processing to be discarded: we could run out-of-memory!
-// 		break;
-// 	}
+
+	if (result == OK) {
+		LOG4CPP_INFO(log, "==> %d [0x%02X]", msgCount, epEnabledQueues);
+	}
+
 	LOG4CPP_DEBUG(log, "EP-SWITCH: message processing END, queue mask [0x%02X]", epEnabledQueues);
 
 	return result;
