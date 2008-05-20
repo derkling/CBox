@@ -33,6 +33,9 @@
 #include <getopt.h>
 #include <signal.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -58,47 +61,45 @@
 
 #define GCC_SPLIT_BLOCK __asm__ ("");
 
-log4cpp::Category & logger = log4cpp::Category::getInstance("cbox");
+log4cpp::Category & logger = log4cpp::Category::getInstance("controlbox");
 
 void shandler(int sig) {
-	
+
 	logger.info("Received signal [%d], shutting down cBox", sig);
-	
+
 }
 
 int cBoxMain(std::string const & conf,
 		std::string const & cmdlog) {
 	sigset_t mask;
 	struct sigaction act;
+	int status;
 
 	controlbox::device::DeviceFactory * df;
 	controlbox::QueryRegistry * qr = 0;
-	//controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * stateCd = 0;
 	controlbox::device::DeviceGPRS * devGPRS = 0;
-	//controlbox::device::DeviceArdu * devATGPS = 0;
 	controlbox::device::DeviceATGPS * devATGPS = 0;
 	controlbox::device::ATcontrol * devAT = 0;
 	controlbox::comsys::CommandDispatcher * pollDataCd = 0;
 	controlbox::comsys::Command * cmdPollData = 0;
 	controlbox::device::PollEventGenerator * peg = 0;
 	controlbox::device::WSProxyCommandHandler * ws = 0;
-	
+
 	// Preloading the configuration options
 	controlbox::Configurator::getInstance(conf);
-	
+
 	qr = controlbox::QueryRegistry::getInstance();
 	//TODO use df to build all others devices!!!
 	df = controlbox::device::DeviceFactory::getInstance();
-	
+
 	//--- Installing Handlers
-	//fw = new controlbox::device::FileWriterCommandHandler(cmdlog);
-	logger.info("- Initializing Proxy... ");
-	ws = controlbox::device::WSProxyCommandHandler::getInstance();
+	ws = df->getWSProxy();
 	if ( !ws ) {
 		logger.error("Proxy initialization FAILED");
+		return -1;
 	} else {
-		logger.info("- Initializing a poll generator for periodic data collection... ");
+		logger.info("Initializing poll generator for periodic data collection... ");
 		cmdPollData = controlbox::comsys::Command::getCommand(
 					controlbox::device::PollEventGenerator::SEND_POLL_DATA,
 					controlbox::Device::EG_POLLER,
@@ -107,68 +108,67 @@ int cBoxMain(std::string const & conf,
 		pollDataCd = new controlbox::comsys::CommandDispatcher(ws, false);
 		pollDataCd->setDefaultCommand(cmdPollData);
 		//FIXME the polling time should be, runtime configurable!
-		peg = df->getDevicePoller((300*1000)/10, "SendDataPoller");
+		peg = df->getDevicePoller((600*1000)/10, "SendDataPoller");
 		peg->setDispatcher(pollDataCd);
 		peg->enable();
-		logger.info("DONE!");
+// 		logger.info("DONE!");
 	}
-	
+
 	stateCd = new controlbox::comsys::CommandDispatcher(ws, false);
-	
-	logger.info("- Initializing GPRS... ");
-	devGPRS = controlbox::device::DeviceGPRS::getInstance(controlbox::device::DeviceGPRS::DEVICEGPRS_MODEL_ENFORA, 0);
+
+	logger.info("Initializing GPRS... ");
+	devGPRS = df->getDeviceGPRS();
 	if ( !devGPRS ) {
 		logger.error("GPRS initialization FAILED");
 	} else {
 		devGPRS->setDispatcher(stateCd);
 		devGPRS->enable();
-		logger.info("DONE!");
+// 		logger.info("DONE!");
 	}
-	
-	logger.info("- Initializing GPS/ODO/MEMS... ");
-	devATGPS = controlbox::device::DeviceATGPS::getInstance();
+
+	logger.info("Initializing GPS/ODO/MEMS... ");
+	devATGPS = df->getDeviceATGPS();
 	if ( !devATGPS ) {
 		logger.error("GPS/ODO/MEMS initialization FAILED");
 	} else {
 		devATGPS->setDispatcher(stateCd);
 		devATGPS->enable();
-		logger.info("DONE!");
+// 		logger.info("DONE!");
 	}
-	
-	logger.info("- Initializing AT control interface... ");
-	devAT = controlbox::device::ATcontrol::getInstance();
-	if ( !devAT ) {
-		logger.error("AT control interface initialization FAILED");
-	} else {
-		devAT->setDispatcher(stateCd);
-		devAT->enable();
-	}
-	
+
+// NOTE disable console before use the AT device!!!
+// Disable this to avoid ttyS0 conflict with console...
+// 	logger.info("Initializing AT control interface... ");
+// 	devAT = controlbox::device::ATcontrol::getInstance();
+// 	if ( !devAT ) {
+// 		logger.error("AT control interface initialization FAILED");
+// 	} else {
+// 		devAT->setDispatcher(stateCd);
+// 		devAT->enable();
+// 	}
+
 	sleep(2);
-	logger.info("- Trying to setup a GPRS link... ");
-	devGPRS->connect("tinlink");
-	
-	logger.info("- Configuring system signals... ");
+
 	sigemptyset(&mask);
-	
 	act.sa_handler = shandler;
 	act.sa_mask = mask;
 	act.sa_flags = 0;
+
+	logger.info("Configuring system signals... ");
 	if ( sigaction(SIGTERM, &act, 0) == -1 ) {
 		logger.error("signal handler installation FAILED");
 	}
-	
+
 	logger.info("System Up and Running");
 	sigsuspend(&mask);
-	
+
 shutdown:
 	delete devGPRS;
 	delete devATGPS;
-	delete devAT;
+// 	delete devAT;
 	delete stateCd;
 	delete ws;
-	//delete fw;
-	
+
 	return 0;
 
 }
@@ -184,13 +184,13 @@ void print_usage(char * progname) {
 	cout << "\t -l, --loggeer              Logger configuration filepath" << endl;
 	cout << "\t -v, --verbose              Enable verbose output" << endl;
 	cout << "\t -h, --help                 Print this help" << endl;
-	
+
 	cout << "\nby Patrick Bellasi - derkling@gmail.com\n" << endl;
 
 }
 
 int main (int argc, char *argv[]) {
-		
+
 	// Command line parsing
 	int this_option_optind;
 	int option_index;
@@ -205,11 +205,11 @@ int main (int argc, char *argv[]) {
 	static char * optstring = "c:d:l:vh";
 	int c;
 	bool silent = true;
-	
+
 	// cBox configuration
 	std::string cboxConfiguration = "/etc/cbox/cbox.conf";
 	// Logger configuration
-	std::string loggerConfiguration = "/etc/cbox/cboxlog.conf";
+	std::string loggerConfiguration = "/etc/cbox/cbox.conf";
 	// Command logfile
 	std::string cmdLogfile = "/var/tmp/cboxcmd.log";
 
@@ -226,7 +226,7 @@ int main (int argc, char *argv[]) {
 		c = getopt_long (argc, argv, optstring, long_options, &option_index);
 		if (c == -1)
 			break;
-			
+
 		switch (c) {
 			case 'c':
 				if (optarg) {
@@ -267,14 +267,12 @@ int main (int argc, char *argv[]) {
 				cout << "Unknowen option: " << c << endl;
 		}
 	}
-	
+
 //-------------------------- MAIN START HERE -----------------------------------
 
-	cout << " " << endl;
-	cout << "cBox - ver. " << VERSION << endl;
-	cout << "by Patrick Bellasi - derkling@gmail.com" << endl;
-	cout << " " << endl;
-	
+	cout << endl << "\t\t       cBox ver. " << VERSION << endl;
+	cout <<         "\t\tby Patrick Bellasi - derkling@gmail.com" << endl << endl;
+
 	// Logger initialization
 	try {
 		std::cout << "Using logger configuration: " << loggerConfiguration << endl;
@@ -283,19 +281,19 @@ int main (int argc, char *argv[]) {
 		std::cout << "Configuration problem " << f.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	
+
 	logger.debug("Logger correctly initialized");
-	
+
 	if (silent) {
 		logger.setPriority(log4cpp::Priority::INFO);
 	}
 
 	std::cout << "Using system configuration: " << cboxConfiguration << endl;
-	std::cout << "Command dump: " << cmdLogfile << endl;
+	std::cout << "Command dump: " << cmdLogfile << endl << endl;
 	cBoxMain(cboxConfiguration, cmdLogfile);
 
 	log4cpp::Category::shutdown();
-	
+
 	return EXIT_SUCCESS;
 
 }

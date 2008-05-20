@@ -94,7 +94,7 @@ unsigned sleeptime = 0;
 unsigned cycles = 0;
 
 int main (int argc, char *argv[]) {
-		
+
 	// Command line parsing
 	int this_option_optind;
 	int option_index;
@@ -157,7 +157,7 @@ int main (int argc, char *argv[]) {
 		c = getopt_long (argc, argv, optstring, long_options, &option_index);
 		if (c == -1)
 			break;
-			
+
 		switch (c) {
 			case 's':
 				if (optarg) {
@@ -248,7 +248,7 @@ int main (int argc, char *argv[]) {
 		print_usage(argv[0]);
 		return EXIT_SUCCESS;
 	}
-	
+
 	// Checking required params and setting default values
 	if (testDeviceGPRS) {
 		sleeptime = sleeptime ? sleeptime : 30;
@@ -259,15 +259,15 @@ int main (int argc, char *argv[]) {
 	}
 	if (testWSProxyCommandHandler) {
 		sleeptime = sleeptime ? sleeptime : 30;
-	}	
-	
+	}
+
 //-------------------------------------------- MAIN START HERE --------------------------------------------
 
 	cout << " " << endl;
-	cout << "\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
-	cout << "\t+                   SecureNav TEST Suite                       +" << endl;
-	cout << "\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
-	
+	cout << "\t\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
+	cout << "\t\t+ cBox v0.9   -   by Patrick Bellasi <derkling@gmail.com>      +" << endl;
+	cout << "\t\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
+
 	// Initializing Configurator
 	cout << endl;
 	cout << "Using configuration: " << confFilename << "\n" << endl;
@@ -278,67 +278,67 @@ int main (int argc, char *argv[]) {
 		std::cout << "Configuration problem " << f.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	
+
 	log4cpp::Category & logger = log4cpp::Category::getInstance("cboxtest");
 	logger.debug("Logger correctly initialized");
-	
-	logger.info("Sleep time: %d", sleeptime);
-	logger.info("Cycles:     %d", cycles);
+
+	logger.debug("Sleep time: %d", sleeptime);
+	logger.debug("Cycles:     %d", cycles);
 
 	if (silent) {
 		logger.setPriority(log4cpp::Priority::INFO);
 	}
 
-	logger.info("Runnig tests...");
+	logger.debug("Runnig tests...");
 
 	if (testComlibs) {
-		logger.info("----------- Testing comlibs ---");
+		logger.debug("----------- Testing comlibs ---");
 		test_comlibs(logger);
 	}
 	if (testDeviceDB) {
-		logger.info("----------- Testing DeviceDB ---");
+		logger.debug("----------- Testing DeviceDB ---");
 		test_devicedb(logger);
 	}
 	if (testDaricomCommand) {
-		logger.info("----------- Testing DaricomCommand ---");
+		logger.debug("----------- Testing DaricomCommand ---");
 		test_command(logger);
 	}
 	if (testWSProxyCommandHandler) {
-		logger.info("----------- Testing WSProxyCommandHandler ---");
+		logger.debug("----------- Testing WSProxyCommandHandler ---");
 		test_wsproxy(logger);
 	}
 	if (testDeviceGPRS) {
-		logger.info("----------- Testing DeviceGPRS ---");
+		logger.debug("----------- Testing DeviceGPRS ---");
 		test_devicegprs(logger, sleeptime);
 	}
 	if (testDeviceAS) {
-		logger.info("----------- Testing DeviceAS ---");
+		logger.debug("----------- Testing DeviceAS ---");
 		test_deviceas(logger);
 	}
 	if (testDeviceGPIO) {
-		logger.info("----------- Testing DeviceGPIO ---");
+		logger.debug("----------- Testing DeviceGPIO ---");
 		test_devicegpio(logger);
 	}
 	if (testDeviceDS) {
-		logger.info("----------- Testing DeviceDS ---");
+		logger.debug("----------- Testing DeviceDS ---");
 		test_deviceds(logger);
 	}
 	if (testDeviceATGPS) {
-		logger.info("----------- Testing DeviceATGPS ---");
+		logger.debug("----------- Testing DeviceATGPS ---");
 		test_deviceatgps(logger);
 	}
 	if (testDeviceTE) {
-		logger.info("----------- Testing DeviceTE ---");
+		logger.debug("----------- Testing DeviceTE ---");
 		test_devicete(logger);
 	}
 	if (testATinterface) {
-		logger.info("----------- Testing AT Interface ---");
+		logger.debug("----------- Testing AT Interface ---");
 		test_atinterface(logger);
 	}
 
-	logger.info("----------- Tests Completed ---\n");
+	logger.debug("----------- Tests Completed ---\n");
 	log4cpp::Category::shutdown();
-	
+
 	return EXIT_SUCCESS;
 
 }
@@ -364,7 +364,7 @@ void print_usage(char * progname) {
 	cout << "-b, --bstest               Do a Test on DeviceDS" << endl;
 	cout << "-i, --tetest               Do a Test on DeviceTE" << endl;
 	cout << "-t, --attest               Do a Test on the AT interface" << endl;
-	
+
 	cout << "\nPatrick Bellasi - derkling@gmail.com\n" << endl;
 
 }
@@ -372,18 +372,18 @@ void print_usage(char * progname) {
 
 /// Comlibs TEST case
 int test_comlibs(log4cpp::Category & logger) {
-	
+
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::EventDispatcher * ed = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::PollEventGenerator * peg = 0;
 	controlbox::comsys::Command * command = 0;
-	
-	
+
+
 	logger.info("Initializing a FileWriterCommandHandler... ");
 	fw = new controlbox::device::FileWriterCommandHandler("/tmp/filewriter.log");
 	logger.info("DONE!");
-	
+
 	logger.info("Initializing a Command... ");
 		command = controlbox::comsys::Command::getCommand(1, Device::EG_POLLER, "PollEventGenerator", "PollEventGenerator");
 	command->setParam( "StringParam", "ParamValue" );
@@ -400,8 +400,8 @@ int test_comlibs(log4cpp::Category & logger) {
 	logger.info("Initializing a PollEventGenerator... ");
 	peg = new controlbox::device::PollEventGenerator(2000, cd);
 	logger.info("DONE!");
-	
-	
+
+
 	sleep(5); 		// print 2 messages
 	peg->disable();
 	sleep(5); 		// lose 3 messages
@@ -414,22 +414,22 @@ int test_comlibs(log4cpp::Category & logger) {
 	cd->suspend();
 	sleep(6); 		// queue 3 messages
 	cd->resume(true);	// => flush 3 messages
-	sleep(2); 		// print 1 messages	
+	sleep(2); 		// print 1 messages
 
-	
+
 	logger.info("Shutting down the PollEventGenerator... ");
 	peg->disable();
 	delete peg;
 	logger.info("DONE!");
-	
-	logger.info("Shutting down the EventDispatcher... ");	
+
+	logger.info("Shutting down the EventDispatcher... ");
 	delete ed;
 	logger.info("DONE!");
-	
+
 	logger.info("Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -437,7 +437,7 @@ int test_comlibs(log4cpp::Category & logger) {
 
 /// DeviceDB and DeviceFactory TEST case
 int test_devicedb(log4cpp::Category & logger) {
-	
+
 	controlbox::device::DeviceFactory * df = 0;
 	controlbox::DeviceDB * db = 0;
 	controlbox::device::FileWriterCommandHandler * fw1 = 0;
@@ -448,11 +448,11 @@ int test_devicedb(log4cpp::Category & logger) {
 	controlbox::device::PollEventGenerator * peg1 = 0;
 	controlbox::device::PollEventGenerator * peg2 = 0;
 	controlbox::device::PollEventGenerator * peg3 = 0;
-	
+
 	logger.info("Getting a reference to the DeviceFactory... ");
 	df = controlbox::device::DeviceFactory::getInstance();
 	db = DeviceDB::getInstance();
-	
+
 	logger.info("Initializing some Devices... ");
 	fw1  = df->getDeviceFileWriter( "./filewriter1.log", "FileWriter_1");
 	peg1 = df->getDevicePoller(1000, "Poller1000");
@@ -493,7 +493,7 @@ int test_devicedb(log4cpp::Category & logger) {
 	delete fw2;
 	delete fw1;
 	logger.info("DONE!");
-	
+
 	logger.info("%s", db->printDB().c_str());
 
 	return 0;
@@ -523,7 +523,7 @@ int test_command(log4cpp::Category & logger) {
 	command->setParam( "MultiParam2", 30, false);
 	command->setParam( "MultiParam3", 100); // Test multiparam overriding by empting the list
 	logger.info("DONE!");
-	
+
 	logger.info("Testing MultiParam support on DaricomCommand... ");
 	logger.info("Multiparam1 has: %u values", command->paramCount("MultiParam1") );
 	logger.info("Multiparam2 has: %u values", command->paramCount("MultiParam2") );
@@ -544,7 +544,7 @@ int test_command(log4cpp::Category & logger) {
 		logger.error("The required param does NOT exist");
 	}
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -560,61 +560,63 @@ int test_wsproxy(log4cpp::Category & logger) {
 	controlbox::comsys::Command * command = 0;
 	std::string theTime;
 
-	logger.info("01 - Initializing the DeviceFactory... ");
+	logger.debug("01 - Initializing the DeviceFactory... ");
 	df = controlbox::device::DeviceFactory::getInstance();
-	logger.info("DONE!");
+	logger.debug("DONE!");
 
-	logger.info("02 - Initializing a WSProxy for testing... ");
+	logger.debug("02 - Initializing a WSProxy for testing... ");
 	proxy = df->getWSProxy();
-	logger.info("DONE!");
-	
-	logger.info("03 - Getting DeviceTime... ");
+	logger.debug("DONE!");
+
+	logger.debug("03 - Getting DeviceTime... ");
 	time = df->getDeviceTime();
-	logger.info("DONE!");
+	logger.debug("DONE!");
 
 	theTime = time->time();
-	logger.info("Current time is: %s", theTime.c_str());
+	logger.debug("Current time is: %s", theTime.c_str());
 
 // ::sleep(15);
-	logger.info("03 - Building a new Command... ");
+	logger.debug("03 - Building a new Command... ");
 	command = controlbox::comsys::Command::getCommand(controlbox::device::DeviceInCabin::SEND_GENERIC_DATA, Device::DEVICE_IC, "DeviceInCabin", "UserData");
-	
+
 // 	command->setParam( "dist_event", "09;Daricom Test" );
 	command->setParam( "dist_evtType", 0x09 );
 	command->setParam( "dist_evtData", "Daricom Test - TE messages upload" );
 	command->setParam( "timestamp", time->time() );
-	logger.info("DONE!");
+	logger.debug("DONE!");
 
-	logger.info("04 - Sending the TEST TITLE command... ");
+	logger.debug("04 - Sending the TEST TITLE command... ");
 	proxy->notify(command);
-	logger.info("DONE!");
+	logger.debug("DONE!");
 
+/*
 	// FIXME Attention: if this command will be deleted before WSProxy has
 	// finisce using it we get a SEGFAULT!!!
-	logger.info("waiting 30s before continuing...");
+	logger.debug("waiting 30s before continuing...");
 	::sleep(5);
 	delete command;
+*/
 
-	logger.info("05 - Preparing a poll generator for sending #10 periodic data... ");
+	logger.debug("05 - Preparing a poll generator for sending periodic data... ");
 	command = controlbox::comsys::Command::getCommand(controlbox::device::PollEventGenerator::SEND_POLL_DATA, Device::EG_POLLER, "SendPollData", "PollData");
 	cd = new controlbox::comsys::CommandDispatcher(proxy, false);
 	cd->setDefaultCommand(command);
 	//peg = df->getDevicePoller((sleeptime*1000)/10, "SendDataPoller");
 	peg = df->getDevicePoller(60000, "SendDataPoller");
 	peg->setDispatcher(cd);
-	logger.info("DONE!");
+	logger.debug("DONE!");
 
-	logger.info("06 - Starting poller and testing for a while [%ds]... ", sleeptime);
+	logger.debug("06 - Starting poller and testing for a while [%ds]... ", sleeptime);
 	peg->enable();
 	sleep(sleeptime);
-	logger.info("DONE!");
-	
-	logger.info("07 - Shutting down WSProxy... ");
+	logger.debug("DONE!");
+
+	logger.debug("07 - Shutting down WSProxy... ");
 	delete proxy;
-	logger.info("DONE!");
-	
+	logger.debug("DONE!");
+
 	return 0;
-	
+
 /*
 	logger.info("01 - Initializing a DeviceGPS for WS Testing... ");
 	devGPS = DeviceGPS::getNewInstance();
@@ -626,10 +628,10 @@ int test_wsproxy(log4cpp::Category & logger) {
 	command->setParam( "time", devGPS->time() );
 	command->setParam( "message", "This is just a TEST from Daricom Srl" );
 	logger.info("DONE!");
-	
+
 	//commandLink = ch->prepareCommand(WSProxyCommandHandler::NET_LINK_STATUS_UPDATE);
 	//commandLink->setParam("status", DeviceNET::LINK_UP);
-	
+
 	logger.info("04 - Initializing a CommandDispatcher for WS Testing... ");
 	cd = new controlbox::comsys::CommandDispatcher(ch);
 	devGPS->setDispatcher(cd, true);
@@ -638,18 +640,18 @@ int test_wsproxy(log4cpp::Category & logger) {
 	cd->setDefaultCommand(command);
 	cd->resume(true);
 	logger.info("DONE!");
-	
+
 	logger.info("05 - Initializing a PollEventGenerator for WS Testing... ");
 	peg = new controlbox::device::PollEventGenerator(1000, cd);
 	logger.info("DONE!");
-	
+
 	logger.info("\tThe system is up and running!");
-	
+
 	sleep(3);			// LINK_DOWN time period
 	logger.info("Tearing up the network link... ");
 	cd->dispatch(commandLink);	// Changing to LINK_UP
 	sleep(3);			// LINK_UP time period => 2queued + 3live messages shuld be uploaded
-	
+
 	logger.info("Shutting down the PollEventGenerator... ");
 	peg->disable();
 	delete peg;
@@ -662,8 +664,8 @@ int test_wsproxy(log4cpp::Category & logger) {
 	devGPS->disable();
 	delete devGPS;
 	logger.info("DONE!");
-	
-	logger.info("Shutting down the CommandDispatcher... ");	
+
+	logger.info("Shutting down the CommandDispatcher... ");
 	delete cd;
 	logger.info("DONE!");
 */
@@ -677,7 +679,7 @@ int test_nmeaparser(log4cpp::Category & logger) {
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::DeviceGPS * devGPS = 0;
-	
+
 
 	logger.info("01 - Initializing a FileWriterCommandHandler... ");
 	fw = new controlbox::device::FileWriterCommandHandler("./filewriter.log");
@@ -697,7 +699,7 @@ int test_nmeaparser(log4cpp::Category & logger) {
 
 	logger.info("04 - Starting parsing... ");
 	devGPS->enable();
-	
+
 	sleep(300);
 	devGPS->disable();
 
@@ -712,7 +714,7 @@ int test_nmeaparser(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -727,7 +729,7 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 	controlbox::device::ATcontrol * at = 0;
 	controlbox::QueryRegistry * qr = 0;
 	unsigned short level;
-	
+
 
 	logger.info("---- Initializing a FileWriterCommandHandler... ");
 	fw = new controlbox::device::FileWriterCommandHandler("./filewriter.log");
@@ -746,19 +748,19 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 		} else {
 			logger.fatal("Failed building a DeviceGPRS: ABORTING!");
 			goto gprs_failed;
-			
+
 		}
 	} catch (exceptions::Exception e) {
 		cout << "Exception caught" << endl;
 	}
-	
+
 // 	logger.info("---- Initializiig a CommandAT");
 // 	at = controlbox::device::ATcontrol::getInstance();
 // 	qr = QueryRegistry::getInstance();
 // 	at->setDispatcher(cd);
 // 	at->enable();
 // 	logger.info("Dump QueryRegistry... %s", qr->printRegistry().c_str());
-	
+
 	sleep(5);
 	logger.info("Connecting GPRS...");
 	if ( devGPRS->connect("tinlink") == OK ) {
@@ -767,17 +769,17 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 		logger.error("---- Connection PROBLEMS");
 		goto gprs_shutdown;
 	}
-	
+
 	sleep(2);
 	logger.info("Testing signal level...");
 	devGPRS->signalLevel(level);
 	logger.info("Signal level [%u]", level);
-	
+
 // 	sleep(2);
 // 	logger.info("Testing SMS...");
 // 	devGPRS->sendSMS("+393473153808", "cBox Test");
-	
-	
+
+
 	logger.info("---- The system is ready for network testing! Repeatly connection [%d times, one time each %d seconds]...", cycles, sleeptime);
 	while ( cycles-- ) {
 		sleep(sleeptime);
@@ -787,7 +789,7 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 			logger.error("---- Connection PROBLEMS");
 		}
 	}
-	
+
 /*
 	logger.info("06 - Testing rapid re-linking... ");
 	// 1
@@ -836,7 +838,7 @@ gprs_shutdown:
 	sleep(10);
 	delete devGPRS;
 	logger.info("DONE!");
-	
+
 gprs_failed:
 	logger.info("---- Shutting down the CommandDispatcher... ");
 	delete cd;
@@ -845,7 +847,7 @@ gprs_failed:
 	logger.info("---- Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -856,7 +858,7 @@ int test_deviceas(log4cpp::Category & logger) {
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::DeviceAnalogSensors * devAS = 0;
-	
+
 	controlbox::device::DeviceAnalogSensors::t_asIdList asIdList;
 	unsigned cSensors, i, j;
 	controlbox::device::DeviceAnalogSensors::t_asIdList::iterator aSensorId;
@@ -877,7 +879,7 @@ int test_deviceas(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("04 - Starting Analog Sensors test... ");
-	
+
 
 	logger.debug("Retriving Analog Sensor IDs... ");
 	cSensors = devAS->listId(asIdList);
@@ -889,7 +891,7 @@ int test_deviceas(log4cpp::Category & logger) {
 	}
 
 	sleep(2);
-	
+
 	j = cycles;
 	logger.info("Repeatly reading sensors values [%d times, one time each %d seconds]...", cycles, sleeptime);
 	while ( j ) {
@@ -905,7 +907,7 @@ int test_deviceas(log4cpp::Category & logger) {
 		logger.info("%s", readedValues.str().c_str());
 		sleep(sleeptime); j--;
 	}
-	
+
 
 	logger.info("05 - Shutting down the DeviceAS... ");
 	delete devAS;
@@ -918,7 +920,7 @@ int test_deviceas(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -928,24 +930,24 @@ int test_deviceas(log4cpp::Category & logger) {
 int test_devicegpio(log4cpp::Category & logger) {
 	device::DeviceFactory * df = device::DeviceFactory::getInstance();
 	device::DeviceGPIO * devGPIO = 0;
-	
+
 	logger.info("03 - Initializing a DeviceDS for Testing... ");
 	devGPIO = df->getDeviceGPIO();
 	logger.info("DONE!");
 
 	logger.info("04 - Powering On GPRS... ");
 	devGPIO->gprsPower(device::DeviceGPIO::GPRS1, device::DeviceGPIO::GPIO_ON);
-	
+
 	logger.info("05 - Testing TTY's mutex... ");
-	
+
 	logger.info("Locking TTY1... ");
 	devGPIO->ttyLock(device::DeviceGPIO::TTY1_PORT0);
 	logger.info("Locking TTY2... ");
 	devGPIO->ttyLock(device::DeviceGPIO::TTY2_PORT3);
-	
+
 	logger.info("06 - Waiting %d [s]... ", sleeptime);
 	::sleep(sleeptime);
-	
+
 	logger.info("UnLocking TTY1... ");
 	devGPIO->ttyUnLock(device::DeviceGPIO::TTY1_PORT0);
 	logger.info("UnLocking TTY2... ");
@@ -953,12 +955,12 @@ int test_devicegpio(log4cpp::Category & logger) {
 
 	logger.info("06 - Powering Down GPRS... ");
 	devGPIO->gprsPower(device::DeviceGPIO::GPRS1, device::DeviceGPIO::GPIO_OFF);
-	
-	
+
+
 	logger.info("07 - Shutting down the DeviceDS... ");
 	delete devGPIO;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -969,7 +971,7 @@ int test_deviceds(log4cpp::Category & logger) {
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::DeviceDigitalSensors * devDS = 0;
-	
+
 // 	controlbox::device::DeviceDigitalSensors::t_dsIdList dsIdList;
 	unsigned cSensors, i, j;
 // 	controlbox::device::DeviceAnalogSensors::t_asIdList::iterator aSensorId;
@@ -990,12 +992,12 @@ int test_deviceds(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("04 - Starting Digital Sensors test... ");
-	
-	
+
+
 	sleep(sleeptime);
-	
-	
-	
+
+
+
 	logger.info("05 - Shutting down the DeviceDS... ");
 	delete devDS;
 	logger.info("DONE!");
@@ -1007,7 +1009,7 @@ int test_deviceds(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -1043,7 +1045,7 @@ int test_deviceodo(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("05 - Starting Odometer test... ");
-	
+
 	oldDist = 0;
 	while (cycles) {
 		newDist = devOdo->distance(controlbox::device::DeviceOdometer::M);
@@ -1058,11 +1060,11 @@ int test_deviceodo(log4cpp::Category & logger) {
 		sleep(sleeptime);
 		cycles--;
 	}
-	
+
 // 	logger.info("05 - Shutting down the DeviceDS... ");
 // 	delete devDS;
 // 	logger.info("DONE!");
-	
+
 	logger.info("05 - Shutting down the DeviceOdo... ");
 	delete devOdo;
 	logger.info("DONE!");
@@ -1074,7 +1076,7 @@ int test_deviceodo(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -1107,7 +1109,7 @@ int test_deviceardu(log4cpp::Category & logger) {
 	logger.info("04 - Getting a GPS instace for Testing... ");
 	devGPS = df->getDeviceGPS();
 	logger.info("DONE!");
-	
+
 	logger.info("05 - Getting an ODO instace for Testing... ");
 	devODO = df->getDeviceODO();
 	logger.info("DONE!");
@@ -1125,9 +1127,9 @@ int test_deviceardu(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("07 - Starting Arduino test... ");
-	
+
 	logger.info("Getting  ");
-	
+
 	while (cycles) {
 		buff.str("");
 		buff << "Distance: " << devArdu->distance()
@@ -1138,11 +1140,11 @@ int test_deviceardu(log4cpp::Category & logger) {
 		     << ", Speed: " << devArdu->gpsSpeed()
 		     << ", Course: " << devArdu->course();
 		logger.info("=> %s", buff.str().c_str());
-		
+
 		sleep(sleeptime);
 		cycles--;
 	}
-	
+
 	logger.info("08 - Shutting down the DeviceArdu... ");
 	delete devArdu;
 	logger.info("DONE!");
@@ -1154,7 +1156,7 @@ int test_deviceardu(log4cpp::Category & logger) {
 	logger.info("10 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -1187,7 +1189,7 @@ int test_deviceatgps(log4cpp::Category & logger) {
 	logger.info("04 - Getting a GPS instace for Testing... ");
 	devGPS = df->getDeviceGPS();
 	logger.info("DONE!");
-	
+
 	logger.info("05 - Getting an ODO instace for Testing... ");
 	devODO = df->getDeviceODO();
 	logger.info("DONE!");
@@ -1205,7 +1207,7 @@ int test_deviceatgps(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("07 - Starting ATGPS test... ");
-	
+
 	while (cycles) {
 		buff.str("");
 		buff << "Distance: " << devATGPS->distance()
@@ -1216,11 +1218,11 @@ int test_deviceatgps(log4cpp::Category & logger) {
 		     << ", Speed: " << devATGPS->gpsSpeed()
 		     << ", Course: " << devATGPS->course();
 		logger.info("=> %s", buff.str().c_str());
-		
+
 		sleep(sleeptime);
 		cycles--;
 	}
-	
+
 	logger.info("08 - Shutting down the DeviceATGPS... ");
 	delete devATGPS;
 	logger.info("DONE!");
@@ -1232,7 +1234,7 @@ int test_deviceatgps(log4cpp::Category & logger) {
 	logger.info("10 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -1242,7 +1244,7 @@ int test_devicete(log4cpp::Category & logger) {
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::DeviceTE * devTE = 0;
-	
+
 	logger.info("01 - Initializing a FileWriterCommandHandler... ");
 	fw = new controlbox::device::FileWriterCommandHandler("./filewriter.log");
 	logger.info("DONE!");
@@ -1260,7 +1262,7 @@ int test_devicete(log4cpp::Category & logger) {
 	logger.info("04 - Starting TE device test [for %d seconds]", sleeptime);
 
 	sleep(sleeptime);
-	
+
 	logger.info("05 - Shutting down the DeviceTE... ");
 	delete devTE;
 	logger.info("DONE!");
@@ -1272,7 +1274,7 @@ int test_devicete(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
@@ -1304,7 +1306,7 @@ int test_atinterface(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("04 - Starting ControlAT Interface test [%ds]... ", sleeptime);
-	
+
 	sleep(sleeptime);
 
 	logger.info("05 - Shutting down the CommandAT... ");
@@ -1318,7 +1320,7 @@ int test_atinterface(log4cpp::Category & logger) {
 	logger.info("07 - Shutting down the FileWriterCommandHandler... ");
 	delete fw;
 	logger.info("DONE!");
-	
+
 	return 0;
 
 }
