@@ -18,6 +18,7 @@ SOURCES = DeviceFactory.h DeviceFactory.ih DeviceFactory.cpp
 SOURCES+= DeviceGPIO.h DeviceGPIO.ih DeviceGPIO.cpp
 SOURCES+= DeviceAnalogSensors.h DeviceAnalogSensors.ih DeviceAnalogSensors.cpp
 SOURCES+= DeviceDigitalSensors.h DeviceDigitalSensors.ih DeviceDigitalSensors.cpp
+SOURCES+= DeviceI2CBus.h DeviceI2CBus.ih DeviceI2CBus.cpp
 SOURCES+= DeviceSerial.h DeviceSerial.ih DeviceSerial.cpp
 # SOURCES+= DeviceOdometer.h DeviceOdometer.ih DeviceOdometer.cpp
 # SOURCES+= DeviceGPS.h DeviceGPS.ih DeviceGPS.cpp
