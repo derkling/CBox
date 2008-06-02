@@ -179,7 +179,7 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 		srvNumber++;
 
 		d_csoap.endpoint = (*srv).c_str();
-		LOG4CPP_DEBUG(log, "EP-DIST: selected DIST server [%d - %s]", srvNumber, d_csoap.endpoint);
+		LOG4CPP_INFO(log, "    [%d - %s]", srvNumber, d_csoap.endpoint);
 
 		wsresult = d_csoap.__ns3__uploadData ( &soapMsg, &wsResp );
 
@@ -362,8 +362,8 @@ DistEndPoint::logSOAPFault(struct soap * csoap) {
                       csoap->version ? (int)csoap->version : csoap->error,
                       c,
                       v ? v : "no subcode");
-        LOG4CPP_ERROR(log, "  Error:   [%s]", s ? s : "[no reason]");
-        LOG4CPP_ERROR(log, "  Details: [%s]", d && *d ? *d : "[no detail]");
+        LOG4CPP_ERROR(log, "  Error:    [%s]", s ? s : "[no reason]");
+        LOG4CPP_ERROR(log, "  Details:  [%s]", d && *d ? *d : "[no detail]");
     }
 }
 
