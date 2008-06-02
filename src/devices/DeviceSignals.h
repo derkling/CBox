@@ -60,7 +60,9 @@ public:
     	INT_COUNT	// This must be the last entry
     };
     typedef enum interrupt t_interrupt;
-    
+
+    typedef unsigned long t_intMask;
+
     enum interruptTrigger {
 	INTERRUPT_ON_LOW = 0,		///> Signal when the going low
 	INTERRUPT_ON_HIGH,		///> Signal when going high
@@ -71,18 +73,18 @@ public:
     struct handler {
 	ost::PosixThread * thread;			///> the thread to signal
 	int signo;					///> the signal to send
+	t_intMask line;					///> the interrupt line of interest
 	t_interruptTrigger level;			///> the triggering level
 	char name[DEVICESIGNALS_HANDLER_NAME_MAXLEN];	///> the name of this handler
     };
     typedef struct handler t_handler;
-    
+
     ///> Maps interrupts to handlers to be notified about.
     typedef multimap<t_interrupt, t_handler *> t_hMap;
-    
+
     typedef pair<t_interrupt, t_handler *> t_binding;
-    
-    typedef unsigned long t_intMask;
-    
+
+
     struct masks {
 	t_intMask loLines;	///> Low only triggered lines
 	t_intMask hiLines;	///> High only triggered lines
@@ -96,19 +98,22 @@ protected:
 
     /// The Configurator to use for getting configuration params
     Configurator & d_config;
-    
+
     /// The logger to use locally.
     log4cpp::Category & log;
-    
+
     /// The PortA device filepath.
     std::string d_devpath;
-    
+
     /// The PortA device file handler.
     int fd_dev;
-    
+
     /// Maps interrupt lines to handlers
     t_hMap handlers;
-    
+
+    /// The numner of pending ack by notified handlers
+    unsigned short d_pendingAck;
+
     /// Current enabled interrupt mask
     t_masks d_curMask;
 
@@ -117,9 +122,9 @@ public:
     /// Get an object instance.
     /// @param logName the log category
     static DeviceSignals * getInstance(std::string const & logName = "DeviceSignals");
-    
+
     ~DeviceSignals();
-    
+
     /// Register a signal handler.
     /// @param i the interrupt of interest
     /// @param t the thread id (TID) to notify
@@ -127,11 +132,16 @@ public:
     /// @param l trigger level
     /// @return OK on registration success
     exitCode registerHandler(t_interrupt i, ost::PosixThread * t, int s, const char *name = 0, t_interruptTrigger l = INTERRUPT_ON_BOTH);
-    
+
     /// Unsubscribe a signal handler.
     /// @param t the thread to deregister
     exitCode unregisterHandler(ost::PosixThread * t);
-    
+
+    /// Acknowledge a received signal.
+    /// This method should be called back by a notified handler once
+    /// it has resolved the interrupt cause, oterwise a signalling-storm may occurs
+    exitCode ackSignal(void);
+
 
 protected:
 
@@ -144,11 +154,11 @@ protected:
     /// @param logName the log category.
     /// @see getInstance
     DeviceSignals(std::string const & logName);
-    
+
     exitCode waitForIntr(t_intMask & levels);
-    
+
     /// Notify a thread with a signal.
-    exitCode notifySignal(t_handler & handler);
+    exitCode notifySignal(t_handler & handler, t_intMask & levels);
 
     /// Thread body.
     /// This method provide to configure the signal dispatcher and actually start it.
