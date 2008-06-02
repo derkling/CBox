@@ -36,27 +36,31 @@ DeviceATGPS * DeviceATGPS::d_instance = 0;
 
 // NOTE these values must match t_atgpsCmds enum definition
 char *DeviceATGPS::d_atgpsCmds[] = {
-	"+QER\0",
-	"+QCM\0",
-	"+QEC\0",
+	// 0
+	"+QER\0",	// reg_event_register
+	"+QCM\0",	// reg_continuous_mode
 	"\0",
-	"+OCP\0",
+	"+OCP\0",	// odo_count_pulses
 	"\0",
-	"+OFP\0",
+	// 5
+	"+OFP\0",	// odo_freq_pulses
 	"\0",
-	"+ASL\0",
-	"+AEB\0",
-	"+GLO\0",
-	"+GLA\0",
+	"+ASL\0",	// odo_speed_limit
+	"+AEB\0",	// odo_emergency_break
+	"+GLO\0",	// gps_lon
+	// 10
+	"+GLA\0",	// gps_lat
 	"\0",		// gps_utc
 	"\0",		// gps_val
-	"+GGS\0",
+	"+GGS\0",	// gps_speed
 	"+GTD\0",	// gps_dir
-	"+GFV\0",
+	// 15
+	"+GFV\0",	// gps_speed_value
 	"\0",		// gps_pdop
 	"\0",		// gps_hdop
 	"\0",		// gps_vdop
 	"\0",		// gps_date
+	// 20
 	"\0",		// gps_knots
 	"\0",		// gps_var
 };
@@ -128,28 +132,9 @@ DeviceATGPS::~DeviceATGPS() {
 	d_tty->closeSerial();
 	delete(d_tty);
 
-	LOG4CPP_INFO(log, "Stopping DeviceATGPS");
+	LOG4CPP_DEBUG(log, "Stopping DeviceATGPS");
 
 }
-
-// inline exitCode
-// DeviceATGPS::openDevice(void) {
-//
-// 	if (!d_tty->isOpen()) {
-// 		LOG4CPP_DEBUG(log, "Device already open");
-// 		return OK;
-// 	}
-//
-// 	// Opening TTY port
-// 	LOG4CPP_DEBUG(log, "Opening device...");
-// 	d_tty->openSerial(false);
-// 	if ( !d_tty->isOpen() ) {
-// 		LOG4CPP_FATAL(log, "Failed opening TTY port");
-// 		throw new exceptions::SerialDeviceException("Unable to open TTY port");
-// 	}
-//
-// 	return OK;
-// }
 
 inline exitCode
 DeviceATGPS::initDevice(void) {
@@ -163,18 +148,6 @@ DeviceATGPS::initDevice(void) {
 	result = d_tty->openSerial(false);
 	if (result)
 		return result;
-// 	if ( !d_tty->isOpen() ) {
-// 		LOG4CPP_FATAL(log, "Failed opening TTY port");
-// 		throw new exceptions::SerialDeviceException("Unable to open TTY port");
-// 	}
-
-	//FIXME we should use a flush method
-	// Reading all pending output...
-	//d_tty->readSerial(buf, len);
-
-// snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER,
-// 	"+QCM=0+OCP=%lu+ASL=%lu+AEB=%lu+QER");
-
 
 	// Disabling TTY detached mode to optimize port usage
 	d_tty->detachedMode(false);
@@ -183,7 +156,7 @@ DeviceATGPS::initDevice(void) {
 	setDeviceValue(REG_MONITOR, "0\0");
 
 	//TODO Disabling command echo
-	setDeviceValue(REG_ECHO, "0\0");
+// 	setDeviceValue(REG_ECHO, "0\0");
 
 	// Configuring initial distance
 	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu\0", d_initDistance*d_ppm);
@@ -199,15 +172,10 @@ DeviceATGPS::initDevice(void) {
 	// Enabling Odometer
 
 	// Resetting event register
-	if (getDeviceValue(REG_EVENT, events) != OK) {
-		LOG4CPP_ERROR(log, "Reading event register failed");
-		return ATGPS_PORT_READ_ERROR;
-	}
+	checkAlarms(false);
 
 	// Recovering TTY detached mode
 	d_tty->detachedMode();
-
-	LOG4CPP_DEBUG(log, "ATGPS event register [0x%X]", events);
 
 	return OK;
 
@@ -229,15 +197,6 @@ DeviceATGPS::lat() {
 
 	return lat;
 
-// 	deg = (long)floor(lat/100);
-// 	min = (lat-(deg*100))/60;
-//
-// #ifdef CONTROLBOX_DEBUG
-// 	snprintf(buf, 256, "NMEA: %g, deg: %ld, min: %f", lat, deg, min);
-// 	LOG4CPP_DEBUG(log, "%s", buf);
-// #endif
-//
-// 	return deg + min;
 }
 
 double
@@ -256,15 +215,6 @@ DeviceATGPS::lon() {
 
 	return lon;
 
-// 	deg = (long)floor(lon/100);
-// 	min = (lon-(deg*100))/60;
-//
-// #ifdef CONTROLBOX_DEBUG
-// 	snprintf(buf, 256, "NMEA: %g, deg: %ld, min: %f", lon, deg, min);
-// 	LOG4CPP_DEBUG(log, "%s", buf);
-// #endif
-//
-// 	return deg + min;
 }
 
 
@@ -405,7 +355,9 @@ DeviceATGPS::course(DeviceGPS::t_courseType type) {
 	unsigned long dir = 0;
 
 //TODO update DERKGPS firmware
-LOG4CPP_WARN(log, "GPS Direction: update derkgps firwmare");
+#warning "GPS Direction: update derkgps firwmare"
+LOG4CPP_DEBUG(log, "!!!!!!!!!GPS Direction: update derkgps firwmare!!!!!!!!!!");
+
 	return 0;
 
 	if (getDeviceValue(GPS_DIR, dir) != OK)
@@ -454,57 +406,23 @@ DeviceATGPS::getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len) {
 	return result;
 }
 
-// inline exitCode
-// DeviceATGPS::getDeviceRemoteValue(t_atgpsCmds idx, char * buf, int & len) {
-// 	exitCode result = OK;
-// 	DeviceSerial::t_stringVector resp;
-//
-// 	LOG4CPP_DEBUG(log, "SEND [%s]", d_atgpsCmds[idx]);
-// 	result = d_tty->sendSerial(d_atgpsCmds[idx], &resp);
-// 	if ( result != OK ) {
-// 		LOG4CPP_WARN(log, "TTY communication error");
-// 		buf[0] = 0; len = 0;
-// 		return result;
-// 	}
-//
-// #if 0
-// 	d_tty->sendSerial(d_atgpsCmds[idx], strlen(d_atgpsCmds[idx]));
-//
-// 	//NOTE if len==0: nothing readed or device not responding...
-// 	result = d_tty->readSerial(buf, len);
-// 	if ( result != OK ) {
-// 		LOG4CPP_WARN(log, "TTY communication error");
-// 		buf[0] = 0; len = 0;
-// 		return result;
-// 	}
-// #endif
-//
-// 	snprintf(buf, len, "%s\0", resp[0].c_str());
-//
-// // 	if ( strlen(resp[0].c_str()) < len )
-// // 		len = strlen(resp[0].c_str());
-// //
-// // 	if (len == 0) {
-// // 		buf[0] = 0;
-// // 	} else {
-// // 		snprintf(buf, len, "%s\0" resp[0].c_str());
-// // 	}
-// 	LOG4CPP_DEBUG(log, "READ [%s]", buf);
-//
-// 	return result;
-// }
 inline exitCode
 DeviceATGPS::getDeviceRemoteValue(t_atgpsCmds idx, char * buf, int & len) {
 	exitCode result = OK;
 	char cmd[8];
 
-
 	LOG4CPP_DEBUG(log, "===> [%s]", d_atgpsCmds[idx]);
+
+	LOG4CPP_DEBUG(log, "Entering mutex lock...");
+	d_lock.enterMutex ();
 
 	d_tty->detachedMode(false);
 	d_tty->sendSerial(d_atgpsCmds[idx], strlen(d_atgpsCmds[idx]));
 	d_tty->readSerial(buf, len);
 	d_tty->detachedMode();
+
+	LOG4CPP_DEBUG(log, "Releasing mutex lock");
+	d_lock.leaveMutex ();
 
 	LOG4CPP_DEBUG(log, "<=== [%s]", buf);
 
@@ -692,7 +610,12 @@ DeviceATGPS::checkAlarms(bool notify) {
 		return ATGPS_PORT_READ_ERROR;
 	}
 
-	LOG4CPP_DEBUG(log, "ATGPS event register [0x%04X]", reg);
+	if (reg==0x0) {
+		LOG4CPP_DEBUG(log, "No new events for this device");
+		return ATGPS_NO_NEW_EVENTS;
+	}
+
+	LOG4CPP_INFO(log, "Event register [0x%04X]", reg);
 
 	if (!notify) {
 		LOG4CPP_DEBUG(log, "Notification disabled");
@@ -713,6 +636,9 @@ DeviceATGPS::checkAlarms(bool notify) {
 void DeviceATGPS::run (void) {
 	pid_t tid;
 	int notifies = 0;
+	exitCode result;
+
+return;
 
 	tid = (long) syscall(SYS_gettid);
 	LOG4CPP_DEBUG(log, "working thread [%lu=>%lu] started", tid, pthread_self());
@@ -720,18 +646,16 @@ void DeviceATGPS::run (void) {
 	// Registering signal
 	//setSignal(SIGCONT,true);
 	sigInstall(SIGCONT);
-	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str());
-
-	checkAlarms(false);
+	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
 
 	while (true) {
-
 		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
 		waitSignal(SIGCONT);
 
 		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
-		checkAlarms();
-
+		do {
+			result = checkAlarms();
+		} while (result!=ATGPS_NO_NEW_EVENTS);
 	}
 }
 

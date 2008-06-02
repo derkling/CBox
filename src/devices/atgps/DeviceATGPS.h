@@ -43,7 +43,7 @@
 
 // #define ATGPS_DEFAULT_SYSFSBASE		"/sys/bus/i2c/devices"
 // #define ATGPS_DEFAULT_I2CADDR		"0-0050"
-// 
+//
 // /// The rounding factor for sysfs parameters
 // #define ATGPS_ROUND_FACTOR		10000
 /// The interrupt line for odometer alarms
@@ -56,7 +56,7 @@
 #define ATGPS_DEFAULT_EMERGENCY_BREAK	"8"
 /// Default initial distance [m/s]
 #define ATGPS_DEFAULT_INIT_DISTANCE	"0"
-// 
+//
 // #define ATGPS_SYSFS_ATTRIB_BUFSIZE	16
 // #define ATGPS_MAX_ID_LENGTH		15
 // #define ATGPS_MAX_DESC_LENGTH	63
@@ -89,27 +89,31 @@ protected:
 
     /// The command supported by the ATGPS device
     enum atgpsCmds {
+	//0
 	REG_EVENT = 0x00,	///> RW - ACK interrupts and read event register
 	REG_MONITOR,		///> RW - Read/Set the 'continuous monitoring' value (0=disabled)
-	REG_ECHO,		///> RW - Read/Set Echo Command mode
 	ODO_PPM,		///> RW - Pulse-per-meter [p/m]
 	ODO_PCOUNT,		///> RO - Pulses count since last reset
 	ODO_TOTM,		///> RW - Total distance [m]
+	// 5
 	ODO_FREQ,		///> RO - Current pulses frequency [Hz]
 	ODO_SPEED,		///> RO - Current speed [m/s]*M
 	ODO_SPEEDALARM,		///> RW - Minimum [m/s]*M speed that trigger an OVER-SPEED alarm
 	ODO_BREAKALARM,		///> RW - Minimum [m/s] decelleration that trigger a EMERGENCY-BREAK alarm
-	GPS_LAT,
 	GPS_LON,
+	// 10
+	GPS_LAT,
 	GPS_UTC,
 	GPS_VAL,
 	GPS_KMH,
 	GPS_DIR,
+	// 15
 	GPS_FIX,
 	GPS_PDOP,
 	GPS_HDOP,
 	GPS_VDOP,
 	GPS_DATE,
+	// 20
 	GPS_KNOTS,
 	GPS_VAR,
     };
@@ -156,6 +160,9 @@ protected:
 
     /// The TTY port used
     DeviceSerial * d_tty;
+
+    /// The lock for accessing query interface
+    ost::Mutex	d_lock;
 
     /// The sysfs path
 //     std::string d_sysfspath;
@@ -289,6 +296,8 @@ public:
     /// @param UTC set true to use UTC time zone designator (Z)
     string time(bool utc = false);
 
+    /// Check for alarms signals and eventually send a notify
+    exitCode checkAlarms(bool notify = true);
 
 protected:
 
@@ -304,9 +313,6 @@ protected:
     /// Tirgger a notification for the event specified.
     /// @param event the t_atgpsEvents to notify
     exitCode notifyEvent(unsigned short event);
-
-    /// Check for alarms signals and eventually send a notify
-    exitCode checkAlarms(bool notify = true);
 
     inline exitCode getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len);
 
