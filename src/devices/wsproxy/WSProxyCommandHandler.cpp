@@ -230,13 +230,16 @@ exitCode WSProxyCommandHandler::initCommandParser() {
 WSProxyCommandHandler::~WSProxyCommandHandler() {
     t_EndPoints::iterator it;
 
-    LOG4CPP_INFO(log, "Stopping WSProxyCommandHandler: no more Commands will by sent to the WS");
+    LOG4CPP_INFO(log, "Stopping WSProxyCommandHandler, no more Commands will by uploaded");
 
     // Safely terminate the upload thread...
     d_doExit = true;
     if ( isRunning() ) {
         resume();
     }
+
+    // Wait for upload thread to terminate
+    ::sleep(1);
 
     // Releasing EndPoints...
     it = d_endPoints.begin();
@@ -822,11 +825,12 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
     count++;
 
     // Pressure on "Sospensioni"
-    result = d_devAS->read("04_APRES", asValue);
+    result = d_devAS->read("P_SOFFIONI", asValue);
     if (result != OK) {
-    	LOG4CPP_DEBUG(log, "Analog sensor 04_APRES not defined");
+    	LOG4CPP_DEBUG(log, "Analog sensor P_SOFFIONI not defined");
     } else {
 	strId << "03";
+	asValue = ((asValue) > 0x270F ) ? 0x270f : asValue;
 	strData << setw(4) << setfill('0') << hex << (unsigned)asValue;
 	count++;
     }
@@ -838,7 +842,7 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
 
     // Odo velocity
     strId << "05";
-    strData << setw(2) << setfill('0') << hex << (unsigned)(d_devODO->odoSpeed());
+    strData << setw(2) << setfill('0') << hex << (unsigned)(d_devODO->odoSpeed()*3.6);
     count++;
 
     // Longitudinal inclination
