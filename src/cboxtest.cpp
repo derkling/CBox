@@ -1218,6 +1218,8 @@ int test_deviceatgps(log4cpp::Category & logger) {
 		     << ", Speed: " << devATGPS->gpsSpeed()
 		     << ", Course: " << devATGPS->course();
 		logger.info("=> %s", buff.str().c_str());
+		logger.info("Checking alarms...");
+		devATGPS->checkAlarms(false);
 
 		sleep(sleeptime);
 		cycles--;
