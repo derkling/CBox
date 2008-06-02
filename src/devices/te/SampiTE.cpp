@@ -97,7 +97,7 @@ SampiTE::checksum(const char * buf, unsigned len, char chksum[3], bool tx) {
 	}
 
 	// NOTE:  (value % 256) == (value & 0xFF)
-	sprintf(chksum, "%2X\0",  (sum & 0xFF));
+	sprintf(chksum, "%02x\0",  (sum & 0xFF));
 
 	// On trasmission we need to SWAP the two bytes
 	if (tx) {
@@ -184,7 +184,7 @@ inline DeviceTE::t_eventType
 SampiTE::getEventType(char * buf) {
 	char eventCode;
 
-	eventCode = buf[4];
+	eventCode = buf[8];
 
 	LOG4CPP_DEBUG(log, "Event type: [%c]", eventCode);
 
@@ -202,7 +202,7 @@ SampiTE::getEventType(char * buf) {
 	}
 
 }
-
+/*
 exitCode
 SampiTE::downloadEvents(t_eventList & eventList) {
 	unsigned len, index;
@@ -283,7 +283,7 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 		event->type = getEventType(buf);
 		buf[len-3] = 0; //Removing leading checksum and line terminator....
 
-//NOTE: we don't remove the leading address and event type because is used by the
+//NOTE: we don't remove the leading address, record number and event type because is used by the
 //	RAW event formatter
 // 		event->event = std::string(buf+4);
 		event->event = std::string(buf);
@@ -299,6 +299,88 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 
 		LOG4CPP_DEBUG(log, "%d more event/s to download", remRecords-index);
 	}
+
+	return OK;
+
+}
+*/
+
+exitCode
+SampiTE::downloadEvents(t_eventList & eventList) {
+	unsigned len, index;
+	short retry = DEVICE_TE_SAMPI_RX_RETRY+1;
+	char buf[DEVICE_TE_SAMPI_RX_BUFFER];
+	SampiTE::t_teResps resp;
+	unsigned device;
+	unsigned downloadedRecords = 0;
+	t_event * event;
+	bool readOk = false;
+	EVENT_CODE(evtLable);
+
+	// Sending download command #54
+	LOG4CPP_DEBUG(log, "Send command 54");
+	write(C54_STX);
+
+	do {
+		// Reading next message
+		len = read(buf, DEVICE_TE_SAMPI_RX_BUFFER);
+		retry = DEVICE_TE_SAMPI_RX_RETRY;
+		while ( !len && --retry) {
+			LOG4CPP_DEBUG(log, "Retrying download...");
+			len = read(buf, DEVICE_TE_SAMPI_RX_BUFFER);
+		};
+		if (!len) {
+			LOG4CPP_WARN(log, "Device not responding: download ABORTED");
+			return TE_RESTART_DOWNLOAD;
+		}
+
+		// Verifying message checksum
+		if ( !verifyChecksum(buf, len-1) ) {
+			LOG4CPP_WARN(log, "Checksum error on downloading message [%d]", downloadedRecords+1);
+			//TODO Aborting download to restart from this record
+			return TE_RESTART_DOWNLOAD;
+		}
+
+		// NOTE: if this is not an ACK we should really come back and FIX THE CODE
+		resp = checkResponce(buf);
+		if ( resp > NAK_NO_NEW_EVENT ) {
+			LOG4CPP_FATAL(log, "Communication error: %s", verboseNak(resp).c_str());
+			return TE_NAK_RECEIVED;
+		}
+
+		if ( resp == NAK_NO_NEW_EVENT ) {
+			LOG4CPP_DEBUG(log, "No new events to download from SAMPI device/s");
+			if (downloadedRecords) {
+				LOG4CPP_DEBUG(log, "Notify events to be uploaded");
+				return OK;
+			} else {
+				LOG4CPP_DEBUG(log, "No new events to be uploaded");
+				return TE_NO_NEW_EVENTS;
+			}
+		}
+
+		// Queue event (removing all un-necessary fields)
+		event = new t_event();
+		event->type = getEventType(buf);
+		buf[len-3] = 0; //Removing leading checksum and line terminator....
+
+	//NOTE: we don't remove the leading address, record number and event type because is used by the
+	//	RAW event formatter
+	// 	event->event = std::string(buf+4);
+		event->event = std::string(buf);
+		LOG4CPP_DEBUG(log, "EVT [%c], [%s]",
+				evtLable[event->type],
+				(event->event).c_str());
+
+		eventList.push_back(event);
+		downloadedRecords++;
+
+		// Sending ACK
+		write(C54_ACK);
+
+	} while (true);
+
+	LOG4CPP_DEBUG(log, "%d more event/s to download", downloadedRecords);
 
 	return OK;
 
@@ -322,27 +404,27 @@ SampiTE::formatEvent(t_event const & event, comsys::Command & cmd) {
 //	this is used by the default (RAW) formatter, others formatter should ignore
 //	the first 4 bytes...
 
-	LOG4CPP_DEBUG(log, "===>   TE event %c [%s]",
+	LOG4CPP_DEBUG(log, "===>   TE event to format %c [%s]",
 				evtLable[event.type],
 				event.event.c_str());
 
-	switch ( event.type ) {
-		case DeviceTE::POWERUP:
-			result = formatEvent_PowerUp(event.event.c_str()+4, cmd);
-			break;
-		case DeviceTE::SHUTDOWN:
-			result = formatEvent_Shutdown(event.event.c_str()+4, cmd);
-			break;
-		case DeviceTE::LOAD:
-			result = formatEvent_Load(event.event.c_str()+4, cmd);
-			break;
-		case DeviceTE::DOWNLOAD:
-			result = formatEvent_Download(event.event.c_str()+4, cmd);
-			break;
-		default:
+// 	switch ( event.type ) {
+// 		case DeviceTE::POWERUP:
+// 			result = formatEvent_PowerUp(event.event.c_str(), cmd);
+// 			break;
+// 		case DeviceTE::SHUTDOWN:
+// 			result = formatEvent_Shutdown(event.event.c_str(), cmd);
+// 			break;
+// 		case DeviceTE::LOAD:
+// 			result = formatEvent_Load(event.event.c_str(), cmd);
+// 			break;
+// 		case DeviceTE::DOWNLOAD:
+// 			result = formatEvent_Download(event.event.c_str(), cmd);
+// 			break;
+// 		default:
 			result = formatEvent_Raw(event.event.c_str(), cmd);
 			return TE_EVENT_NOT_PARSED;
-	}
+// 	}
 
 	return result;
 
@@ -355,10 +437,10 @@ SampiTE::formatEvent_Raw(const char * evt, comsys::Command & cmd) {
 	std::ostringstream sbuf("");
 
 	sbuf.str("");
-	sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)0x29;
+	sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)0x14;
 	cmd.setParam( "dist_evtType", sbuf.str());
 // 	cmd.setParam("dist_evtType", 0x29);
-	cmd.setParam("dist_evtData", evt+4);
+	cmd.setParam("dist_evtData", evt+1);
 	LOG4CPP_DEBUG(log, "RAW SampiTE_500, DIST-CODE [%s], DATA [%s]",
 				sbuf.str().c_str(),
 				evt+4);
@@ -376,8 +458,8 @@ SampiTE::formatEvent_PowerUp(const char * evt, comsys::Command & cmd) {
 	char buf[] = "0200XXXXXXXX02YYYYYYYY\0";
 	std::ostringstream sbuf("");
 
-	memcpy(buf+4, evt+15, 8);
-	memcpy(buf+14, evt+23, 8);
+	memcpy(buf+4, evt+8+15, 8);
+	memcpy(buf+14, evt+8+23, 8);
 
 	sbuf.str("");
 	sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)0x02;
@@ -424,8 +506,8 @@ SampiTE::formatEvent_Shutdown(const char * evt, comsys::Command & cmd) {
 	char buf[] = "0200XXXXXXXX02YYYYYYYY\0";
 	std::ostringstream sbuf("");
 
-	memcpy(buf+4, evt+15, 8);
-	memcpy(buf+14, evt+23, 8);
+	memcpy(buf+4, evt+8+15, 8);
+	memcpy(buf+14, evt+8+23, 8);
 
 	sbuf.str("");
 	sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)0x05;
@@ -455,14 +537,14 @@ SampiTE::formatEvent_Load(const char * evt, comsys::Command & cmd) {
 	char buf[] = "KKKKNN1CCQQQQTTTT2CCQQQQTTTT3CCQQQQTTTT4CCQQQQTTTT5CCQQQQTTTT6CCQQQQTTTT7CCQQQQTTTT8CCQQQQTTTT9CCQQQQTTTT\0";
 	std::ostringstream sbuf("");
 
-	memcpy(buf, evt+19, 4);
-	memcpy(buf+4, evt+23, 2);
+	memcpy(buf, evt+8+19, 4);
+	memcpy(buf+4, evt+8+23, 2);
 	sscanf(buf+4, "%2d", &num);
 	LOG4CPP_DEBUG(log, "Parsing [%d] compartment", num);
 	for (i=0; i<num; i++) {
-		memcpy(buf+7+(i*11), evt+33+(i*14), 2);
-		memcpy(buf+9+(i*11), evt+29+(i*14), 4);
-		memcpy(buf+13+(i*11), evt+35+(i*14), 4);
+		memcpy(buf+7+(i*11), evt+8+33+(i*14), 2);
+		memcpy(buf+9+(i*11), evt+8+29+(i*14), 4);
+		memcpy(buf+13+(i*11), evt+8+35+(i*14), 4);
 	}
 	buf[6+(i*11)] = 0;
 
@@ -516,26 +598,26 @@ SampiTE::formatEvent_Download(const char * evt, comsys::Command & cmd) {
 	unsigned int mask, pos;
 	unsigned char num, tmp;
 
-	memcpy(cbuf, evt+19, 4);
-	memcpy(cbuf+4, evt+23, 4);
-	memcpy(cbuf+8, evt+161, 2);
-	memcpy(cbuf+10, evt+75, 4);
-	memcpy(cbuf+14, evt+83, 4);
-	memcpy(cbuf+18, evt+63, 8);
+	memcpy(cbuf, evt+8+19, 4);
+	memcpy(cbuf+4, evt+8+23, 4);
+	memcpy(cbuf+8, evt+8+161, 2);
+	memcpy(cbuf+10, evt+8+75, 4);
+	memcpy(cbuf+14, evt+8+83, 4);
+	memcpy(cbuf+18, evt+8+63, 8);
 
-	memcpy(cbuf+26, evt+48, 1);
-	memcpy(cbuf+27, evt+50, 1);
-	memcpy(cbuf+28, evt+52, 1);
-	memcpy(cbuf+29, evt+54, 1);
+	memcpy(cbuf+26, evt+8+48, 1);
+	memcpy(cbuf+27, evt+8+50, 1);
+	memcpy(cbuf+28, evt+8+52, 1);
+	memcpy(cbuf+29, evt+8+54, 1);
 
-	sscanf(evt+123, "%2d", &mask);
+	sscanf(evt+8+123, "%2d", &mask);
 	LOG4CPP_DEBUG(log, "Parsing product mask [0x%02X]", mask);
 	for (num=0, pos=0x1, i=0; i<16; i++) {
 		LOG4CPP_DEBUG(log, "num [%d], mask [0x%02X], pos [0x%02X], mask&pos [0x%02X]", num, mask, pos, mask&pos);
 		if (mask & pos) {
 			sprintf(cbuf+32+(num*9), "%1u", (num+1) & 0xF );
-			memcpy(cbuf+33+(num*9), evt+123+(num*4), 4);
-			memcpy(cbuf+37+(num*9), evt+87+(num*4), 4);
+			memcpy(cbuf+33+(num*9), evt+8+123+(num*4), 4);
+			memcpy(cbuf+37+(num*9), evt+8+87+(num*4), 4);
 			num++;
 		}
 		pos <<= 1;

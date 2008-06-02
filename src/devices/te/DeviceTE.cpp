@@ -188,7 +188,7 @@ exitCode DeviceTE::notifyEvents(void) {
 
 			// Checking if a "timestamp" has been defined, otherwise we add a local timestamp
 			if ( !cSgd->hasParam("timestamp") ) {
-				LOG4CPP_WARN(log, "No timestamp parsed from TE event");
+				LOG4CPP_DEBUG(log, "No timestamp parsed from TE event");
 				// TODO: Should we set also a timestamp?
 				cSgd->setParam( "timestamp", d_time->time() );
 			}
