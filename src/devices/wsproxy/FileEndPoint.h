@@ -73,6 +73,9 @@ protected:
     /// The dump Layout: define the layout of each command line
     log4cpp::PatternLayout * d_fepLayout;
 
+    /// The log filename
+    std::string d_filename;
+
 //     log4cpp::Category * file;
 
 public:

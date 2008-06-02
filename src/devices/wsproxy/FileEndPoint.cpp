@@ -37,7 +37,6 @@ FileEndPoint::FileEndPoint(std::string const & paramBase, std::string const & lo
         d_fepCategory(0) {
 	std::ostringstream lable("");
 	std::string layout;
-	std::string filename;
 	bool append;
 
 
@@ -50,7 +49,7 @@ FileEndPoint::FileEndPoint(std::string const & paramBase, std::string const & lo
 
 	lable.str("");
 	lable << paramBase.c_str() << "_filename";
-	filename = d_configurator.param(lable.str().c_str(), DEFAULT_FILEENDPOINT_FILENAME);
+	d_filename = d_configurator.param(lable.str().c_str(), DEFAULT_FILEENDPOINT_FILENAME);
 
 	lable.str("");
 	lable << paramBase.c_str() << "_append";
@@ -65,7 +64,7 @@ FileEndPoint::FileEndPoint(std::string const & paramBase, std::string const & lo
 	}
 
 	// Opening the file for Commands dumped
-	d_fepAppender = new log4cpp::FileAppender ("FileWriterXMLDumper", filename, append);
+	d_fepAppender = new log4cpp::FileAppender ("FileWriterXMLDumper", d_filename, append);
 	d_fepAppender->setLayout (d_fepLayout);
 
 	// Initializing a new Category for the FileWriter
@@ -84,7 +83,7 @@ FileEndPoint::FileEndPoint(std::string const & paramBase, std::string const & lo
 
 FileEndPoint::~FileEndPoint() {
 
-    LOG4CPP_INFO(log, "Stopping FileEndPoint: no more messages will by dumped");
+    LOG4CPP_DEBUG(log, "Stopping FileEndPoint: no more messages will by dumped");
     // Closing the logfile
     d_fepAppender->close();
 
@@ -100,7 +99,7 @@ exitCode FileEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 		LOG4CPP_INFO((*d_fepCategory), "%s", msg.c_str());
 	}
 
-	LOG4CPP_DEBUG(log, "Data dump on journal SUCCESS");
+	LOG4CPP_INFO(log, "    [0 - %s]", d_filename.c_str());
 
 	// Resetting this File EndPoint queue
 	epEnabledQueues ^= d_epQueueMask;
