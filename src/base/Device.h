@@ -55,6 +55,7 @@ public:
         CH_FILEWRITER,
         WSPROXY,
         DEVICE_SINGALS,
+        DEVICE_I2CBUS,
         DEVICE_TIME,
         DEVICE_TE,
         DEVICE_GPRS,
