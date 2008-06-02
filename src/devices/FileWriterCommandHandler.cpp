@@ -57,6 +57,8 @@ FileWriterCommandHandler::FileWriterCommandHandler(const std::string & fileName,
     d_fwcategory = &log.getInstance("FileWriterXMLDumper");
     try {
         d_fwcategory->setPriority (log4cpp::Priority::INFO);
+        // Avoiding msg duplication on root category
+	d_fwcategory->setAdditivity(false);
     } catch (std::invalid_argument) {
         LOG4CPP_ERROR(log, "Invalid priority level");
     }
