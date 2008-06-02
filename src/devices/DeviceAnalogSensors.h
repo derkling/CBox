@@ -34,6 +34,7 @@
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
 #include <controlbox/devices/DeviceTime.h>
+#include <controlbox/devices/DeviceI2CBus.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
 
 #define AS_DEFAULT_DEVICE	"/dev/i2c"
@@ -63,7 +64,7 @@ typedef struct _I2C_DATA {
     unsigned int length;
     unsigned char slave;
     unsigned char reg;
-    unsigned char data[512];
+    unsigned char data[8];
 } I2C_DATA;
 #endif
 
@@ -135,7 +136,7 @@ public:
         t_sysfsAnalogSensor	sysfsAddress;	///> Addressing for sysfs access
     };
     typedef union asAddress t_asAddress;
-    
+
     enum asAlarmState {
     	NO_ALARM = 0,
     	LOW_ALARM,
@@ -210,6 +211,9 @@ protected:
 
     /// The Time Device to use
     DeviceTime * d_time;
+
+    /// The I2CBus adapter to use to query the device
+    DeviceI2CBus * d_i2cBus;
 
     /// The sysfs base configuration path
     std::string d_sysfsbase;

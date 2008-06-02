@@ -35,13 +35,13 @@ namespace device {
 DeviceAnalogSensors * DeviceAnalogSensors::d_instance = 0;
 
 DeviceAnalogSensors * DeviceAnalogSensors::getInstance(std::string const & logName) {
-	
+
 	if ( !d_instance ) {
 		d_instance = new DeviceAnalogSensors(logName);
 	}
-	
+
 	LOG4CPP_DEBUG(d_instance->log, "DeviceFactory::getInstance()");
-	
+
 	return d_instance;
 }
 
@@ -52,43 +52,44 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 	loadI2C(false),
 	alarmEnables(false),
 	log(Device::log) {
-	
+
 	short sensor;
 	std::ostringstream asCfgLable("");
 	std::string asCfg;
 	t_analogSensor * curSensor;
-	
+
 	DeviceFactory * df = DeviceFactory::getInstance();
 
 	LOG4CPP_DEBUG(log, "DeviceAnalogSensors(const std::string &, bool)");
-	
+
 	// Registering device into the DeviceDB
 	dbReg();
-	
+
 	d_time = df->getDeviceTime();
-	
+	d_i2cBus = df->getDeviceI2CBus();
+
 	loadSensorConfiguration();
 	LOG4CPP_INFO(log, "Successfully loaded %d analog sensors configurations", count());
-	
+
 	// Initialize sensors samples by reading inputs
 	d_sysfsbase = d_config.param("DigitalSensor_sysfsbase", AS_DEFAULT_SYSFSBASE);
-	LOG4CPP_INFO(log, "Using sysfsbase [%s]", d_sysfsbase.c_str());	
-	
-	
+	LOG4CPP_INFO(log, "Using sysfsbase [%s]", d_sysfsbase.c_str());
+
+
 #if 0
-	
+
 	initSensors();
-	
+
 	//Moved to loadSensorConfiguration
 	// Load Sensor Configuration
 	sensor = AS_FIRST_ID;
 	asCfgLable << "AnalogSensor_" << sensor;
 	asCfg = d_config.param(asCfgLable.str(), "");
-	
+
 	while ( asCfg.size() ) {
-		
+
 		curSensor = parseCfgString(asCfg);
-		
+
 		if ( curSensor ) {
 			// TODO: show the loaded sensor configuration
 			analogSensors[string(curSensor->id)] = curSensor;
@@ -96,13 +97,13 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 		} else {
 			LOG4CPP_WARN(log, "Error on loading an Analog Sensor configuration");
 		}
-		
+
 		// Looking for next sensor definition
 		sensor++; asCfgLable.str("");
 		asCfgLable << "AnalogSensor_" << sensor;
 		asCfg = d_config.param(asCfgLable.str(), "");
 	};
-	
+
 	LOG4CPP_INFO(log, "Successfully loaded %d analog sensors configurations", analogSensors.size());
 
 #endif
@@ -114,23 +115,23 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 
 DeviceAnalogSensors::~DeviceAnalogSensors() {
 	t_asMap::iterator aSensor;
-	
+
 	LOG4CPP_INFO(log, "Stopping DeviceAnalogSensors");
-	
+
 	// Destroing analog sensors map
 	aSensor = analogSensors.begin();
 	while ( aSensor != analogSensors.end()) {
 		delete aSensor->second;
 		aSensor++;
 	}
-	
+
 	analogSensors.clear();
 
 	// Closing I2C device
 	if ( fdI2C ) {
 //		std::close(fdI2C);
 	}
-	
+
 }
 
 
@@ -148,7 +149,7 @@ DeviceAnalogSensors::loadI2Cbus () {
 		fdI2C = 0;
 		return AS_I2C_OPEN_FAILED;
 	}
-	
+
 	return OK;
 
 }
@@ -179,13 +180,13 @@ exitCode DeviceAnalogSensors::confADconv() {
 	it = analogSensors.begin();
 	while ( it != analogSensors.end() ) {
 		curSensor = it->second;
-		
+
 		if ( curSensor->proto == DeviceAnalogSensors::AS_PROTO_I2C ) {
 			// NOTE: to optimize here: now we reprogram each chip multiple
 			// 	time (one for each channel)
-			
+
 		}
-		
+
 	}
 
 }
@@ -203,9 +204,9 @@ DeviceAnalogSensors::loadSensorConfiguration(void) {
 	sensor = AS_FIRST_ID;
 	dsCfgLable << AS_CONF_BASE << sensor;
 	dsCfg = d_config.param(dsCfgLable.str(), "");
-	
+
 	while ( dsCfg.size() ) {
-		
+
 		curSensor = parseCfgString(dsCfg);
 		if ( curSensor ) {
 			analogSensors[string(curSensor->id)] = curSensor;
@@ -213,13 +214,13 @@ DeviceAnalogSensors::loadSensorConfiguration(void) {
 		} else {
 			LOG4CPP_WARN(log, "Error on loading an Analog Sensor configuration");
 		}
-		
+
 		// Looking for next sensor definition
 		sensor++; dsCfgLable.str("");
 		dsCfgLable << AS_CONF_BASE << sensor;
 		dsCfg = d_config.param(dsCfgLable.str(), "");
 	};
-	
+
 	return OK;
 
 }
@@ -233,22 +234,22 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 	char param[2];
 	char description[AS_DESC_START+1];
 	char * descStart;
-	
+
 	LOG4CPP_DEBUG(log, "parseCfgString(asCfg=%s)", asCfg.c_str());
-	
+
 	pAs = new t_analogSensor();
-	
+
 	// TODO: Error handling on pattern matching...
-	
+
 	// Input configuration string template:
 	// - for i2c protocol:
 	// id proto address reg minSample maxSample minValue maxValue unit enabled downLimit upperLimit alarmEnabled description
 	cfgTemplate << "%" << AS_MAX_ID_LENGTH << "s %u";
 	DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 	sscanf(asCfg.c_str(), cfgTemplate.str().c_str(), pAs->id, &pAs->proto);
-	
+
 	DLOG4CPP_DEBUG(log, "Id: [%s] Proto: [%d]", pAs->id, pAs->proto);
-#if 0	
+#if 0
 // 	// Getting sensor id from lable
 // 	it = sensorLable.find(std::string(strId));
 // 	if (it == sensorLable.end() ) {
@@ -258,7 +259,7 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 // 		pAs->id = it->second;
 // 	}
 #endif
-	
+
 	switch ( pAs->proto ) {
 		case AS_PROTO_I2C:
 			// Reformatting parsing template by:
@@ -268,15 +269,17 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 			// - select Protocol-Specifics substrings...
 			cfgTemplate << " %i %i";
 			//LOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
-			sscanf(asCfg.c_str(), cfgTemplate.str().c_str(), &pAs->address.i2cAddress.chipAddress, &pAs->address.i2cAddress.reg);
-			
+			sscanf(asCfg.c_str(), cfgTemplate.str().c_str(),
+				&pAs->address.i2cAddress.chipAddress,
+				&pAs->address.i2cAddress.reg);
+
 			//LOG4CPP_DEBUG(log, "Chip: [%d] Reg: [%d]", pAs->address.i2cAddress.chipAddress, pAs->address.i2cAddress.reg);
-			
+
 			// Reformatting parsing string to throw away parsed substrings
 			cfgTemplate.str("");
 			cfgTemplate << "%*" << AS_MAX_ID_LENGTH << "s %*u %*i %*i";
 		break;
-		
+
 		case AS_PROTO_SYSFS:
 			// Reformatting parsing template by
 			cfgTemplate.str("");
@@ -289,30 +292,30 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 				&pAs->address.sysfsAddress.bus,
 				&pAs->address.sysfsAddress.address,
 				&pAs->address.sysfsAddress.channel);
-			
+
 			DLOG4CPP_DEBUG(log, "Bus: [0x%X] Address: [0x%X]"
 				" Port: [%d] Bit: [%d]",
 				pAs->address.sysfsAddress.bus,
 				pAs->address.sysfsAddress.address,
 				pAs->address.sysfsAddress.channel);
-				
+
 			// Build channel filename
 			sprintf(pAs->sysfsPath, "%1d-%04x/in%1d_input",
 				pAs->address.sysfsAddress.bus,
 				pAs->address.sysfsAddress.address,
 				pAs->address.sysfsAddress.channel);
-			
+
 			// Reformatting parsing string to throw away parsed substrings
 			cfgTemplate.str("");
 			cfgTemplate << "%*" << AS_MAX_ID_LENGTH << "s %*u %*i %*i %*d";
 		break;
-		
+
 		default:
 			LOG4CPP_WARN(log, "Unsupported Protocol Type for Analog Sensor [%s]", pAs->id);
 			return 0;
-		
+
 	}
-	
+
 	// Parsing the remaining Protocol-Independant" params...
 	cfgTemplate << " %d %d %f %f %" << AS_MAX_UNIT_LENGTH << "s %d %f %f %" << AS_MAX_VALUE_LENGTH << "s %" << AS_MAX_VALUE_LENGTH << "s %i %c %u %" << AS_DESC_START << "s";
 	DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
@@ -324,9 +327,9 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 			pAs->lvalue, pAs->hvalue,
 			&pAs->event, &param,
 			&pAs->alarmPollTime, description);
-	
+
 	pAs->enabled = enabled ? true : false;
-	
+
 	errno = 0;
 	if (param[0] == '-') {
 		pAs->hasParam = false;
@@ -341,23 +344,23 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 			pAs->param = 0;
 		}
 	}
-	
+
 	pAs->downLimit = valueToSample(pAs, downLimit);
 	pAs->upperLimit = valueToSample(pAs, upperLimit);
-	
+
 	// Retriving complete description (by jumping initial ID string)
 	description[AS_DESC_START+1] = 0;
 	descStart = strstr(asCfg.c_str()+strlen(pAs->id), description);
 	if ( descStart ) {
 		strncpy(pAs->description, descStart, AS_MAX_DESC_LENGTH);
 	}
-	
+
 	if ( validateParams(pAs) ) {
 		return pAs;
 	} else {
 		return 0;
 	}
-	
+
 }
 
 inline bool
@@ -370,28 +373,28 @@ DeviceAnalogSensors::validateParams(DeviceAnalogSensors::t_analogSensor * pAs) {
 		LOG4CPP_ERROR(log, "Sensor definitions must have unique ID");
 		return false;
 	}
-	
+
 	// sampleRange MUST be NON zero!!!
 	// Checking Polltime limit
 	if (pAs->alarmPollTime && (pAs->alarmPollTime < AS_MIN_POLL_TIME)) {
 		LOG4CPP_WARN(log, "Poll time for sensor [%s] could not be less then %ums! Resetting poll time to this value", pAs->id, AS_MIN_POLL_TIME);
 		pAs->alarmPollTime = AS_MIN_POLL_TIME;
 	}
-	
+
 	// Initialize lastSample
 	pAs->lastSample = pAs->minSample;
-	
+
 	if ( !loadI2C && (pAs->proto == AS_PROTO_I2C) ) {
 		loadI2C = true;
 	}
-	
+
 	return true;
 }
 
 inline void
 DeviceAnalogSensors::logSensorParams(DeviceAnalogSensors::t_analogSensor * pAs) {
 	std::ostringstream params("");
-	
+
 	LOG4CPP_INFO(log, "ID: %-*s - %s", AS_MAX_ID_LENGTH, pAs->id, pAs->description);
 	LOG4CPP_INFO(log, "\tMin Sample:   %5d\t\tMax Sample:   %5d", pAs->minSample, pAs->maxSample);
 
@@ -461,17 +464,17 @@ DeviceAnalogSensors::refresSensors() {
 exitCode
 DeviceAnalogSensors::read(std::string asId, float & value, bool update) {
 	DeviceAnalogSensors::t_analogSensor * pAs;
-	
+
 	pAs = findById(asId);
 	if ( !pAs ) {
 		LOG4CPP_WARN(log, "Checking an undefined sensor [%s]", asId.c_str());
 		return AS_UNDEFINED_SENSOR;
 	}
-	
+
 	if (update) {
 		updateSensor(pAs);
 	}
-	
+
 	value = sampleToValue(pAs);
 	return OK;
 }
@@ -492,17 +495,17 @@ DeviceAnalogSensors::updateSensor(DeviceAnalogSensors::t_analogSensor * pAs) {
 			LOG4CPP_ERROR(log, "Unsupported Protocol Type for Analog Sensor [%s]", pAs->id);
 			return 0;
 	}
-	
+
 	if ( result != OK ) {
 		//FIXME do a better error handling
 		LOG4CPP_ERROR(log, "Error on sensor sampling");
 	}
-	
+
 #else
 	// On NON-CRIS architectures we simulate a read that return a prefedined value
 	pAs->lastSample =  (unsigned)round((pAs->maxSample-pAs->minSample)/2);
 #endif
-	
+
 	return pAs->lastSample;
 
 }
@@ -514,32 +517,34 @@ DeviceAnalogSensors::readI2C(DeviceAnalogSensors::t_analogSensor * pAs, t_channe
 	i2cdata.length = 1;
 	i2cdata.slave = pAs->address.i2cAddress.chipAddress;
 	i2cdata.reg = pAs->address.i2cAddress.reg;
-	
+
 	LOG4CPP_DEBUG(log, "readI2C(pAs=%s, slave=%d, reg=%d)", pAs->id, i2cdata.slave, i2cdata.reg);
-	
+
 	//NOTE: this code will be called only if compiled for the target CRIS platform
 #ifdef CONTROLBOX_CRIS
 	// Performing IOCTL on CRIS architecture
 	ioctl(fdI2C, _IO(ETRAXI2C_IOCTYPE, I2C_READREG_N), &i2cdata);
-	value = i2cdata.data[0];
+	value = (i2cdata.data[0])/10;
 #endif
-	
+
 	return OK;
 }
 
+
 inline exitCode
 DeviceAnalogSensors::readSysfs(DeviceAnalogSensors::t_analogSensor * pAs, t_channelValue & value) {
+#if 0
 	std::ostringstream path("");
 	int fd;
 	char svalue[4];
-	
+
 	path << d_sysfsbase << "/" << pAs->sysfsPath;
 	fd = ::open(path.str().c_str(), O_RDONLY);
 	if (fd == -1) {
 		LOG4CPP_ERROR(log, "Failed to open attrib [%s]", path.str().c_str());
 		return DS_PORT_READ_ERROR;
 	}
-	
+
 	::read(fd, svalue, 3);
 	errno = 0;
 	//NOTE the driver return an appended 0!!!
@@ -550,9 +555,27 @@ DeviceAnalogSensors::readSysfs(DeviceAnalogSensors::t_analogSensor * pAs, t_chan
 		::close(fd);
 		return DS_VALUE_CONVERSION_FAILED;
 	}
-	
+
 	::close(fd);
-	
+#endif
+
+	exitCode result;
+	int addr = pAs->address.sysfsAddress.address;
+	DeviceI2CBus::t_i2cCommand regs[2] = {
+		pAs->address.sysfsAddress.channel,
+		pAs->address.sysfsAddress.channel};
+	DeviceI2CBus::t_i2cReg val[2];
+	short len = 2;
+
+	result = d_i2cBus->read(addr, regs, len, val, len);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "Update sensors failed!");
+		return result;
+	}
+	value = val[1];
+
+	LOG4CPP_DEBUG(log, "Readed value: %02X", value);
+
 	return OK;
 }
 
@@ -562,11 +585,11 @@ DeviceAnalogSensors::sampleToValue(DeviceAnalogSensors::t_analogSensor * pAs, in
 	float valueRange;
 	unsigned sampleRange;
 	unsigned curSampleRange;
-	
+
 	valueRange = pAs->maxValue - pAs->minValue;
 	sampleRange = pAs->maxSample - pAs->minSample;
 	curSampleRange = sample - pAs->minSample;
-	
+
 	return ((valueRange*curSampleRange)/sampleRange)+pAs->minValue;
 }
 
@@ -576,7 +599,7 @@ DeviceAnalogSensors::valueToSample(DeviceAnalogSensors::t_analogSensor * pAs, fl
 	float valueRange;
 	unsigned sampleRange;
 	float curValueRange;
-	
+
 	valueRange = pAs->maxValue - pAs->minValue;
 	sampleRange = pAs->maxSample - pAs->minSample;
 	curValueRange = value - pAs->minValue;
@@ -634,7 +657,7 @@ DeviceAnalogSensors::checkSafety(std::string asId) {
 	if ( pAs ) {
 		return checkSafety(pAs);
 	}
-	
+
 	LOG4CPP_WARN(log, "Checking an undefined sensor [%s]", asId.c_str());
 	return true;
 
@@ -645,13 +668,13 @@ DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool
 	unsigned lastSample;
 	bool alarm = false;
 	bool sendNotify = false;
-	
+
 	LOG4CPP_DEBUG(log, "DeviceAnalogSensors::checkSafety(pAs=%p, notify=%s)", pAs, notify ? "YES" : "NO");
-	
+
 	lastSample = updateSensor(pAs);
-	
+
 	alarm = (lastSample < pAs->downLimit) || (lastSample > pAs->upperLimit);
-	
+
 	if ( alarm ) {
 		if ( (lastSample < pAs->downLimit) && (pAs->alarmState != LOW_ALARM) ) {
 			pAs->alarmState = LOW_ALARM;
@@ -666,14 +689,14 @@ DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool
 			sendNotify = true;
 		}
 	}
-	
+
 	if ( notify && sendNotify ) {
 		notifyAlarm(pAs);
 		return alarm;
 	}
-	
+
 	return alarm;
-	
+
 }
 
 void
@@ -683,17 +706,17 @@ DeviceAnalogSensors::notifyAlarm(DeviceAnalogSensors::t_analogSensor * pAs) {
 	alarmStr << "Sensor [" << pAs->id << " = " << sampleToValue(pAs) << "] ";
 	alarmStr << "out of safety range [" << setw(7) << setprecision(3) << sampleToValue(pAs, pAs->downLimit);
 	alarmStr << " - " << sampleToValue(pAs, pAs->upperLimit) << "]";
-	
+
 	LOG4CPP_WARN(log, "%s", alarmStr.str().c_str());
-	
+
 	DLOG4CPP_WARN(log, "Sensor [%s = %f] out of safety range [%f - %f]",
 				pAs->id, sampleToValue(pAs),
 				sampleToValue(pAs, pAs->downLimit),
 				sampleToValue(pAs, pAs->upperLimit)
 			);
-	
+
 	notifySensorEvent(*pAs);
-	
+
 }
 
 inline exitCode
@@ -714,7 +737,7 @@ DeviceAnalogSensors::notifySensorEvent(t_analogSensor & aSensor) {
 	}
 	cSgd->setParam( "value",  sampleToValue(&aSensor, aSensor.lastSample));
 	cSgd->setParam( "sevent", getAlarmStrEvent(aSensor));
-	
+
 	// Notifying command
 	notify(cSgd);
 
@@ -725,18 +748,18 @@ DeviceAnalogSensors::getAlarmStrEvent(t_analogSensor & aSensor) {
 
 	if (aSensor.lastSample <= aSensor.downLimit)
 		return aSensor.lvalue;
-	
+
 	if (aSensor.lastSample >= aSensor.upperLimit)
 		return aSensor.hvalue;
-		
+
 	return "RangeOk";
-	
+
 }
 
 inline
 DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::findById (std::string asId) {
 	t_asMap::iterator aSensor;
-	
+
 	aSensor = analogSensors.begin();
 	while ( aSensor != analogSensors.end()) {
 		if ( aSensor->first ==  asId ) {
@@ -756,7 +779,7 @@ unsigned
 DeviceAnalogSensors::listId(t_asIdList & asIdList) {
 	unsigned cId;
 	t_asMap::iterator aSensor;
-	
+
 	asIdList.clear();
 	cId = 0;
 	aSensor = analogSensors.begin();
@@ -789,7 +812,7 @@ int DeviceAnalogSensors::sample(t_analogSensor * theSensor, bool update) {
 		default:
 			LOG4CPP_WARN(log, "Unsupported Protocol Type for Analog Sensor [%s]", theSensor->id);
 			return 0;
-	
+
 	}
 
 }
@@ -833,7 +856,7 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 		return pAs->minValue-1000;
 #endif
 	}
-	
+
 	return sampleToValue(findById (asId));
 
 }
@@ -841,12 +864,12 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 
 
 void DeviceAnalogSensors::run(void) {
-	
+
 	LOG4CPP_INFO(log, "AnalogSensors Monitor Thread Started");
-	
+
 	// Eventually start the monitor threads (that could generat events)
 	startMonitors();
-	
+
 }
 
 

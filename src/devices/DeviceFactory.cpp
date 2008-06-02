@@ -81,6 +81,28 @@ DeviceSignals * DeviceFactory::getDeviceSignals(std::string const & logName) {
 
 }
 
+DeviceI2CBus * DeviceFactory::getDeviceI2CBus(std::string const & logName) {
+    Device * dev;
+    DeviceI2CBus * devI2C;
+
+
+    dev = d_devDB.getDevice(Device::DEVICE_I2CBUS);
+    if ( dev ) {
+        LOG4CPP_DEBUG(log, "Device I2CBus found on DeviceDB");
+        devI2C = dynamic_cast<DeviceI2CBus *>(dev);
+        if ( ! devI2C ) {
+            LOG4CPP_ERROR(log, "Failure on dynamic_cast to DeviceI2CBus");
+            return 0;
+        }
+    } else {
+        LOG4CPP_DEBUG(log, "Device I2CBus not found on DeviceDB: building a new one");
+        devI2C = DeviceI2CBus::getInstance(logName);
+    }
+
+    return devI2C;
+
+}
+
 DeviceTime * DeviceFactory::getDeviceTime(std::string const & logName) {
     Device * dev;
     DeviceTime * devTime;

@@ -125,16 +125,16 @@ protected:
 	};
 	typedef enum gpioOperation t_gpioOperation;
 
-    static DeviceGPIO * d_instance;
+	static DeviceGPIO * d_instance;
 
-    /// The Configurator to use for getting configuration params
-    Configurator & d_config;
+	/// The Configurator to use for getting configuration params
+	Configurator & d_config;
 
 	/// Multiplexed TTY mutex for exclusive access
-	ost::Mutex	d_ttyLock[1];
+	ost::Mutex d_ttyLock[2];
 
-    /// The logger to use locally.
-    log4cpp::Category & log;
+	/// The logger to use locally.
+	log4cpp::Category & log;
 
 //------------------------------------------------------------------------------
 //				Class Methods

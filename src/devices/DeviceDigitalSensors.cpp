@@ -59,6 +59,7 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	dbReg();
 
 	d_signals = df->getDeviceSignals();
+	d_i2cBus = df->getDeviceI2CBus();
 	d_time = df->getDeviceTime();
 
 	loadSensorConfiguration();
@@ -68,6 +69,7 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	d_sysfsbase = d_config.param("DigitalSensor_sysfsbase", DS_DEFAULT_SYSFSBASE);
 	LOG4CPP_DEBUG(log, "Using sysfsbase [%s]", d_sysfsbase.c_str());
 	initSensors();
+	updateSensors();
 
 	d_intrLine = atoi(d_config.param("DigitalSensor_PA_intrline", DS_DEFAULT_PA_INTRLINE).c_str());
 	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
@@ -287,6 +289,10 @@ inline DeviceDigitalSensors::t_attribute * DeviceDigitalSensors::confAttribute(D
 			attrId, pDs->description);
 	pAttr->bits[pDs->address.sysfsAddress.bit] = pDs;
 	strncpy(pAttr->id, attrId, DS_MAX_ATTRIB_LENGTH);
+
+	pAttr->addr = pDs->address.sysfsAddress.address;
+	pAttr->reg = pDs->address.sysfsAddress.port;
+
 	attrbutes[attrId] = pAttr;
 
 	// Return the current attribute
@@ -395,8 +401,11 @@ DeviceDigitalSensors::getPortStatus(t_attribute const & anAttr, t_portStatus & v
 	std::ostringstream path("");
 	int fd;
 	char svalue[4];
+	int i = 2;
 
+#if 0
 	path << d_sysfsbase << "/" << anAttr.id;
+
 	fd = ::open(path.str().c_str(), O_RDONLY);
 	if (fd == -1) {
 		LOG4CPP_ERROR(log, "Failed to open attrib [%s]", path.str().c_str());
@@ -412,8 +421,23 @@ DeviceDigitalSensors::getPortStatus(t_attribute const & anAttr, t_portStatus & v
 		::close(fd);
 		return DS_VALUE_CONVERSION_FAILED;
 	}
-
 	::close(fd);
+#endif
+	exitCode result;
+	DeviceI2CBus::t_i2cCommand regs;
+	DeviceI2CBus::t_i2cReg val;
+	short len = 1;
+
+	regs = anAttr.reg;
+	result = d_i2cBus->read(anAttr.addr, &regs, len, &val, 1);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "Update sensors failed!");
+		return result;
+	}
+	value = val;
+
+	LOG4CPP_DEBUG(log, "Readed value: %02X", value);
+
 	return OK;
 }
 
@@ -421,10 +445,10 @@ inline exitCode
 DeviceDigitalSensors::initSensors(void) {
 	t_attrMap::iterator anAttr;
 	t_portStatus value;
+	int loop;
 
 	anAttr = attrbutes.begin();
 	while ( anAttr != attrbutes.end()) {
-
 		if (getPortStatus(*(anAttr->second), value) == OK) {
 			anAttr->second->status = value;
 			LOG4CPP_DEBUG(log, "Current port [%s] status: 0x%X",
@@ -433,10 +457,8 @@ DeviceDigitalSensors::initSensors(void) {
 		} else {
 			LOG4CPP_ERROR(log, "Unable to update port [%s] status", anAttr->second->id);
 		}
-
 		anAttr++;
 	}
-
 }
 
 inline exitCode
@@ -548,10 +570,10 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 	t_digitalSensor * pDs;
 
 	// Low-pass software filter to cut-off high-frequency spikes
-#if DS_LOW_PASS_FILTER_DELAY>0
-#warning Using a software LowPass Filter
+// #if DS_LOW_PASS_FILTER_DELAY>0
+// #warning Using a software LowPass Filter
 	usleep(DS_LOW_PASS_FILTER_DELAY);
-#endif
+// #endif
 
 	if (getPortStatus(anAttr, value) != OK) {
 		LOG4CPP_ERROR(log, "Unable to update port [%s] status", anAttr.id);
@@ -561,7 +583,7 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 	changeBitMask = value ^ anAttr.status;
 	if (!changeBitMask) {
 		LOG4CPP_DEBUG(log, "No status changes on this port [%s]", anAttr.id);
-		return OK;
+		return DS_NO_NEW_EVENTS;
 	}
 
 	// Checking all bits changes
@@ -597,43 +619,72 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 
 }
 
+
 inline exitCode
 DeviceDigitalSensors::updateSensors(void) {
 	t_attrMap::iterator anAttr;
 	t_portStatus value;
+	bool newEvents = false;
+	exitCode result;
 
 	anAttr = attrbutes.begin();
 	while ( anAttr != attrbutes.end()) {
-		checkPortStatusChange(*(anAttr->second));
+		result = checkPortStatusChange(*(anAttr->second));
+		if ( result == OK )
+			newEvents = true;
 		anAttr++;
+	}
+
+	if (!newEvents) {
+		return DS_NO_NEW_EVENTS;
 	}
 
 	return OK;
 
 }
 
+/* TEST new DeviceI2CBus Interface
+inline exitCode
+DeviceDigitalSensors::updateSensors(void) {
+	DeviceI2CBus::t_i2cCommand	regs[2] = {0x00, 0x01};
+	DeviceI2CBus::t_i2cReg		vals[2] = {0x00, 0x00};
+	short len = 2;
+	exitCode result;
+
+	result = d_i2cBus->read(0x21, regs, len, vals, len);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "Update sensors failed!");
+		return result;
+	}
+
+	LOG4CPP_DEBUG(log, "0x%02X 0x%02X", vals[0], vals[1]);
+
+
+	return OK;
+
+}
+*/
+
 void   DeviceDigitalSensors::run (void) {
-	int err;
-	int signo;
-	sigset_t my_sigs;
 	pid_t tid;
+	int notifies = 0;
+	exitCode result;
 
 	tid = (long) syscall(SYS_gettid);
 	LOG4CPP_DEBUG(log, "working thread [%lu=>%lu] started", tid, pthread_self());
 
 	// Registering signal
-	//setSignal(SIGCONT,true);
 	sigInstall(SIGCONT);
-	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str());
+	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
 
-	int notifies = 0;
 	while (true) {
 
 		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
 		waitSignal(SIGCONT);
 
 		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
-		updateSensors();
+		result = updateSensors();
+		d_signals->ackSignal();
 
 	}
 

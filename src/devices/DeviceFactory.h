@@ -35,6 +35,7 @@
 #include <controlbox/base/Device.h>
 //-----[ Supported devices ]----------------------------------------------------
 #include <controlbox/devices/DeviceSignals.h>
+#include <controlbox/devices/DeviceI2CBus.h>
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/FileWriterCommandHandler.h>
 #include <controlbox/devices/PollEventGenerator.h>
@@ -87,6 +88,8 @@ public:
 
     DeviceSignals * getDeviceSignals(std::string const & logName = "DeviceSignals");
 
+    DeviceI2CBus * getDeviceI2CBus(std::string const & logName = "DeviceI2CBus");
+
     DeviceTime * getDeviceTime(std::string const & logName = "DeviceTime");
 
 
@@ -122,7 +125,7 @@ public:
 
     /// Return a DeviceGPIO.
     DeviceGPIO * getDeviceGPIO(std::string const & logName = "DeviceGPIO");
-		
+
     /// Return a DeviceDS.
     DeviceDigitalSensors * getDeviceDS(std::string const & logName = "DeviceDS");
 

@@ -34,6 +34,7 @@
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
 #include <controlbox/devices/DeviceSignals.h>
+#include <controlbox/devices/DeviceI2CBus.h>
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/base/comsys/EventGenerator.h>
 #include <controlbox/base/comsys/EventDispatcher.h>
@@ -50,7 +51,7 @@
 #define DS_DESC_START		5
 
 /// us delay for the low-pass interrupt filter
-#define DS_LOW_PASS_FILTER_DELAY 0
+#define DS_LOW_PASS_FILTER_DELAY 200
 
 /// The sensor configuration entry base string
 #define DS_CONF_BASE		"DigitalSensor_"
@@ -183,9 +184,11 @@ public:
     /// Each sensor port has an attribute and that type bind such attribute
     /// to its state and a configuration suitable to decode its bits.
     struct attribute {
-        t_attrId id;				///> The attribute id
+	t_attrId id;				///> The attribute id
 	t_portStatus status;			///> The port status
 	t_bitMap bits;				///> Sensors bitmapping
+	t_address addr;	// I2C Address
+	t_port reg;	// Chip Command Register
     };
     typedef struct attribute t_attribute;
 
@@ -207,10 +210,13 @@ protected:
         private:
         	/// The signal device used to receive interrupts
         	DeviceSignals * d_signals;
-    }; 
+    };
 
     /// The signal device used to receive interrupts
     DeviceSignals * d_signals;
+
+    /// The I2CBus adapter to use to query the device
+    DeviceI2CBus * d_i2cBus;
 
     /// The Time Device to use
     DeviceTime * d_time;
