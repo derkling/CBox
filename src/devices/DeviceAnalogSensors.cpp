@@ -673,6 +673,12 @@ DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool
 
 	lastSample = updateSensor(pAs);
 
+	// Fix the reading for sensors that are not attached:
+	// in this case the input is floating and so we read 0V
+	// => report this as the minimum configured value
+	if (lastSample<pAs->minSample)
+		lastSample=pAs->minSample;
+
 	alarm = (lastSample < pAs->downLimit) || (lastSample > pAs->upperLimit);
 
 	if ( alarm ) {
