@@ -1196,8 +1196,8 @@ int test_deviceatgps(log4cpp::Category & logger) {
 
 	logger.info("06 - Testing GPS and ODO instances...");
 	buff.str("");
-	buff << "Distance: " << devODO->distance()
-	     << ", Speed: " << devODO->odoSpeed()
+	buff << "Distance: " << std::setw(10) << std::setfill('0') << devODO->distance()
+	     << ", Speed: "  << std::setw(4)  << std::setfill('0') << devODO->odoSpeed()
 	     << ", Fix: " << devGPS->fixStatus()
 	     << ", Lon: " << devGPS->longitude()
 	     << ", Lat: " << devGPS->latitude()
@@ -1210,16 +1210,18 @@ int test_deviceatgps(log4cpp::Category & logger) {
 
 	while (cycles) {
 		buff.str("");
-		buff << "Distance: " << devATGPS->distance()
-		     << ", Speed: " << devATGPS->odoSpeed(controlbox::device::DeviceOdometer::KMH)
+		buff << "Distance: " << std::setw(10) << std::setfill('0') << devATGPS->distance()
+		     << ", Speed: "  << fixed << setprecision(2) << std::setw(6) << devATGPS->odoSpeed(controlbox::device::DeviceOdometer::KMH)
 		     << ", Fix: " << devATGPS->fixStatus()
 		     << ", Lon: " << devATGPS->longitude()
 		     << ", Lat: " << devATGPS->latitude()
 		     << ", Speed: " << devATGPS->gpsSpeed()
 		     << ", Course: " << devATGPS->course();
 		logger.info("=> %s", buff.str().c_str());
-		logger.info("Checking alarms...");
-		devATGPS->checkAlarms(false);
+
+		// It's done by the ATGps Thread...
+// 		logger.info("Checking alarms...");
+// 		devATGPS->checkAlarms(false);
 
 		sleep(sleeptime);
 		cycles--;
