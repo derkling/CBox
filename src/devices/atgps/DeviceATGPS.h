@@ -136,10 +136,15 @@ protected:
     /// Events are reported as a 32 bitmask composed by the oring of this
     /// possible values
     enum atgpsEvents {
+    	// ODO Events
 	MOVE		= 0x00000001,
 	STOP		= 0x00000002,
-	OVER_SPEED	= 0x00000100,
-	EMERGENCY_BREAK = 0x00000200,
+	OVER_SPEED	= 0x00000004,
+	EMERGENCY_BREAK	= 0x00000008,
+	SAFE_SPEED	= 0x00000010,
+	// GPS Events
+	FIX_GET		= 0x00000100,
+	FIX_LOSE	= 0x00000200,
     };
     typedef enum atgpsEvents t_atgpsEvents;
 

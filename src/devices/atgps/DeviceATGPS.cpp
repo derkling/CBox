@@ -228,6 +228,10 @@ DeviceATGPS::odoSpeed(t_speedUnits unit) {
 	if (getDeviceValue(ODO_SPEED, speed) != OK)
 		return 0;
 
+	if ( unit == DeviceOdometer::KMH ) {
+		return (speed*3.6);
+	}
+
 	return speed;
 
 }
@@ -354,11 +358,10 @@ unsigned
 DeviceATGPS::course(DeviceGPS::t_courseType type) {
 	unsigned long dir = 0;
 
-//TODO update DERKGPS firmware
-#warning "GPS Direction: update derkgps firwmare"
-LOG4CPP_DEBUG(log, "!!!!!!!!!GPS Direction: update derkgps firwmare!!!!!!!!!!");
-
-	return 0;
+// //TODO update DERKGPS firmware
+// #warning "GPS Direction: update derkgps firwmare"
+// LOG4CPP_DEBUG(log, "!!!!!!!!!GPS Direction: update derkgps firwmare!!!!!!!!!!");
+// 	return 0;
 
 	if (getDeviceValue(GPS_DIR, dir) != OK)
 		return 0;
@@ -381,6 +384,7 @@ DeviceATGPS::getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len) {
 	switch(idx) {
 	case ODO_PPM:
 		len = snprintf(buf, len, "%d", d_ppm);
+		LOG4CPP_DEBUG(log, "ODO_PPM [%s]", buf);
 		break;
 
 	case ODO_TOTM:
@@ -389,6 +393,7 @@ DeviceATGPS::getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len) {
 			return result;
 
 		len = snprintf(buf, len, "%lu", val/d_ppm);
+		LOG4CPP_DEBUG(log, "ODO_TOTM [%s]", buf);
 		break;
 
 	case ODO_SPEED:
@@ -397,6 +402,7 @@ DeviceATGPS::getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len) {
 			return result;
 
 		len = snprintf(buf, len, "%lu", val/d_ppm);
+		LOG4CPP_DEBUG(log, "ODO_SPEED [%s]", buf);
 		break;
 	default:
 		LOG4CPP_WARN(log, "Command not supported [%d]", idx);
@@ -561,11 +567,23 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	case OVER_SPEED:
 		eventCode = 0x17;
 		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << odoSpeed();
+		LOG4CPP_DEBUG(log, "OVER_SPEED Event");
 		break;
 	case EMERGENCY_BREAK:
 		eventCode = 0x23;
 		sbuf << "0";
+		LOG4CPP_DEBUG(log, "EMERGENCY_BREAK Event");
 		break;
+	case SAFE_SPEED:
+		LOG4CPP_DEBUG(log, "SAFE_SPEED event is DISABLED");
+		return ATGPS_EVENT_DISABLED;
+		break;
+	case FIX_GET:
+		LOG4CPP_DEBUG(log, "FIX_GET event is DISABLED");
+		return ATGPS_EVENT_DISABLED;
+	case FIX_LOSE:
+		LOG4CPP_DEBUG(log, "FIX_LOSE event is DISABLED");
+		return ATGPS_EVENT_DISABLED;
 	default:
 		LOG4CPP_DEBUG(log, "Not an ODO event");
 		return ATGPS_EVENT_UNDEFINED;
@@ -622,7 +640,7 @@ DeviceATGPS::checkAlarms(bool notify) {
 		return OK;
 	}
 
-	for (eventIdx=0x1; reg; eventIdx<<1) {
+	for (eventIdx=0x1; reg; eventIdx<<=1) {
 		LOG4CPP_DEBUG(log, "Checking for event [0x%08X]", eventIdx);
 		if (reg & eventIdx) {
 			notifyEvent(eventIdx);
@@ -638,8 +656,6 @@ void DeviceATGPS::run (void) {
 	int notifies = 0;
 	exitCode result;
 
-return;
-
 	tid = (long) syscall(SYS_gettid);
 	LOG4CPP_DEBUG(log, "working thread [%lu=>%lu] started", tid, pthread_self());
 
@@ -649,13 +665,20 @@ return;
 	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
 
 	while (true) {
+
 		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
 		waitSignal(SIGCONT);
 
 		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
-		do {
+/*
+		do {*/
 			result = checkAlarms();
-		} while (result!=ATGPS_NO_NEW_EVENTS);
+			d_signals->ackSignal();
+/*
+			// This loop is required to handle repeated events...
+			::sleep(1);
+			LOG4CPP_DEBUG(log, "Re-Checking for LOST interrupts...");
+		} while (result!=ATGPS_NO_NEW_EVENTS);*/
 	}
 }
 
