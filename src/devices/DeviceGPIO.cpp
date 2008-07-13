@@ -35,15 +35,15 @@
 # define PORT_GPRS1_PWR 		PORTG
 # define PIN_GPRS1_PWR 			PG2
 # define PORT_GPRS1_STATE 		PORTG
-# define PIN_GPRS1_STATE 		PG2
-# define PORT_GPRS1_RST 		PORTG
-# define PIN_GPRS1_RST 			PG0
+# define PIN_GPRS1_STATE 		PG0
+// # define PORT_GPRS1_RST 		PORTG
+// # define PIN_GPRS1_RST 		PG0
 # define PORT_GPRS2_PWR 		PORTG
 # define PIN_GPRS2_PWR 			PG5
 # define PORT_GPRS2_STATE 		PORTG
-# define PIN_GPRS2_STATE 		PG5
-# define PORT_GPRS2_RST 		PORTG
-# define PIN_GPRS2_RST 			PG24
+# define PIN_GPRS2_STATE 		PG24
+// # define PORT_GPRS2_RST 		PORTG
+// # define PIN_GPRS2_RST 		PG24
 # define PORT_TTY1_MUX1 		PORTG
 # define PIN_TTY1_MUX1 			PG28
 # define PORT_TTY1_MUX2			PORTG
