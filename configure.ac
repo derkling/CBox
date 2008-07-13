@@ -6,7 +6,7 @@ AC_CONFIG_SRCDIR([src/cboxtest.cpp])
 AC_CANONICAL_SYSTEM
 
 # Automake configuration
-AM_INIT_AUTOMAKE(controlbox, 0.1)
+AM_INIT_AUTOMAKE(controlbox, 0.9)
 AM_CONFIG_HEADER(src/config.h)
 
 # Language configuration

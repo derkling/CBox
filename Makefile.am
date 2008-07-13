@@ -7,9 +7,10 @@ AUTOMAKE_OPTIONS = foreign 1.4
 SUBDIRS = src
 
 MMC_LOCAL = ./mmc
-MMC_NFS = /home/derkling/Personal/Work/Daricom/LocalSVN/target/mnt/flash/mmc
+MMC_NFS = /home/derkling/Documents/Work/Daricom/LocalSVN/target/mmc
 MMC_BINs = src/cbox src/cboxtest
 
 update-mmc:
+	mkdir -p ${MMC_LOCAL}/bin </dev/null 2>&1
 	cp -v ${MMC_BINs} ${MMC_LOCAL}/bin
-	cp -rf ${MMC_LOCAL} ${MMC_NFS}
+	cp -rf ${MMC_LOCAL}/* ${MMC_NFS}/
