@@ -125,7 +125,7 @@ SampiTE::verifyChecksum(const char * buf, unsigned len) {
 
 	LOG4CPP_DEBUG(log, "Checksum rx [%s], computed [%s]", rxChksum, myChksum);
 
-	match = strcmp(rxChksum, myChksum);
+	match = strncasecmp(rxChksum, myChksum, 2);
 	if ( match ) {
 		LOG4CPP_WARN(log, "Checksum mismatch on TE data download");
 	}
