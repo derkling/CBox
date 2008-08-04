@@ -77,20 +77,23 @@ int cBoxMain(std::string const & conf,
 
 	controlbox::device::DeviceFactory * df;
 	controlbox::QueryRegistry * qr = 0;
-	controlbox::comsys::CommandDispatcher * stateCd = 0;
-	controlbox::device::DeviceGPRS * devGPRS = 0;
-	controlbox::device::DeviceATGPS * devATGPS = 0;
-	controlbox::device::ATcontrol * devAT = 0;
-	controlbox::comsys::CommandDispatcher * pollDataCd = 0;
-	controlbox::comsys::Command * cmdPollData = 0;
-	controlbox::device::PollEventGenerator * peg = 0;
+// 	controlbox::comsys::CommandDispatcher * stateCd = 0;
+// 	controlbox::device::DeviceGPRS * devGPRS = 0;
+// 	controlbox::device::DeviceATGPS * devATGPS = 0;
+// 	controlbox::device::ATcontrol * devAT = 0;
+	controlbox::device::DeviceSignals * devSig = 0;
+// 	controlbox::comsys::CommandDispatcher * pollDataCd = 0;
+// 	controlbox::comsys::Command * cmdPollData = 0;
+// 	controlbox::device::PollEventGenerator * peg = 0;
 	controlbox::device::WSProxyCommandHandler * ws = 0;
 
 	// Preloading the configuration options
 	controlbox::Configurator::getInstance(conf);
 
 	qr = controlbox::QueryRegistry::getInstance();
-	//TODO use df to build all others devices!!!
+
+	// We use a DeviceFatory to build all others dependencies
+	// and link them to the WSProxy
 	df = controlbox::device::DeviceFactory::getInstance();
 
 	//--- Installing Handlers
@@ -98,43 +101,40 @@ int cBoxMain(std::string const & conf,
 	if ( !ws ) {
 		logger.error("Proxy initialization FAILED");
 		return -1;
-	} else {
-		logger.info("Initializing poll generator for periodic data collection... ");
-		cmdPollData = controlbox::comsys::Command::getCommand(
-					controlbox::device::PollEventGenerator::SEND_POLL_DATA,
-					controlbox::Device::EG_POLLER,
-					"SendPollData",
-					"PollData");
-		pollDataCd = new controlbox::comsys::CommandDispatcher(ws, false);
-		pollDataCd->setDefaultCommand(cmdPollData);
-		//FIXME the polling time should be, runtime configurable!
-		peg = df->getDevicePoller((600*1000)/10, "SendDataPoller");
-		peg->setDispatcher(pollDataCd);
-		peg->enable();
-// 		logger.info("DONE!");
 	}
 
-	stateCd = new controlbox::comsys::CommandDispatcher(ws, false);
+// 	logger.info("Initializing poll generator for periodic data collection... ");
+// 	cmdPollData = controlbox::comsys::Command::getCommand(
+// 				controlbox::device::PollEventGenerator::SEND_POLL_DATA,
+// 				controlbox::Device::EG_POLLER,
+// 				"SendPollData",
+// 				"PollData");
+// 	pollDataCd = new controlbox::comsys::CommandDispatcher(ws, false);
+// 	pollDataCd->setDefaultCommand(cmdPollData);
+// 	//FIXME the polling time should be, runtime configurable!
+// 	peg = df->getDevicePoller((600*1000)/10, "SendDataPoller");
+// 	peg->setDispatcher(pollDataCd);
+// 	peg->enable();
 
-	logger.info("Initializing GPRS... ");
-	devGPRS = df->getDeviceGPRS();
-	if ( !devGPRS ) {
-		logger.error("GPRS initialization FAILED");
-	} else {
-		devGPRS->setDispatcher(stateCd);
-		devGPRS->enable();
-// 		logger.info("DONE!");
-	}
+// 	stateCd = new controlbox::comsys::CommandDispatcher(ws, false);
+//
+// 	logger.info("Initializing GPRS... ");
+// 	devGPRS = df->getDeviceGPRS();
+// 	if ( !devGPRS ) {
+// 		logger.error("GPRS initialization FAILED");
+// 	} else {
+// 		devGPRS->setDispatcher(stateCd);
+// 		devGPRS->enable();
+// 	}
 
-	logger.info("Initializing GPS/ODO/MEMS... ");
-	devATGPS = df->getDeviceATGPS();
-	if ( !devATGPS ) {
-		logger.error("GPS/ODO/MEMS initialization FAILED");
-	} else {
-		devATGPS->setDispatcher(stateCd);
-		devATGPS->enable();
-// 		logger.info("DONE!");
-	}
+// 	logger.info("Initializing GPS/ODO/MEMS... ");
+// 	devATGPS = df->getDeviceATGPS();
+// 	if ( !devATGPS ) {
+// 		logger.error("GPS/ODO/MEMS initialization FAILED");
+// 	} else {
+// 		devATGPS->setDispatcher(stateCd);
+// 		devATGPS->enable();
+// 	}
 
 // NOTE disable console before use the AT device!!!
 // Disable this to avoid ttyS0 conflict with console...
@@ -160,13 +160,29 @@ int cBoxMain(std::string const & conf,
 	}
 
 	logger.info("System Up and Running");
+	sleep(2);
+
+	logger.info("Sending PowerOn Event... ");
+	devSig = df->getDeviceSignals();
+	if (devSig) {
+		devSig->powerOn();
+	}
+
+	// Suspending and waiting for system suthdown...
 	sigsuspend(&mask);
 
+	logger.info("Sending PowerOff Event... ");
+	if (devSig) {
+		devSig->powerOn(false);
+	}
+
+	// Wait few moments for message (possible) uploading...
+	sleep(10);
+
 shutdown:
-	delete devGPRS;
-	delete devATGPS;
+// 	delete devGPRS;
+// 	delete devATGPS;
 // 	delete devAT;
-	delete stateCd;
 	delete ws;
 
 	return 0;
