@@ -34,11 +34,14 @@
 
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/devices/DeviceTime.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/base/comsys/Dispatcher.h>
 
 #define DEVICESIGNALS_HANDLER_NAME_MAXLEN	16
 #define DEVICESIGNALS_DEV_PATH			"/dev/gpioa"
+
+#define DEVICESIGNALS_BATTERY_LINE		5
 
 namespace controlbox {
 namespace device {
@@ -47,6 +50,12 @@ namespace device {
 class DeviceSignals : public comsys::CommandGenerator, public Device {
 
 public:
+
+    /// Handled Messages
+    enum cmdType {
+	SYSTEM_EVENT = (DEVICE_SINGALS*SERVICES_RANGE)+1,
+    };
+    typedef enum cmdType t_cmdType;
 
     enum interrupt {
     	INT0 = 0,
@@ -102,6 +111,9 @@ protected:
     /// The logger to use locally.
     log4cpp::Category & log;
 
+    /// The Time Device to use
+    DeviceTime * d_time;
+
     /// The PortA device filepath.
     std::string d_devpath;
 
@@ -116,6 +128,15 @@ protected:
 
     /// Current enabled interrupt mask
     t_masks d_curMask;
+
+    /// Last readed input levels
+    t_intMask d_levels;
+
+    /// Mask of bits Chenged since last reading
+    t_intMask d_changedBits;
+
+    /// True if running on battery
+    bool d_isBatteryPowered;
 
 public:
 
@@ -142,6 +163,12 @@ public:
     /// it has resolved the interrupt cause, oterwise a signalling-storm may occurs
     exitCode ackSignal(void);
 
+    /// Return TRUE if the device is battery powered
+    bool isBatteryPowered(void);
+
+    /// Notify Power On Status
+    exitCode powerOn(bool on = true);
+
 
 protected:
 
@@ -155,7 +182,20 @@ protected:
     /// @see getInstance
     DeviceSignals(std::string const & logName);
 
+    /// Return current input levels
+    exitCode getLevels(t_intMask & levels);
+
+    /// Configure lines to generata an interrupt on the specified level.
+    /// @param bitmask of lines to configure
+    /// @param onLow set true to generate an interrupt when lines go low
+    exitCode confInterrupt(t_intMask lines, bool onLow = true);
+
+    /// Reconfigure interrupt lines
+    exitCode updateInterrupts(void);
+
     exitCode waitForIntr(t_intMask & levels);
+
+    exitCode checkBattery(t_intMask & levels);
 
     /// Notify a thread with a signal.
     exitCode notifySignal(t_handler & handler, t_intMask & levels);
