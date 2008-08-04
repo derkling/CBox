@@ -60,11 +60,11 @@ char *DeviceArdu::d_sysfsParams[] = {
 
 
 DeviceArdu * DeviceArdu::getInstance(std::string const & logName) {
-	
+
 	if ( !d_instance ) {
 		d_instance = new DeviceArdu(logName);
 	}
-	
+
 	LOG4CPP_DEBUG(d_instance->log, "DeviceArdu::getInstance()");
 	return d_instance;
 }
@@ -74,13 +74,13 @@ DeviceArdu::DeviceArdu(std::string const & logName) :
 	Device(Device::DEVICE_ARDU, 0, logName),
 	d_config(Configurator::getInstance()),
 	log(Device::log) {
-	
+
 	DeviceFactory * df = DeviceFactory::getInstance();
 	std::string buf;
-	
-	
+
+
 	LOG4CPP_DEBUG(log, "DeviceArdu(const std::string &, bool)");
-	
+
 	// Registering device and exported interfaces into the DeviceDB
 	dbReg();
 	dbRegInterface(Device::DEVICE_GPS);
@@ -102,26 +102,26 @@ DeviceArdu::DeviceArdu(std::string const & logName) :
 	d_highSpeedAlarm = (unsigned)strtoul(
 		d_config.param("Odometer_hiSpeedAlarm", ARDU_DEFAULT_HIGHSPEED_ALARM).c_str(),
 		(char **)NULL, 10);
-	
+
 	d_emergencyBreakAlarm = (unsigned)strtoul(
 		d_config.param("Odometer_emergencyBreak", ARDU_DEFAULT_EMERGENCY_BREAK).c_str(),
 		(char **)NULL, 10);
-	
+
 	d_initDistance = strtoul(
 		d_config.param("Odometer_initDistance", ARDU_DEFAULT_INIT_DISTANCE).c_str(),
 		(char **)NULL, 10);
-	
+
 // 	d_factors[MS] = 1 / (1e6 * d_ppm);
 // 	d_factors[KMH] = 3.6 / (1e6 * d_ppm);
-	
+
 	initOdometer();
-	
+
 }
 
 DeviceArdu::~DeviceArdu() {
-/*	
+/*
 	LOG4CPP_INFO(log, "Stopping DeviceArdu");*/
-	
+
 }
 
 
@@ -129,11 +129,11 @@ inline exitCode
 DeviceArdu::initOdometer(void) {
 
 	// Configuring PPM
-	
+
 	// Configuring initial distance
-	
+
 	// Configuring Alarms triggers
-	
+
 	// Enabling Odometer
 
 }
@@ -141,7 +141,7 @@ DeviceArdu::initOdometer(void) {
 double
 DeviceArdu::lat() {
 	unsigned long lat;
-	
+
 	if (getSysfsValue(GPS_LAT, lat) != OK)
 		return 99.9999;
 
@@ -151,7 +151,7 @@ DeviceArdu::lat() {
 double
 DeviceArdu::lon() {
 	unsigned long lon = 0;
-	
+
 	if (getSysfsValue(GPS_LON, lon) != OK)
 		return 999.9999;
 
@@ -165,29 +165,29 @@ DeviceArdu::lon() {
 double
 DeviceArdu::odoSpeed(t_speedUnits unit) {
 	unsigned long speed = 0;
-	
+
 	if (getSysfsValue(ODO_SPEED, speed) != OK)
 		return 0;
 
 	return ((double)speed)/ARDU_ROUND_FACTOR;
-	
+
 }
 
 double
 DeviceArdu::distance(t_distUnits unit) {
 	unsigned long distance = 0;
-	
+
 	if (getSysfsValue(ODO_TOTM, distance) != OK)
 		return 0;
 
 	return ((double)distance);
-	
+
 }
 
 double
 DeviceArdu::speedAlarm(t_speedUnits unit) {
 	unsigned long speedAlarm;
-	
+
 	if (getSysfsValue(ODO_SPEEDALARM, speedAlarm) != OK)
 		return 0;
 
@@ -197,7 +197,7 @@ DeviceArdu::speedAlarm(t_speedUnits unit) {
 double
 DeviceArdu::emergencyBreakAlarm(t_speedUnits unit) {
 	unsigned long emergencyBreak;
-	
+
 	if (getSysfsValue(ODO_BREAKALARM, emergencyBreak) != OK)
 		return 0;
 
@@ -222,41 +222,32 @@ DeviceArdu::setEmergencyBreakAlarm(double speed, t_speedUnits unit) {
 
 //----- DeviceGPS interface implementation -------------------------------------
 
-DeviceGPS::t_fixStatus
+unsigned
 DeviceArdu::fixStatus() {
 	unsigned long fix;
-	
-	if (getSysfsValue(GPS_FIX, fix) != OK)
-		return DeviceGPS::DEVICEGPS_FIX_NA;
 
-	switch(fix) {
-	case 1:
-		return DeviceGPS::DEVICEGPS_FIX_ASSIST;
-	case 2:
-		return DeviceGPS::DEVICEGPS_FIX_2D;
-	case 3:
-		return DeviceGPS::DEVICEGPS_FIX_3D;
-	}
-	
-	return DeviceGPS::DEVICEGPS_FIX_NA;
+	if (getSysfsValue(GPS_FIX, fix) != OK)
+		return 0;
+
+	return fix;
 }
 
 string
 DeviceArdu::latitude(bool iso) {
 	double latitude = lat();
 	char buff[10];
-	
+
 	if (iso) {
 		sprintf(buff, "%+06.4f", latitude);
 		return string(buff);
 	}
-	
+
 	if (latitude>=0) {
 		sprintf(buff, "%06.4f E", latitude);
 	} else {
 		sprintf(buff, "%06.4f W", -latitude);
 	}
-	
+
 	return string(buff);
 }
 
@@ -264,25 +255,25 @@ string
 DeviceArdu::longitude(bool iso) {
 	double longitude = lon();
 	char buff[11];
-	
+
 	if (iso) {
 		sprintf(buff, "%+07.4f", longitude);
 		return string(buff);
 	}
-	
+
 	if (longitude>=0) {
 		sprintf(buff, "%07.4f N", longitude);
 	} else {
 		sprintf(buff, "%07.4f S", -longitude);
 	}
-	
+
 	return string(buff);
 }
 
 double
 DeviceArdu::gpsSpeed(DeviceGPS::t_measureSystems system) {
 	unsigned long speed;
-	
+
 	switch (system) {
 	case DEVICEGPS_UMS_ISO:
 		if (getSysfsValue(GPS_KMH, speed) != OK)
@@ -299,7 +290,7 @@ DeviceArdu::gpsSpeed(DeviceGPS::t_measureSystems system) {
 unsigned
 DeviceArdu::course(DeviceGPS::t_courseType type) {
 	unsigned long dir;
-	
+
 	if (getSysfsValue(GPS_DIR, dir) != OK)
 		return 0;
 
@@ -349,7 +340,7 @@ DeviceArdu::notifyOdoEvent(unsigned short event) {
 	} else {
 		//TODO here goes the code for GPS events notification
 	}
-	
+
 	if ( !cOdoEvent ) {
 		LOG4CPP_FATAL(log, "Unable to build a new Command");
 		return OUT_OF_MEMORY;
@@ -359,7 +350,7 @@ DeviceArdu::notifyOdoEvent(unsigned short event) {
 
 	// Notifying command
 	notify(cOdoEvent);
-	
+
 	return OK;
 
 }
@@ -368,7 +359,7 @@ exitCode
 DeviceArdu::checkAlarms(void) {
 	unsigned long reg;
 	unsigned short eventIdx;
-	
+
 	if (getSysfsValue(REG_EVENT, reg) != OK) {
 		LOG4CPP_ERROR(log, "Reading Ardu event register failed");
 		return ARDU_PORT_READ_ERROR;
@@ -382,7 +373,7 @@ DeviceArdu::checkAlarms(void) {
 			reg &= ~eventIdx;
 		}
 	}
-	
+
 	return OK;
 }
 
@@ -391,7 +382,7 @@ DeviceArdu::getSysfsValue(t_sysfsValue idx, unsigned long & value) {
 	std::ostringstream path("");
 	int fd;
 	char svalue[ARDU_SYSFS_ATTRIB_BUFSIZE];
-	
+
 	path << d_sysfspath << "/" << d_sysfsParams[idx];
 
 	fd = ::open(path.str().c_str(), O_RDONLY);
@@ -409,9 +400,9 @@ DeviceArdu::getSysfsValue(t_sysfsValue idx, unsigned long & value) {
 		::close(fd);
 		return ARDU_VALUE_CONVERSION_FAILED;
 	}
-	
+
 	LOG4CPP_DEBUG(log, "Reading attribute [%s = %lu]", path.str().c_str(), value);
-	
+
 	::close(fd);
 	return OK;
 }
@@ -419,23 +410,23 @@ DeviceArdu::getSysfsValue(t_sysfsValue idx, unsigned long & value) {
 void DeviceArdu::run (void) {
 	pid_t tid;
 	int notifies = 0;
-	
+
 	tid = (long) syscall(SYS_gettid);
 	LOG4CPP_INFO(log, "working thread [%lu=>%lu] started", tid, pthread_self());
-	
+
 	// Registering signal
 	//setSignal(SIGCONT,true);
 	sigInstall(SIGCONT);
 	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str());
-	
+
 	while (true) {
-		
+
 		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
 		waitSignal(SIGCONT);
-		
+
 		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
 		checkAlarms();
-		
+
 	}
 }
 
