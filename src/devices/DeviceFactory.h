@@ -45,7 +45,6 @@
 #include <controlbox/devices/DeviceAnalogSensors.h>
 #include <controlbox/devices/DeviceGPIO.h>
 #include <controlbox/devices/DeviceDigitalSensors.h>
-// #include <controlbox/devices/arduino/DeviceArdu.h>
 #include <controlbox/devices/atgps/DeviceATGPS.h>
 #include <controlbox/devices/te/DeviceTE.h>
 #include <controlbox/devices/wsproxy/WSProxyCommandHandler.h>
@@ -109,13 +108,9 @@ public:
     /// Return a DeviceGPS.
     DeviceGPS * getDeviceGPS(std::string const & logName = "DeviceGPS",
                              DeviceGPS::t_protocols proto = DeviceGPS::DEVICEGPS_PROTO_ATGPS);
-                             //DeviceGPS::t_protocols proto = DeviceGPS::DEVICEGPS_PROTO_ARDU);
 
     /// Return a DeviceODO.
     DeviceOdometer * getDeviceODO(std::string const & logName = "DeviceODO");
-
-//    /// Return a DeviceArdu.
-//    DeviceArdu * getDeviceArdu(std::string const & logName = "DeviceArdu");
 
     /// Return a DeviceATGPS.
     DeviceATGPS * getDeviceATGPS(std::string const & logName = "DeviceATGPS");
