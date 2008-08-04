@@ -32,7 +32,9 @@
 
 
 #include <controlbox/base/Utility.h>
+#include <controlbox/base/comsys/CommandDispatcher.h>
 #include <controlbox/base/comsys/CommandHandler.h>
+#include <controlbox/base/comsys/Command.h>
 #include <controlbox/base/Querible.h>
 #include <cc++/thread.h>
 #include <controlbox/base/Configurator.h>
@@ -40,8 +42,8 @@
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/DeviceGPS.h>
 #include <controlbox/devices/DeviceOdometer.h>
+#include <controlbox/devices/PollEventGenerator.h>
 #include <controlbox/devices/DeviceAnalogSensors.h>
-
 
 // Forward declaration
 //class EndPoint;
@@ -71,6 +73,15 @@
 #define WSPROXY_EP_FIRST_ID	0
 /// The maximun number of configurables EndPoints
 #define WSPROXY_EP_MAXNUM	3
+
+/// Poll delay [s] when device is not moving
+#define WSPROXY_POLLTIME_NOT_MOVING			"120"
+/// Poll delay [s] when device is moving
+#define WSPROXY_POLLTIME_MOVE				"90"
+/// Poll delay [s] when device is moving without GPS fix
+#define WSPROXY_POLLTIME_MOVE_NO_GPS			"60"
+/// Time interval [s] for moving/no-moving state change
+#define WSPROXY_MIN_STOP_TIME				"60"
 
 #define DEFAULT_DUMP_QUEUE_FILEPATH	"./wsUploadQueue.dump"
 
@@ -215,6 +226,7 @@ protected:
     t_EndPoints d_endPoints;
 
 //---------------------------------------------------[ DEVICES ]----------------
+
     /// The DeviceTime to use
     DeviceTime * d_devTime;
 
@@ -231,6 +243,26 @@ protected:
     //DeviceCAN const * d_devCAN;
 
 
+//---------------------------------------------------[ Poller ]-----------------
+
+    /// The DevicePollGenerator to use
+    PollEventGenerator * d_devPoll;
+    comsys::CommandDispatcher * d_pollCd;
+    comsys::Command * d_pollCmd;
+
+    enum pollState {
+		NOT_MOVING = 0,		// 3600	(120)
+		MOVING_WITH_GPS,	// 300	(90)
+		MOVING_NO_GPS,		// 60	(60)
+    };
+    typedef enum pollState t_pollState;
+
+    t_pollState d_pollState;
+
+    unsigned d_pollTime;
+
+    unsigned long d_lastStopTime;
+
 //---------------------------------------------------[ STATE ]------------------
 
     /// The last received MTC message
@@ -241,7 +273,7 @@ protected:
     /// The last know GPS fix state.
     /// This value is updated by means of GPS_FIX_STATUS_UPDATE commands
     /// @see services
-    DeviceGPS::t_fixStatus d_gpsFixStatus;
+    unsigned d_gpsFixStatus;
 
     /// The last know NET link state.
     /// This value is updated by means of NET_LINK_STATUS_UPDATE commands
@@ -340,6 +372,12 @@ protected:
     /// support for command parser selection.
     inline exitCode initCommandParser();
 
+
+    /// Return the poll time for the current device poll state
+    unsigned int updatePollTime(void);
+
+    /// Build a new poller
+    exitCode updatePoller(bool notifyChange = true, bool force = false);
 
     /// Return the actual CIM
     inline std::string getCIM(void);
@@ -455,8 +493,8 @@ protected:
 
 //-----[ Local Commands ]-------------------------------------------------------
 
-    /// GPS_FIX_UPDATE
-    exitCode cp_gpsFixUpdate(t_wsData ** wsData, comsys::Command & cmd);
+    /// GPS_EVENT
+    exitCode cp_gpsEvent(t_wsData ** wsData, comsys::Command & cmd);
 
     /// GPRS_STATUS_UPDATE
     exitCode cp_gprsStatusUpdate(t_wsData ** wsData, comsys::Command & cmd);
@@ -483,54 +521,8 @@ protected:
     exitCode cp_sendTEEvent(t_wsData ** wsData, comsys::Command & cmd);
     /// ODOMETER_EVENT: Eventi generati dall'odometro
     exitCode cp_sendOdoEvent(t_wsData ** wsData, comsys::Command & cmd);
-
-
-    /*
-    	/// Handle SEND_DATA Command with infoType: POLL_DATA
-    	static exitCode service_uploadData_pollData(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_ACCENSIONE
-    	static exitCode service_uploadData_eventAccensione(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_CARICO
-    	static exitCode service_uploadData_eventCarico(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_EROGAZIONE
-    	static exitCode service_uploadData_eventErogazione(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_SPEGNIMENTO
-    	static exitCode service_uploadData_eventSpegnimento(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_ACPORTELLONE
-    	static exitCode service_uploadData_eventACPortellone(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_SCOMPARTOVUOTO
-    	static exitCode service_uploadData_eventScompartoVuoto(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_TRABOCCAMENTO
-    	static exitCode service_uploadData_eventTraboccamento(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_MANUAL
-    	static exitCode service_uploadData_eventManual(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_MANUAL_PRECOD
-    	static exitCode service_uploadData_eventManualPrecod(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: STATE
-    	static exitCode service_uploadData_state(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_RICONCILIAZIONE
-    	static exitCode service_uploadData_eventRiconciliazione(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_STACCOBATTERIA
-    	static exitCode service_uploadData_eventStaccobatteria(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_ACCICLOCHIUSO
-    	static exitCode service_uploadData_eventACCicloChiuso(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-
-    	/// Handle SEND_DATA Command with infoType: EVENT_ACCASSETTAPNEUMATICA
-    	static exitCode service_uploadData_eventACCassettaPenumatica(WSProxyCommandHandler & wspch, _ns1__uploadData & message,  Command & command );
-    */
+    /// SYSTEM_EVENT: Eventi generati dal sistema
+    exitCode cp_sendSignalEvent(t_wsData ** wsData, comsys::Command & cmd);
 
 };
 

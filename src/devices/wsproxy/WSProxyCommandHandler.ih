@@ -10,10 +10,11 @@
 #include <iomanip>
 
 #include <iomanip>
-#include <controlbox/devices/DeviceFactory.h>
 #include <controlbox/devices/PollEventGenerator.h>
 #include <controlbox/base/QueryRegistry.h>
 #include <controlbox/devices/DeviceInCabin.h>
 #include <controlbox/devices/DeviceDigitalSensors.h>
+#include <controlbox/devices/DeviceSignals.h>
+#include <controlbox/devices/DeviceFactory.h>
 
 #include <sstream>

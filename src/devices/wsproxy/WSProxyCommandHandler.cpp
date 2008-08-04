@@ -55,6 +55,9 @@ WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
         d_gpsFixStatus(DeviceGPS::DEVICEGPS_FIX_NA),
         d_netStatus(DeviceGPRS::LINK_DOWN),
         d_wsAccess("wsAccessMtx"),
+        d_devPoll(0),
+        d_lastStopTime(0),
+        d_pollState(NOT_MOVING),
         d_doExit(false) {
 
     LOG4CPP_DEBUG(log, "WSProxyCommandHandler(const std::string &, bool)");
@@ -99,6 +102,9 @@ exitCode WSProxyCommandHandler::preloadParams() {
     d_configurator.param("CIM", WSPROXY_DEFAULT_CIM, true);
 
     dumpQueueFilePath = d_configurator.param("dumpQueueFilePath", DEFAULT_DUMP_QUEUE_FILEPATH);
+
+
+
 
 }
 
@@ -160,35 +166,52 @@ exitCode WSProxyCommandHandler::loadEndPoints() {
 
 inline
 exitCode WSProxyCommandHandler::linkDependencies() {
-    DeviceFactory * df;
-    EndPoint * ep;
+	DeviceFactory * d_devFactory = DeviceFactory::getInstance();
+	EndPoint * ep;
+	unsigned int pollTime;
 
-    LOG4CPP_DEBUG(log, "Finding dependendant services... ");
+	LOG4CPP_DEBUG(log, "Finding dependendant services... ");
 
-    //FIXME check for correct initialization!!!
+	//FIXME check for correct initialization!!!
 
-    df = DeviceFactory::getInstance();
-    d_devTime = df->getDeviceTime();
-    d_devGPS  = df->getDeviceGPS();
-    d_devODO  = df->getDeviceODO();
+	d_devTime = d_devFactory->getDeviceTime();
+	d_devGPS  = d_devFactory->getDeviceGPS();
+	d_devODO  = d_devFactory->getDeviceODO();
 
-    //TODO load configured endpoints's GPRS
-    //d_devGPRS = df->getDeviceGPRS(DeviceGPRS::DEVICEGPRS_MODEL_ENFORA, 0);
 
-    d_devAS = df->getDeviceAS();
+	// Building the polling device
+	d_pollCmd = controlbox::comsys::Command::getCommand(
+					controlbox::device::PollEventGenerator::SEND_POLL_DATA,
+					controlbox::Device::EG_POLLER,
+					"SendPollData",
+					"PollData");
+	d_pollCd = new controlbox::comsys::CommandDispatcher(this, false);
+	d_pollCd->setDefaultCommand(d_pollCmd);
+	// NOTE if we set 0 here at startup, if we are not moving, the system
+	// start immediately in "NOT_MOVING" state; otherwise, at least a
+	// minimum stop time is required before moving in this state even if
+	// we are alwasy stopped.
+	//d_lastStopTime = std::time(0);
+	d_lastStopTime = 0;
+	updatePoller(false, true);
 
-    LOG4CPP_DEBUG(log, "Loading required EndPoints... ");
-    loadEndPoints();
-//     LOG4CPP_DEBUG(log, "Loading all supported EndPoints... ");
-//     //--- Load FileEndPoint
-//     ep = new FileEndPoint(log.getName());
-//     d_endPoints.push_back(ep);
-//     //--- Load DistEndPoint
-//     ep = new DistEndPoint(log.getName());
-//     d_endPoints.push_back(ep);
-    LOG4CPP_INFO(log, "%d EndPoints loadeds: %s", d_endPoints.size(), listEndPoint().c_str());
+	//TODO load configured endpoints's GPRS
+	//d_devGPRS = df->getDeviceGPRS(DeviceGPRS::DEVICEGPRS_MODEL_ENFORA, 0);
 
-    return OK;
+	d_devAS = d_devFactory->getDeviceAS();
+
+	LOG4CPP_DEBUG(log, "Loading required EndPoints... ");
+	loadEndPoints();
+	//     LOG4CPP_DEBUG(log, "Loading all supported EndPoints... ");
+	//     //--- Load FileEndPoint
+	//     ep = new FileEndPoint(log.getName());
+	//     d_endPoints.push_back(ep);
+	//     //--- Load DistEndPoint
+	//     ep = new DistEndPoint(log.getName());
+	//     d_endPoints.push_back(ep);
+	LOG4CPP_INFO(log, "%d EndPoints loadeds: %s", d_endPoints.size(), listEndPoint().c_str());
+
+	return OK;
 }
 
 inline
@@ -214,16 +237,23 @@ exitCode WSProxyCommandHandler::initCommandParser() {
 
     LOG4CPP_DEBUG(log, "Initializing command parsers... ");
 
-    d_cmdParser[DeviceGPS::GPS_FIX_UPDATE] = &WSProxyCommandHandler::cp_gpsFixUpdate;
+    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_GET] = &WSProxyCommandHandler::cp_gpsEvent;
+    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_LOSE] = &WSProxyCommandHandler::cp_gpsEvent;
+
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_MOVE] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_STOP] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_OVER_SPEED] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_EMERGENCY_BREAK] = &WSProxyCommandHandler::cp_sendOdoEvent;
+
     d_cmdParser[DeviceGPRS::GPRS_STATUS_UPDATE] = &WSProxyCommandHandler::cp_gprsStatusUpdate;
 
     d_cmdParser[PollEventGenerator::SEND_POLL_DATA] = &WSProxyCommandHandler::cp_sendPollData;
     d_cmdParser[DeviceInCabin::SEND_GENERIC_DATA] = &WSProxyCommandHandler::cp_sendGenericData;
     d_cmdParser[DeviceInCabin::SEND_CODED_EVENT] = &WSProxyCommandHandler::cp_sendCodedEvent;
     d_cmdParser[DeviceDigitalSensors::DIGITAL_SENSORS_EVENT] = &WSProxyCommandHandler::cp_sendDSEvent;
-    d_cmdParser[DeviceOdometer::ODOMETER_EVENT] = &WSProxyCommandHandler::cp_sendOdoEvent;
-    d_cmdParser[DeviceTE::SEND_TE_EVENT] = &WSProxyCommandHandler::cp_sendTEEvent;
 
+    d_cmdParser[DeviceTE::SEND_TE_EVENT] = &WSProxyCommandHandler::cp_sendTEEvent;
+    d_cmdParser[DeviceSignals::SYSTEM_EVENT] = &WSProxyCommandHandler::cp_sendSignalEvent;
 
 }
 
@@ -305,6 +335,113 @@ throw (exceptions::IllegalCommandException) {
     LOG4CPP_DEBUG(log, "Notify COMPLETED");
 
     return OK;
+
+}
+
+unsigned int WSProxyCommandHandler::updatePollTime(void) {
+
+	switch (d_pollState) {
+	case NOT_MOVING:
+		sscanf(d_configurator.param("WSProxy_polltime_stopped", WSPROXY_POLLTIME_NOT_MOVING).c_str(),
+			"%u", &d_pollTime);
+		LOG4CPP_DEBUG(log, "Configuring POLLTIME for NOT_MOVING");
+		break;
+	case MOVING_NO_GPS:
+		sscanf(d_configurator.param("WSProxy_polltime_moving", WSPROXY_POLLTIME_MOVE_NO_GPS).c_str(),
+			"%u", &d_pollTime);
+		LOG4CPP_DEBUG(log, "Configuring POLLTIME for MOVE_NO_GPS");
+		break;
+	case MOVING_WITH_GPS:
+		sscanf(d_configurator.param("WSProxy_polltime_movingwgps", WSPROXY_POLLTIME_MOVE).c_str(),
+			"%u", &d_pollTime);
+		LOG4CPP_DEBUG(log, "Configuring POLLTIME for MOVE");
+		break;
+	}
+
+	LOG4CPP_INFO(log, "Polltime update to %ds (%s)", d_pollTime,
+		(d_pollState==NOT_MOVING) ? "NOT_MOVING" :
+			( (d_pollState==MOVING_NO_GPS) ? "MOVING_NO_GPS" :
+				"MOVING_WITH_GPS"
+			)
+		);
+
+	return d_pollTime;
+}
+
+exitCode WSProxyCommandHandler::updatePoller(bool notifyChange, bool force) {
+	unsigned state;
+	unsigned long stopTime;
+	unsigned minStopTime;
+	unsigned fix;
+	DeviceFactory * d_devFactory;
+	unsigned odoSpeed, gpsSpeed;
+
+	// Collecting needed data
+	fix = d_devGPS->fixStatus();
+	odoSpeed = d_devODO->odoSpeed();
+	gpsSpeed = d_devGPS->gpsSpeed();
+	LOG4CPP_DEBUG(log, "gpsFix [%u], odoSpeed [%u], gpsSpeed [%u]", fix, odoSpeed, gpsSpeed);
+
+
+	// Updating current device state
+	if (fix) {
+		state = MOVING_WITH_GPS;
+	} else {
+		state = MOVING_NO_GPS;
+	}
+	if ( (odoSpeed==0) && (gpsSpeed==0) ) {
+		if (force) {
+			state = NOT_MOVING;
+		} else {
+			stopTime = (std::time(0) - d_lastStopTime);
+			sscanf(d_configurator.param("WSProxy_polltime_minstoptime", WSPROXY_MIN_STOP_TIME).c_str(),
+				"%u", &minStopTime);
+			if ( stopTime > minStopTime ) {
+				LOG4CPP_DEBUG(log, "More than [%d]s since last stop event", minStopTime);
+				state = NOT_MOVING;
+			} else {
+				LOG4CPP_DEBUG(log, "Only [%d]s since last stop event", stopTime);
+			}
+		}
+	}
+
+	if (!force && (state == d_pollState)) {
+		LOG4CPP_DEBUG(log, "Poll state not changed (%s)",
+			(d_pollState==MOVING_WITH_GPS) ? "MOVING_WITH_GPS" :
+				( (d_pollState==MOVING_NO_GPS) ? "MOVING_NO_GPS" : "NOT_MOVING" )
+		);
+		return OK;
+	}
+
+	LOG4CPP_DEBUG(log, "Updating poll time (%s => %s)",
+		(d_pollState==MOVING_WITH_GPS) ? "MOVING_WITH_GPS" :
+			( (d_pollState==MOVING_NO_GPS) ? "MOVING_NO_GPS" : "NOT_MOVING" ),
+		(state==MOVING_WITH_GPS) ? "MOVING_WITH_GPS" :
+			( (state==MOVING_NO_GPS) ? "MOVING_NO_GPS" : "NOT_MOVING" ) );
+
+	d_pollState = (t_pollState)state;
+	LOG4CPP_DEBUG(log, "Poll state changed to %d", d_pollState);
+
+	updatePollTime();
+
+	// Delete any previous used poller
+	if (d_devPoll)
+		delete d_devPoll;
+
+	// Build a new poller using corrent defined poll time
+	d_devFactory = DeviceFactory::getInstance();
+	d_devPoll = d_devFactory->getDevicePoller(d_pollTime*1000, "SendDataPoller");
+	d_devPoll->setDispatcher(d_pollCd);
+	d_devPoll->enable();
+
+	if ( notifyChange ) {
+		// Sending a new poll message to represent the state changed
+		notify(d_pollCmd);
+	}
+
+	LOG4CPP_DEBUG(log, "Built new DevicePoller(%d)", d_pollTime*1000);
+
+	return OK;
 
 }
 
@@ -586,12 +723,19 @@ void WSProxyCommandHandler::run(void) {
 
 		// Removing the SOAP message from the upload queue;
 // 		d_uploadList.pop_front();
-		it = d_uploadList.erase(it);
+		if (result == OK) {
+			LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
+			it = d_uploadList.erase(it);
+		}
 		it++;
 	}
 
 	queueCount = d_uploadList.size();
 	if (!queueCount) {
+
+		// Updating poll time (if needed)
+		updatePoller(false);
+
 		// Q1 to be implemented
 		LOG4CPP_INFO(log, "Q0: 0, Q1: %d, SUSPENDING", d_uploadList.size());
 		suspend();
@@ -667,27 +811,29 @@ WSProxyCommandHandler::t_wsData * WSProxyCommandHandler::newWsData(t_idSource sr
 //-----[ Local Commands ]-------------------------------------------------------
 
 /// GPS fix status update
-/// Command type: DeviceGPS::GPS_FIX_UPDATE<br>
+/// Command type: DeviceGPS::GPS_EVENT<br>
 /// Command params:
 /// <ul>
 ///	<li>[int] fix: the fix status [NA=0, 2D=1, 3D=2]</li>
 /// </ul>
-exitCode WSProxyCommandHandler::cp_gpsFixUpdate(t_wsData ** wsData, comsys::Command & cmd) {
-    DeviceGPS::t_fixStatus fix;
+exitCode WSProxyCommandHandler::cp_gpsEvent(t_wsData ** wsData, comsys::Command & cmd) {
 
-    LOG4CPP_DEBUG(log, "Parsing command GPS_FIX_UPDATE");
+	LOG4CPP_DEBUG(log, "Parsing command GPS_EVENT");
 
-    // NO wsData: local command
-    *wsData = 0;
+	*wsData = 0; // NO wsData: local command
 
-    try {
-        d_gpsFixStatus = (DeviceGPS::t_fixStatus)cmd.getIParam("fix");
-    } catch (exceptions::UnknowedParamException upe) {
-        LOG4CPP_ERROR(log, "Missing [fix] param on GPS_FIX_UPDATE command processing");
-        return WS_MISSING_COMMAND_PARAM;
-    }
+	switch (cmd.type()) {
+	case DeviceGPS::GPS_EVENT_FIX_GET:
+		LOG4CPP_INFO(log, "GPS_EVENT_FIX_GET event");
+		updatePoller();
+		break;
+	case DeviceGPS::GPS_EVENT_FIX_LOSE:
+		LOG4CPP_INFO(log, "GPS_EVENT_FIX_LOSE event");
+		updatePoller();
+		break;
+	}
 
-    return OK;
+	return OK;
 
 }
 
@@ -698,7 +844,6 @@ exitCode WSProxyCommandHandler::cp_gpsFixUpdate(t_wsData ** wsData, comsys::Comm
 ///	<li>[int] status: the link status [DOWN=0, GOING_DOWN=1, GOING_UP=2, UP=3]</li>
 /// </ul>
 exitCode WSProxyCommandHandler::cp_gprsStatusUpdate(t_wsData ** wsData, comsys::Command & cmd) {
-    DeviceGPS::t_fixStatus fix;
 
     LOG4CPP_DEBUG(log, "Parsing command GPRS_STATUS_UPDATE");
 
@@ -973,14 +1118,52 @@ exitCode WSProxyCommandHandler::cp_sendTEEvent(t_wsData ** wsData, comsys::Comma
 
 /// Eventi provenienti dall'odometro.
 exitCode WSProxyCommandHandler::cp_sendOdoEvent(t_wsData ** wsData, comsys::Command & cmd) {
+	int event;
+	exitCode result = OK;
 
 	LOG4CPP_DEBUG(log, "Parsing ODO Event");
+
+
+	switch (cmd.type()) {
+	case DeviceOdometer::ODOMETER_EVENT_MOVE:
+		LOG4CPP_INFO(log, "MOVE event");
+		*wsData = 0; // NO wsData: local command
+		updatePoller();
+		break;
+	case DeviceOdometer::ODOMETER_EVENT_STOP:
+		LOG4CPP_INFO(log, "STOP event");
+		*wsData = 0; // NO wsData: local command
+		d_lastStopTime = std::time(0);
+		updatePoller();
+		break;
+	case DeviceOdometer::ODOMETER_EVENT_OVER_SPEED:
+		LOG4CPP_INFO(log, "OVER_SPEED event");
+		// This events should be notified
+		result = formatDistEvent(wsData, cmd, WS_SRC_CONC);
+		break;
+	case DeviceOdometer::ODOMETER_EVENT_EMERGENCY_BREAK:
+		LOG4CPP_INFO(log, "EMERGENCY_BREAK event");
+		// This events should be notified
+		result = formatDistEvent(wsData, cmd, WS_SRC_CONC);
+		break;
+	case DeviceOdometer::ODOMETER_EVENT_SAFE_SPEED:
+		*wsData = 0; // NO wsData: local command
+		LOG4CPP_DEBUG(log, "SAFE SPEED event (ignored)");
+		break;
+	}
+
+	return result;
+
+}
+
+/// Eventi provenienti dall'odometro.
+exitCode WSProxyCommandHandler::cp_sendSignalEvent(t_wsData ** wsData, comsys::Command & cmd) {
+
+	LOG4CPP_DEBUG(log, "Parsing Signal Event");
 
 	return formatDistEvent(wsData, cmd, WS_SRC_CONC);
 
 }
-
-
 
 }// namespace device
 }// namespace controlbox
