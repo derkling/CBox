@@ -64,7 +64,7 @@ public:
         DEVICE_GPS,
         DEVICE_AS,
         DEVICE_DS,
-		DEVICE_GPIO,
+	DEVICE_GPIO,
         DEVICE_ODO,
         DEVICE_CAN,
         DEVICE_DISP,		///< Display
