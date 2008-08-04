@@ -240,7 +240,7 @@ public:
 
 //--- GPS interface implementation
 
-    DeviceGPS::t_fixStatus fixStatus();
+    unsigned fixStatus();
 
     double lat(void);
 

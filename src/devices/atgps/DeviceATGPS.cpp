@@ -285,23 +285,14 @@ DeviceATGPS::setEmergencyBreakAlarm(double speed, t_speedUnits unit) {
 
 //----- DeviceGPS interface implementation -------------------------------------
 
-DeviceGPS::t_fixStatus
+unsigned
 DeviceATGPS::fixStatus() {
 	unsigned long fix;
 
 	if (getDeviceValue(GPS_FIX, fix) != OK)
-		return DeviceGPS::DEVICEGPS_FIX_NA;
+		return 0;
 
-	switch(fix) {
-	case 1:
-		return DeviceGPS::DEVICEGPS_FIX_ASSIST;
-	case 2:
-		return DeviceGPS::DEVICEGPS_FIX_2D;
-	case 3:
-		return DeviceGPS::DEVICEGPS_FIX_3D;
-	}
-
-	return DeviceGPS::DEVICEGPS_FIX_NA;
+	return fix;
 }
 
 string
@@ -553,48 +544,57 @@ DeviceATGPS::setDeviceValue(t_atgpsCmds idx, const char * value) {
 
 exitCode
 DeviceATGPS::notifyEvent(unsigned short event) {
+	comsys::Command::t_cmdType cmdType;
 	comsys::Command * cSgd;
-	int eventCode;
+	int eventCode = 0x00;
 	std::ostringstream sbuf("");
 
 	switch (event) {
 	case MOVE:
-		LOG4CPP_DEBUG(log, "MOVE event is DISABLED");
-		return ATGPS_EVENT_DISABLED;
+		cmdType = ODOMETER_EVENT_MOVE;
+		LOG4CPP_DEBUG(log, "MOVE event");
+		break;
 	case STOP:
-		LOG4CPP_DEBUG(log, "STOP event is DISABLED");
-		return ATGPS_EVENT_DISABLED;
+		cmdType = ODOMETER_EVENT_STOP;
+		LOG4CPP_DEBUG(log, "STOP event");
+		break;
 	case OVER_SPEED:
+		cmdType = ODOMETER_EVENT_OVER_SPEED;
 		eventCode = 0x17;
 		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << odoSpeed();
 		LOG4CPP_DEBUG(log, "OVER_SPEED Event");
 		break;
 	case EMERGENCY_BREAK:
+		cmdType = ODOMETER_EVENT_EMERGENCY_BREAK;
 		eventCode = 0x23;
 		sbuf << "0";
 		LOG4CPP_DEBUG(log, "EMERGENCY_BREAK Event");
 		break;
 	case SAFE_SPEED:
-		LOG4CPP_DEBUG(log, "SAFE_SPEED event is DISABLED");
-		return ATGPS_EVENT_DISABLED;
+		cmdType = ODOMETER_EVENT_SAFE_SPEED;
+		LOG4CPP_DEBUG(log, "SAFE_SPEED event");
 		break;
 	case FIX_GET:
-		LOG4CPP_DEBUG(log, "FIX_GET event is DISABLED");
-		return ATGPS_EVENT_DISABLED;
+		cmdType = GPS_EVENT_FIX_GET;
+		LOG4CPP_DEBUG(log, "FIX_GET event");
+		break;
 	case FIX_LOSE:
-		LOG4CPP_DEBUG(log, "FIX_LOSE event is DISABLED");
-		return ATGPS_EVENT_DISABLED;
+		cmdType = GPS_EVENT_FIX_LOSE;
+		LOG4CPP_DEBUG(log, "FIX_LOSE event");
+		break;
 	default:
 		LOG4CPP_DEBUG(log, "Not an ODO event");
 		return ATGPS_EVENT_UNDEFINED;
 	}
 
 	if ( event <= EMERGENCY_BREAK) {
-		cSgd = comsys::Command::getCommand(DeviceOdometer::ODOMETER_EVENT,
+		cSgd = comsys::Command::getCommand(cmdType,
 				Device::DEVICE_ODO, "DEVICE_ODO",
 				log.getName());
 	} else {
-		//TODO here goes the code for GPS events notification
+		cSgd = comsys::Command::getCommand(cmdType,
+				Device::DEVICE_GPS, "DEVICE_GPS",
+				log.getName());
 	}
 
 	if ( !cSgd ) {
@@ -602,14 +602,15 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 		return OUT_OF_MEMORY;
 	}
 
-	cSgd->setParam("dist_evtData", sbuf.str() );
-
-	sbuf.str("");
-	sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)eventCode;
-	cSgd->setParam( "dist_evtType", sbuf.str());
-// 	cmd->setParam("dist_evtType", eventCode);
-
 	cSgd->setParam("timestamp", d_time->time() );
+
+	if ( eventCode ) {
+		// This is a DIST event
+		cSgd->setParam("dist_evtData", sbuf.str() );
+		sbuf.str("");
+		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)eventCode;
+		cSgd->setParam("dist_evtType", sbuf.str());
+	}
 
 	// Notifying command
 	notify(cSgd);
