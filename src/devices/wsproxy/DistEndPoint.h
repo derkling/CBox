@@ -113,6 +113,7 @@ protected:
 	/// Log WebService Error Responces
 	void logSOAPFault(struct soap * csoap);
 
+	bool srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumber);
 	void resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNumber);
 
 };

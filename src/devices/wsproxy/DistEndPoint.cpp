@@ -108,9 +108,9 @@ d_csoap.soap->imode &= ~SOAP_IO_KEEPALIVE;
 d_csoap.soap->omode &= ~SOAP_IO_KEEPALIVE;
 
 // Configuring TIMEOUTS
-LOG4CPP_WARN(log, "gSOAP send/recv Timeouts: 15/30 [s]");
-d_csoap.soap->send_timeout = 15; // [s]
-d_csoap.soap->recv_timeout = 30; // [s]
+LOG4CPP_WARN(log, "gSOAP send/recv Timeouts: 5/15 [s]");
+d_csoap.soap->send_timeout = 5; // [s]
+d_csoap.soap->recv_timeout = 15; // [s]
 
 #if 0
    // Configuring the WebService endpoint
@@ -178,6 +178,12 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 
 		srvNumber++;
 
+		if ( !srvEnabled(epEnabledQueues, srvNumber) ) {
+			// Selecting next DIST server
+			srv++;
+			continue;
+		}
+
 		d_csoap.endpoint = (*srv).c_str();
 		LOG4CPP_INFO(log, "    [%d - %s]", srvNumber, d_csoap.endpoint);
 
@@ -235,6 +241,26 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 exit_error:
 	LOG4CPP_WARN(log, "EP-DIST: data upload FAILED  by queue [%d] DIST server");
 	return result;
+
+}
+
+bool
+DistEndPoint::srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumber) {
+	unsigned int bit;
+	unsigned int shift;
+
+	shift = d_qmShiftCount+srvNumber-1;
+	LOG4CPP_DEBUG(log, "EP-DIST: bit: %d, shiftCount: %d, SrvNum: %d, shift: %d",
+				bit, d_qmShiftCount, srvNumber, shift);
+
+	bit = ((unsigned int)0x1<<shift);
+	LOG4CPP_DEBUG(log, "EP-DIST: Checking Queue BitMask [0x%02X], EnabledQueues [0x%02X]",
+			bit, epEnabledQueues);
+
+	LOG4CPP_DEBUG(log, "EP-DIST: Server %d is %s",
+				srvNumber, (epEnabledQueues & bit) ? "ENABLED" : "DISABLED" );
+
+	return (epEnabledQueues & bit);
 
 }
 
