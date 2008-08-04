@@ -36,14 +36,14 @@
 # define PIN_GPRS1_PWR 			PG2
 # define PORT_GPRS1_STATE 		PORTG
 # define PIN_GPRS1_STATE 		PG0
-// # define PORT_GPRS1_RST 		PORTG
-// # define PIN_GPRS1_RST 		PG0
+# define PORT_GPRS1_RST 		PORTG
+# define PIN_GPRS1_RST 			PG0
 # define PORT_GPRS2_PWR 		PORTG
 # define PIN_GPRS2_PWR 			PG5
 # define PORT_GPRS2_STATE 		PORTG
 # define PIN_GPRS2_STATE 		PG24
-// # define PORT_GPRS2_RST 		PORTG
-// # define PIN_GPRS2_RST 		PG24
+# define PORT_GPRS2_RST 		PORTG
+# define PIN_GPRS2_RST 			PG24
 # define PORT_TTY1_MUX1 		PORTG
 # define PIN_TTY1_MUX1 			PG28
 # define PORT_TTY1_MUX2			PORTG
@@ -81,11 +81,16 @@ DeviceGPIO::DeviceGPIO(std::string const & logName) :
 
 	// Configuring pin directions
 #ifdef CONTROLBOX_CRIS
+	// GPRS control logic:
+	// - normally input, OUTPUT = LOW to switch on
+	// - normally input reading state (HIGH=ON, LOW=OFF), OUTPUT = LOW to reset
 	// GPRS 1
-	gpiosetdir(PORT_GPRS1_PWR, DIROUT, PIN_GPRS1_PWR);
-	gpiosetdir(PORT_GPRS2_PWR, DIROUT, PIN_GPRS2_PWR);
-	// GPRS 2
+	gpiosetdir(PORT_GPRS1_PWR,   DIRIN, PIN_GPRS1_PWR);
+	gpiosetdir(PORT_GPRS1_RST,   DIRIN, PIN_GPRS1_RST);
 	gpiosetdir(PORT_GPRS1_STATE, DIRIN, PIN_GPRS1_STATE);
+	// GPRS 2
+	gpiosetdir(PORT_GPRS2_PWR,   DIRIN, PIN_GPRS2_PWR);
+	gpiosetdir(PORT_GPRS2_RST,   DIRIN, PIN_GPRS2_RST);
 	gpiosetdir(PORT_GPRS2_STATE, DIRIN, PIN_GPRS2_STATE);
 	// TTY1 mux
 	gpiosetdir(PORT_TTY1_MUX1, DIROUT, PIN_TTY1_MUX1);
@@ -110,6 +115,7 @@ DeviceGPIO::~DeviceGPIO() {
 
 exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 	bool gprsSwitch = false;
+	unsigned char pinPowerPort;
 	t_gpioLine pinState, pinPower;
 	t_gpioState curState;
 
@@ -117,10 +123,12 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 	case GPRS1:
 		pinState = GPIO_GPRS1_STATE;
 		pinPower = GPIO_GPRS1_PWR;
+		pinPowerPort = PORT_GPRS1_PWR;
 	break;
 	case GPRS2:
 		pinState = GPIO_GPRS2_STATE;
 		pinPower = GPIO_GPRS2_PWR;
+		pinPowerPort = PORT_GPRS2_PWR;
 	break;
 	default:
 		return GENERIC_ERROR;
@@ -128,7 +136,7 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 
 	curState = gpioRead(pinState);
 
-	LOG4CPP_DEBUG(log, "Checking GPRS %s state: %s [%d]",
+	LOG4CPP_DEBUG(log, "Checking GPRS-%s state: %s [%d]",
 				  (gprs==GPRS1) ? "1" : "2",
 				  (curState==GPIO_ON) ? "ON" : "OFF",
 				  curState);
@@ -150,19 +158,37 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 
 	if (gprsSwitch) {
 
-		LOG4CPP_DEBUG(log, "Switching %s GPRS %s",
+		LOG4CPP_DEBUG(log, "Switching %s GPRS-%s",
 				  (state==GPIO_ON) ? "ON" : "OFF",
 				  (gprs==GPRS1) ? "1" : "2");
 
+// NOTE on AXIS we use OG2... this could be configured only as OUTPUT
 		gpioWrite(GPIO_SET, pinPower);
 		::sleep(1);
 		gpioWrite(GPIO_CLEAR, pinPower);
 
-		if (state==GPIO_ON) {
+
+/* FOR USE WITHOUT TRANSISTOR AND I/O PORTS
+		gpiosetdir(pinPowerPort, DIROUT, pinPower);
+// 		gpioWrite(GPIO_SET, pinPower);
+		//gpioWrite(GPIO_CLEAR, PIN_GPRS1_PWR); // -- if not using transistor
+		::sleep(1);
+// 		gpioWrite(GPIO_CLEAR, pinPower);
+		gpiosetdir(pinPowerPort, DIRIN, pinPower);
+*/
+		if (state == GPIO_ON) {
 			// At power-on: waiting GPRS AT interface to startup
 			::sleep(10);
-			LOG4CPP_DEBUG(log, "GPRS %s powered up",
-								(gprs==GPRS1) ? "1" : "2");
+
+			if ( gprsIsPowered(gprs) ) {
+				LOG4CPP_DEBUG(log, "GPRS %s powered up",
+						(gprs == GPRS1) ? "1" : "2");
+				return OK;
+			}
+
+			LOG4CPP_WARN(log, "Failed powering on GPRS-%s",
+						(gprs == GPRS1) ? "1" : "2");
+			return GPRS_DEVICE_POWER_ON_FAILURE;
 		}
 
 	}
@@ -172,38 +198,38 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 
 exitCode DeviceGPIO::gprsReset(unsigned short gprs) {
 	t_gpioLine pinReset;
+	unsigned char pinResetPort;
 	t_gpioState curState;
 
-	LOG4CPP_DEBUG(log, "Resetting GPRS %s", (gprs==GPRS1) ? "1" : "2");
+	LOG4CPP_DEBUG(log, "Resetting GPRS-%s", (gprs==GPRS1) ? "1" : "2");
 
 	switch(gprs) {
 	case GPRS1:
+		pinResetPort = PORT_GPRS1_RST;
 		pinReset = GPIO_GPRS1_RST;
 	break;
 	case GPRS2:
+		pinResetPort = PORT_GPRS2_RST;
 		pinReset = GPIO_GPRS2_RST;
 	break;
 	default:
 		return GENERIC_ERROR;
 	}
 
+/* OLD IMPLEMENTATION
 	gpioWrite(GPIO_SET, pinReset);
 	::sleep(1);
 	gpioWrite(GPIO_CLEAR, pinReset);
-	::sleep(5);
+	::sleep(10);
+*/
+	gpiosetdir(pinResetPort, DIROUT, pinReset);
+	gpioWrite(GPIO_CLEAR, pinReset);
+	::sleep(2);
+	gpiosetdir(pinResetPort, DIRIN, pinReset);
+	::sleep(10);
 
 	// Ensuring modem is powered up
-	gprsPower(gprs, GPIO_ON);
-
-
-#if 0
-	if ( gprsIsPowered(gprs) ) {
-		gprsPower(gprs, GPIO_OFF);
-		::sleep(5);
-	}
-	gprsPower(gprs, GPIO_ON);
-#endif
-	return OK;
+	return gprsPower(gprs, GPIO_ON);
 }
 
 bool DeviceGPIO::gprsIsPowered(unsigned short gprs) {
@@ -325,7 +351,7 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 			pin = PIN_TTY2_MUX2;
 			break;
 		default:
-				 return GENERIC_ERROR;
+			return GENERIC_ERROR;
 	}
 
 	switch(op) {
@@ -345,7 +371,7 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 			gpiotogglebit(port, pin);
 			break;
 		default:
-				 return GENERIC_ERROR;
+			return GENERIC_ERROR;
 	}
 
 	return OK;
@@ -360,13 +386,13 @@ DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
  	switch(gpio) {
 		case GPIO_GPRS1_STATE:
 		 	LOG4CPP_DEBUG(log, "Reading GPIO_GPRS1_STATE");
-			port = PORT_GPRS1_PWR;
-			pin = PIN_GPRS1_PWR;
+			port = PORT_GPRS1_STATE;
+			pin = PIN_GPRS1_STATE;
 			break;
 		case GPIO_GPRS2_STATE:
 		 	LOG4CPP_DEBUG(log, "Reading GPIO_GPRS2_STATE");
-			port = PORT_GPRS2_PWR;
-			pin = PIN_GPRS2_PWR;
+			port = PORT_GPRS2_STATE;
+			pin = PORT_GPRS2_STATE;
 			break;
 		case GPIO_TTY1_MUX1:
 		 	LOG4CPP_DEBUG(log, "Reading GPIO_TTY1_MUX1");
