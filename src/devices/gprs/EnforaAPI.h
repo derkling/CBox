@@ -40,6 +40,9 @@
 #define ENFORAAPI_AT_CMD_MAXLEN		256
 #define ENFORAAPI_AT_RESP_MAXLEN	4096
 
+// #define ENFORA_SMS_NUMBER		"+393473153808"
+#define ENFORA_SMS_NUMBER		""
+
 namespace controlbox {
 namespace device {
 
@@ -91,32 +94,34 @@ protected:
 		AT_ERROR,
 		AT_CONNECT
 	} t_atResps;
-	
+
 	/// The GPIO device used to handle modem power on-off
 	DeviceGPIO * d_gpio;
-		
+
 	/// The command to start the PPP daemon for non-GPRS connection mode
 	std::string d_pppdCommand;
 
 	/// Set true when the API is enabled
 	bool d_apiEnabled;
-		
+
 	std::string d_curLinkname;
 
-	/// The modem 
+	/// The modem
 	int d_modemSocket;
 
 	struct sockaddr_in d_apiLocalAddr;
 
 	struct sockaddr_in d_apiRemoteAddr;
-	
+
 	std::string	d_apiRemoteIP;
-	
+
 	uint16_t	d_apiRemotePort;
-	
+
 	std::string	d_apiLocalIP;
-	
+
 	uint16_t	d_apiLocalPort;
+
+	std::string	d_smsNotifyNumber;
 
 	/// API Commands headers
 	static const char *d_apiHeaders[];
@@ -125,7 +130,7 @@ protected:
 	/// @note entries of this array should match values of t_atResps
 	/// @see t_atResps
 	static const char d_atResults[][12];
-	
+
 	/// An API command
 	typedef union {
 		char raw[ENFORAAPI_AT_CMD_MAXLEN];					///> the complete message
@@ -137,7 +142,7 @@ protected:
 			char data[ENFORAAPI_AT_CMD_MAXLEN-ENFORAAPI_API_HEADER_SIZE];	///> the AT command
 		} field;
 	} t_apiCommand;
-	
+
 	/// An API responce
 	typedef union {
 		char raw[ENFORAAPI_AT_RESP_MAXLEN];					///> the complete responce
@@ -164,65 +169,71 @@ public:
 	/// @throw SerialConfigurationException on failing accessing the TTY port
 	EnforaAPI(short module, std::string const & logName = "Enfora")
 		throw (exceptions::SerialConfigurationException*);
-	
+
 	/// Class destructor.
 	~EnforaAPI();
-	
+
 	/// Configure the GPRS.
 	exitCode initDeviceGPRS();
-	
+
 	/// Start the parser thread.
 	exitCode runParser();
 
 protected:
-	
+
 	/// Power-on the device using GPIO interface
 	exitCode powerOn(bool reset = false);
-	
+
 	/// Power-off the device using GPIO interface
 	exitCode powerOff();
 
 	/// Load the GPRS configuration.
 	exitCode loadConfiguration();
-	
+
 	/// Enable non-GPRS connection for the specified linkname
 	exitCode enableAPI(std::string const & linkname);
-	
+
 	exitCode disableAPI();
-	
+
 	exitCode initSocket();
-	
+
 	/// Send an AT command using the API.
-	/// 
+	///
 	exitCode sendAT(t_apiCommand & msg, t_apiResponce & resp);
-	
+
 	exitCode getResponce(t_apiResponce & resp);
-	
+
 	exitCode addHeader(t_apiCommand & msg, t_apiType t, bool toString = false);
-	
+
+	exitCode updateNetworkConfiguration(void);
+
 	exitCode gprsUP();
-	
+
 	exitCode gprsDOWN();
-	
+
+	exitCode tryConnect(std::string const & linkname);
+
 	exitCode connect(std::string const & linkname);
-	
+
 	exitCode disconnect();
-	
+
 	void pppNotifyState(bool running);
-	
+
 	exitCode sendSMS(std::string number, std::string text);
-	
+
 	exitCode signalLevel(unsigned short & level);
-	
+
 	exitCode gprsStatus(unsigned short & status);
-	
+
+	exitCode gprsRegistered(void);
+
 	/// Notify friends servers about a network configuration change.
 	exitCode notifyFriends();
-	
+
 	/// The thread body: this will hear for unsolicited messages coming from
 	/// the modem
 	void run (void);
-	
+
 
 };
 

@@ -56,6 +56,9 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 			d_parserRunning(false),
 			d_mode(DEVICEGPRS_MODE_COMMAND),
 			d_netStatus(DeviceGPRS::LINK_DOWN),
+			d_localIP(""),
+			d_dns1(""),
+			d_dns2(""),
 			log(Device::log) {
 	char lable[] = "gprs_modem_0";
 
