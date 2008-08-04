@@ -47,7 +47,11 @@ public:
 
     /// Messages generables by objects of this interface
     enum cmdType {
-	ODOMETER_EVENT = (controlbox::Device::DEVICE_ODO*SERVICES_RANGE)+1,
+	ODOMETER_EVENT_MOVE = (controlbox::Device::DEVICE_ODO*SERVICES_RANGE)+1,
+	ODOMETER_EVENT_STOP,
+	ODOMETER_EVENT_OVER_SPEED,
+	ODOMETER_EVENT_EMERGENCY_BREAK,
+	ODOMETER_EVENT_SAFE_SPEED,
     };
     typedef enum cmdType t_cmdType;
 

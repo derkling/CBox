@@ -47,7 +47,8 @@ public:
 
     /// Messages generables by objects of this interface
     enum cmdType {
-	GPS_FIX_UPDATE = (controlbox::Device::DEVICE_GPS*SERVICES_RANGE)+1,
+	GPS_EVENT_FIX_GET = (controlbox::Device::DEVICE_GPS*SERVICES_RANGE)+1,
+	GPS_EVENT_FIX_LOSE
     };
     typedef enum cmdType t_cmdType;
 
@@ -106,7 +107,7 @@ public:
     /// Get current fix status
     /// @return the GPS signal level as defined by the DeviceGPS::t_fixStatus type.
     /// @see t_fixStatus
-    virtual t_fixStatus fixStatus() = 0;
+    virtual unsigned fixStatus() = 0;
 
     /// Get current longitude.
     /// The current formatted latitude. By default is returned in ISO6709
