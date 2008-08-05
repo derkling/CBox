@@ -69,6 +69,8 @@ void shandler(int sig) {
 
 }
 
+bool useColors = true;
+
 int cBoxMain(std::string const & conf,
 		std::string const & cmdlog) {
 	sigset_t mask;
@@ -199,6 +201,7 @@ void print_usage(char * progname) {
 	cout << "\t -d, --cmdlog               Command logger filepath" << endl;
 	cout << "\t -l, --loggeer              Logger configuration filepath" << endl;
 	cout << "\t -v, --verbose              Enable verbose output" << endl;
+	cout << "\t -y, --nocolors             Disable colors on output" << endl;
 	cout << "\t -h, --help                 Print this help" << endl;
 
 	cout << "\nby Patrick Bellasi - derkling@gmail.com\n" << endl;
@@ -213,12 +216,13 @@ int main (int argc, char *argv[]) {
 	static struct option long_options[] = {
 			{"configuration", required_argument, 0, 'c'},
 			{"cmdlog", required_argument, 0, 'd'},
+			{"help", no_argument, 0, 'h'},
 			{"logconf", required_argument, 0, 'l'},
 			{"verbose", no_argument, 0, 'v'},
-			{"help", no_argument, 0, 'h'},
+			{"nocolors", no_argument, 0, 'y'},
 			{0, 0, 0, 0}
 		};
-	static char * optstring = "c:d:l:vh";
+	static char * optstring = "c:d:hl:vy";
 	int c;
 	bool silent = true;
 
@@ -279,6 +283,9 @@ int main (int argc, char *argv[]) {
 				return EXIT_SUCCESS;
 			case 'v':
 				silent = false;
+			case 'y':
+				useColors = false;
+				break;
 			default:
 				cout << "Unknowen option: " << c << endl;
 		}

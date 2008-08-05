@@ -73,6 +73,7 @@
 /// @see deviceCode
 #define SERVICES_RANGE 100
 
+extern bool useColors;
 
 namespace controlbox {
 
@@ -311,28 +312,25 @@ NOTE: This macro will generata code only if compiling with debug simbol
 @param category the category to be used.
 @param message the message string to log.
 */
+// #ifdef CONTROLBOX_DEBUG
+// #define LOG4CPP_DEBUG(category, format, ...) { \
+// 					if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
+// 						category.log(::log4cpp::Priority::DEBUG, format, ## __VA_ARGS__); \
+// 					}\
+// 			}
+// #else
+// #define LOG4CPP_DEBUG(category, format, ...)
+// #endif
 #ifdef CONTROLBOX_DEBUG
-#define LOG4CPP_DEBUG(category, format, ...) { \
-					if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
-						category.log(::log4cpp::Priority::DEBUG, format, ## __VA_ARGS__); \
-					}\
-			}
+	#define LOG4CPP_DEBUG(category, format, ...) { \
+			if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
+				std::ostringstream formatter("%s:%d - "); \
+				category.log(::log4cpp::Priority::DEBUG, "%s:%d - " format, __FILE__, __LINE__, ## __VA_ARGS__); \
+			}\
+	}
 #else
-#define LOG4CPP_DEBUG(category, format, ...)
+	#define LOG4CPP_DEBUG(category, format, ...)
 #endif
-/*
-		#ifdef CONTROLBOX_DEBUG
-			#define LOG4CPP_DEBUG(category, format, ...) { \
-					if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
-						std::ostringstream formatter("%s:%d - "); \
-						formatter << format; \
-						category.log(::log4cpp::Priority::DEBUG, formatter.str().c_str(), __FILE__, __LINE__, ## __VA_ARGS__); \
-					}\
-			}
-		#else
-			#define LOG4CPP_DEBUG(category, format, ...)
-		#endif
-*/
 
 /**
 Logs a message to a specified category with the INFO level.
@@ -342,9 +340,13 @@ Logs a message to a specified category with the INFO level.
 */
 #define LOG4CPP_INFO(category, format, ...) { \
 			if (category.isInfoEnabled()) {\
-				category.log(::log4cpp::Priority::INFO, format, ## __VA_ARGS__); \
+				if (useColors) \
+					category.log(::log4cpp::Priority::INFO, "\033[32m" format "\033[0m", ## __VA_ARGS__); \
+				else \
+					category.log(::log4cpp::Priority::INFO, format, ## __VA_ARGS__); \
 			}\
 		}
+
 
 
 /**
@@ -355,7 +357,10 @@ Logs a message to a specified category with the WARN level.
 */
 #define LOG4CPP_WARN(category, format, ...) { \
 			if (category.isWarnEnabled()) {\
-				category.log(::log4cpp::Priority::WARN, format, ## __VA_ARGS__); \
+				if (useColors) \
+					category.log(::log4cpp::Priority::WARN, "\033[33m" format "\033[0m", ## __VA_ARGS__); \
+				else \
+					category.log(::log4cpp::Priority::WARN, format, ## __VA_ARGS__); \
 			}\
 		}
 
@@ -367,7 +372,10 @@ Logs a message to a specified category with the ERROR level.
 */
 #define LOG4CPP_ERROR(category, format, ...) { \
 			if (category.isErrorEnabled()) {\
-				category.log(::log4cpp::Priority::ERROR, format, ## __VA_ARGS__); \
+				if (useColors) \
+					category.log(::log4cpp::Priority::ERROR, "\033[31m" format "\033[0m", ## __VA_ARGS__); \
+				else \
+					category.log(::log4cpp::Priority::ERROR, format, ## __VA_ARGS__); \
 			}\
 		}
 
@@ -379,7 +387,10 @@ Logs a message to a specified category with the CRIT level.
 */
 #define LOG4CPP_CRIT(category, format, ...) { \
 			if (category.isCritEnabled()) {\
-				category.log(::log4cpp::Priority::CRIT, format, ## __VA_ARGS__); \
+				if (useColors) \
+					category.log(::log4cpp::Priority::CRIT, "\033[1;31m" format "\033[0m", ## __VA_ARGS__); \
+				else \
+					category.log(::log4cpp::Priority::CRIT, format, ## __VA_ARGS__); \
 			}\
 		}
 
@@ -392,7 +403,10 @@ Logs a message to a specified category with the FATAL level.
 */
 #define LOG4CPP_FATAL(category, format, ...) { \
 			if (category.isFatalEnabled()) {\
-				category.log(::log4cpp::Priority::FATAL, format, ## __VA_ARGS__); \
+				if (useColors) \
+					category.log(::log4cpp::Priority::FATAL, "\033[1;31m" format "\033[0m", ## __VA_ARGS__); \
+				else \
+					category.log(::log4cpp::Priority::FATAL, format, ## __VA_ARGS__); \
 			}\
 		}
 

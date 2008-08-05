@@ -93,6 +93,8 @@ int test_atinterface(log4cpp::Category & logger);
 unsigned sleeptime = 0;
 unsigned cycles = 0;
 
+bool useColors = true;
+
 int main (int argc, char *argv[]) {
 
 	// Command line parsing
@@ -115,9 +117,10 @@ int main (int argc, char *argv[]) {
 			{"atgpstest", no_argument, 0, 'g'},
 			{"tetest", no_argument, 0, 'i'},
 			{"attest", no_argument, 0, 't'},
+			{"nocolors", no_argument, 0, 'y'},
 			{0, 0, 0, 0}
 		};
-	static char * optstring = "abC:c:dehgilnors:tw";
+	static char * optstring = "abC:c:dehgilnors:twy";
 	int c;
 	bool silent = false;
 
@@ -238,6 +241,9 @@ int main (int argc, char *argv[]) {
 			case 'h':
 				print_usage(argv[0]);
 				return EXIT_SUCCESS;
+			case 'y':
+				useColors = false;
+				break;
 			default:
 				cout << "Unknowen test required: " << c << endl;
 		}
@@ -353,6 +359,7 @@ void print_usage(char * progname) {
 	cout << "-s, --sleep <seconds>      Seconds to wait between cycles" << endl;
 	cout << "-C, --configuration        Configuration file path" << endl;
 	cout << "-c, --cycles <count>       Test cycles number" << endl;
+	cout << "-y, --nocolors             Disable colors on output" << endl;
 	cout << "-l, --comlibstest          Do a Test on comlibs" << endl;
 	cout << "-e, --devdbtest            Do a Test on DeviceDB" << endl;
 	cout << "-d, --commandtest          Do a Test on DaricomCommand" << endl;
