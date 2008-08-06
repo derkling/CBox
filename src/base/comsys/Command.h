@@ -98,6 +98,12 @@ protected:
     /// Other (optional) command params.
     t_mapValue d_params;
 
+    /// The command priority
+    /// This priority could be used define the upload queue where the command
+    /// will be inserted, and thus its upload priority
+    /// @see WSProxyCommandHandler
+    unsigned short d_prio;
+
     /// Logger
     /// Use this logger reference, related to the 'log' category, to log your messages
     log4cpp::Category & log;
@@ -128,6 +134,10 @@ public:
     /// Set the device identifier
     /// @param devId the device identifier.
     inline exitCode setDeviceId(Device::t_deviceId const & devId);
+
+    void setPrio(unsigned short prio);
+
+    unsigned short getPrio(void) const;
 
     /// Set a string command parameter.
     /// Use this to associate a string parameter to the command

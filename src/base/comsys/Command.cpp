@@ -52,7 +52,8 @@ Command::Command (t_cmdType const & cmdType, Device::t_deviceType devType,
         log(log4cpp::Category::getInstance(std::string("controlbox.comlibs.command."+logName))),
         d_cmdType(cmdType),
         d_devType(devType),
-        d_devId(devId) {
+        d_devId(devId),
+        d_prio(10) {
 
     LOG4CPP_DEBUG(log, "Command::Command (type=%u, device=%u, deviceId=%s, logName=%s)", d_cmdType, d_devType, d_devId.c_str(), logName.c_str());
 
@@ -103,6 +104,14 @@ exitCode Command::eraseParam(std::string const & lable) {
 
 }
 
+void Command::setPrio(unsigned short prio) {
+	LOG4CPP_DEBUG(log, "Setting command priority [%hu]", prio);
+	d_prio = prio;
+}
+
+unsigned short Command::getPrio(void) const {
+	return d_prio;
+}
 
 inline
 exitCode Command::setTheParam(std::string const & lable, t_cmdParam const & param, bool override) {
