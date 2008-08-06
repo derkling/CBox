@@ -45,8 +45,8 @@ DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName
 	char * muxStart = 0;
 	char * confStart = 0;
 	char newTTYConf[128];
-				
-	LOG4CPP_INFO(log, "Loading serial device configuration");
+
+	LOG4CPP_DEBUG(log, "Loading serial device configuration");
 
 	//----- Loading TTY configuration params
 	//TODO: Verify 'd_config' initialization
@@ -54,22 +54,24 @@ DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName
 	// Loading the TTY port configuration string
 	d_ttyConfig = d_config.param(paramName("tty_device"),
 					DEVICESERIAL_DEFAULT_DEVICE);
-				
+
 	// Look if it is a multiplexed port
 	muxStart = strchr(d_ttyConfig.c_str(), '-');
 	if (muxStart) {
 		sprintf(newTTYConf, "%s", d_ttyConfig.c_str());
 		muxStart = strchr(newTTYConf, '-');
-		sscanf(muxStart, "%hu", &d_ttyMuxPort);
+		// NOTE virtual ports = [1..4], configuration string = [A..D]
+		d_ttyMuxPort = muxStart[1]-'A'+1;
+// 		sscanf(muxStart, "%hu", &d_ttyMuxPort);
 		confStart = strchr(muxStart, ':');
 		sprintf(muxStart, "%s", confStart);
-		
+
 		d_ttyConfig = std::string(newTTYConf);
 		d_gpio = df->getDeviceGPIO();     // Needed to switch mux TTYs
 		d_detachedMode = true;
-		
-		LOG4CPP_DEBUG(log, "Using multiplexed TTY [%s], on virtual port [%hu]",
-					  d_ttyConfig.c_str(), d_ttyMuxPort);
+
+		LOG4CPP_INFO(log, "Using multiplexed TTY [%s], on virtual port [%c]",
+					  d_ttyConfig.c_str(), ('A'-1)+d_ttyMuxPort);
 	}
 
 	memset(d_lineTerminator, 0, 3);
@@ -89,7 +91,7 @@ DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName
 	sscanf(d_config.param(paramName("tty_respTimeout"),
 		DEVICESERIAL_DEFAULT_RESPONCE_TIMEOUT).c_str(),
 		"%i", &d_respTimeout);
-		
+
 }
 
 
@@ -99,6 +101,14 @@ DeviceSerial::~DeviceSerial() {
 
 exitCode
 DeviceSerial::detachedMode(bool enable) {
+	if ( d_detachedMode && !enable ) {
+		LOG4CPP_INFO(log, "Transaction start");
+		openSerial(false);
+	}
+	if ( !d_detachedMode && enable ) {
+		closeSerial(false);
+		LOG4CPP_INFO(log, "Transaction end");
+	}
 	d_detachedMode = enable;
 }
 
@@ -109,35 +119,40 @@ DeviceSerial::openSerial(bool init, t_stringVector * resp) {
 	if ( d_isOpen ) {
 		return OK;
 	}
-	
+
 	if (!d_ttyConfig.size()) {
 		LOG4CPP_ERROR(log, "Failed opening serial: missing configuration");
 		return GPRS_TTY_OPEN_FAILURE;
 	}
-	
-	LOG4CPP_INFO(log, "Opening serial port [%s]", d_ttyConfig.c_str());
-	
+
 	// Checking if the port is multiplexed
 	if (d_gpio) {
 		LOG4CPP_DEBUG(log, "Waiting for mutex acquisition and port switching");
 		d_gpio->ttyLock(d_ttyMuxPort);
+		LOG4CPP_INFO(log, "Opening TTY [%s], virtual port [%c]", d_ttyConfig.c_str(), ('A'-1)+d_ttyMuxPort);
+	} else {
+		LOG4CPP_INFO(log, "Opening TTY [%s]", d_ttyConfig.c_str());
 	}
-	
+
 	this->open(d_ttyConfig.c_str());
 	if ( !(*this) ) {
-		LOG4CPP_ERROR(log, "Failed opening serial [%s]", d_ttyConfig.c_str());
+		if (d_gpio) {
+			LOG4CPP_ERROR(log, "Failed opening TTY [%s], virtual port [%c]", d_ttyConfig.c_str(), ('A'-1)+d_ttyMuxPort);
+		} else {
+			LOG4CPP_INFO(log, "Failed opening TTY [%s]", d_ttyConfig.c_str());
+		}
 		return TTY_OPEN_FAILURE;
 	}
 	// Disabling TTY buffers
 	this->interactive(true);
-	
+
 	d_isOpen = true;
-	
+
 	if (init) {
 		LOG4CPP_INFO(log, "Sending initialization string [%s]...", d_initString.c_str());
 		sendSerial(d_initString, resp);
 	}
-	
+
 	return OK;
 }
 
@@ -157,13 +172,13 @@ DeviceSerial::closeSerial(bool sync) {
 
 	this->close();
 	d_isOpen = false;
-	
+
 	// Checking if the port is multiplexed
 	if (d_gpio) {
 		LOG4CPP_DEBUG(log, "Releasing port mutex");
 		d_gpio->ttyUnLock(d_ttyMuxPort);
 	}
-	
+
 	return OK;
 }
 
@@ -172,12 +187,12 @@ exitCode
 DeviceSerial::sendSerial(std::string str, t_stringVector * resp) {
 	exitCode result;
 
-	if (d_detachedMode && d_gpio) {
-		// acquiring port mutex and opening port
-		LOG4CPP_DEBUG(log, "Writing port in detached mode");
-		openSerial ();
-	}
-	
+// 	if (d_detachedMode && d_gpio) {
+// 		// acquiring port mutex and opening port
+// 		LOG4CPP_DEBUG(log, "Writing port in detached mode");
+		openSerial();
+// 	}
+
 	if ( !d_isOpen ) {
 		LOG4CPP_WARN(log, "Failed writing: TTY is not open");
 		return TTY_NOT_OPEN;
@@ -198,7 +213,7 @@ DeviceSerial::sendSerial(std::string str, t_stringVector * resp) {
 	}
 
 	result = readSerial(resp);
-	
+
 	if (d_detachedMode && d_gpio) {
 		// releasing port mutex, synching and closing port
 		closeSerial(true);
@@ -213,12 +228,12 @@ DeviceSerial::readSerial(t_stringVector * resp, bool blocking) {
 	char cbuf[256];
 	exitCode result = TTY_NOT_RESPONDING;
 
-	if (d_detachedMode && d_gpio) {
-		// acquiring port mutex and opening port
-		LOG4CPP_DEBUG(log, "Reading port in detached mode");
+// 	if (d_detachedMode && d_gpio) {
+// 		// acquiring port mutex and opening port
+// 		LOG4CPP_DEBUG(log, "Reading port in detached mode");
 		openSerial ();
-	}
-	
+// 	}
+
 	if ( !d_isOpen ) {
 		LOG4CPP_WARN(log, "Failed reading: TTY is not open");
 		return TTY_NOT_OPEN;
@@ -245,12 +260,12 @@ DeviceSerial::readSerial(t_stringVector * resp, bool blocking) {
 			LOG4CPP_DEBUG(log, "TTY_READ: %s", cbuf);
 		}
 	} while ( isPending(ost::Serial::pendingInput, 100) );
-	
+
 	if (d_detachedMode && d_gpio) {
 		// releasing port mutex, synching and closing port
 		closeSerial(true);
 	}
-	
+
 	return result;
 
 }
@@ -261,12 +276,12 @@ DeviceSerial::sendSerial(const char * buf, const int len) {
 #ifdef CONTROLBOX_DEBUG
 	char str[512];
 #endif
-	
-	if (d_detachedMode && d_gpio) {
-		// acquiring port mutex and opening port
-		LOG4CPP_DEBUG(log, "Writing port in detached mode");
+
+// 	if (d_detachedMode && d_gpio) {
+// 		// acquiring port mutex and opening port
+// 		LOG4CPP_DEBUG(log, "Writing port in detached mode");
 		openSerial ();
-	}
+// 	}
 
 	if ( !d_isOpen ) {
 		LOG4CPP_WARN(log, "Failed writing: TTY is not open");
@@ -283,7 +298,7 @@ DeviceSerial::sendSerial(const char * buf, const int len) {
 #endif
 
 	ost::Thread::sleep(d_respDelay);
-	
+
 	if (d_detachedMode && d_gpio) {
 		// releasing port mutex, synching and closing port
 		closeSerial(true);
@@ -300,12 +315,12 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 #ifdef CONTROLBOX_DEBUG
 	char str[512];
 #endif
-	
-	if (d_detachedMode && d_gpio) {
-		// acquiring port mutex and opening port
-		LOG4CPP_DEBUG(log, "Reading port in detached mode");
+
+// 	if (d_detachedMode && d_gpio) {
+// 		// acquiring port mutex and opening port
+// 		LOG4CPP_DEBUG(log, "Reading port in detached mode");
 		openSerial ();
-	}
+// 	}
 
 	if ( !d_isOpen ) {
 		LOG4CPP_WARN(log, "Failed reading: TTY is not open");
@@ -329,7 +344,7 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 			count<len &&
 			isPending(ost::Serial::pendingInput, 100)
 		);
-		
+
 
 #ifdef CONTROLBOX_DEBUG
 	printHexBuf(resp, count, str, 512);
@@ -339,12 +354,12 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 #endif
 
 	len = count;
-	
+
 	if (d_detachedMode && d_gpio) {
 		// releasing port mutex, synching and closing port
 		closeSerial(true);
 	}
-	
+
 	return OK;
 
 }
@@ -352,10 +367,10 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 void
 DeviceSerial::printHexBuf(const char * buf, unsigned len, char * str, unsigned size) {
 	int i;
-	
+
 	for (i=0; i<len && ((i+1)*3)<size; i++)
 		sprintf(str+(i*3), " %02X", buf[i]);
-	
+
 	str[i*3] = 0;
 
 }
