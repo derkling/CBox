@@ -41,6 +41,7 @@
 #define DEVICETE_DEFAULT_MODEL   		"0"
 #define DEVICETE_DEFAULT_TTY			"/dev/ttyUSB0:9600,8,n,1"
 #define DEVICETE_DEFAULT_POLLING_DELAY		"60000"
+#define DEVICETE_DEFAULT_RETRY			"0"
 #define DEVICETE_DEFAULT_RESPONCE_DELAY		"500"
 #define DEVICETE_DEFAULT_LINE_TERMINATOR	"13"
 #define DEVICETE_FORCERAW			"1"
@@ -184,6 +185,9 @@ class DeviceTE : public comsys::CommandGenerator, public Device  {
 
 	/// The polling time [ms]
 	unsigned int d_pollInterval;
+
+	/// Number of times to retry read on "device not responding"
+	unsigned short d_retry;
 
 	/// The list of last downloaded events.
 	t_eventList d_eventsToNotify;

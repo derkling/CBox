@@ -147,7 +147,7 @@ SampiTE::checkResponce(const char * buf) {
 				LOG4CPP_WARN(log, "Missing terminator (0x0D)");
 				return NAK_MISSING_TERMINATOR;
 			case '3':
-				LOG4CPP_WARN(log, "No new events to download");
+				LOG4CPP_INFO(log, "No new events to download");
 				return NAK_NO_NEW_EVENT;
 			case '8':
 				LOG4CPP_WARN(log, "Comunication start errro");
@@ -308,7 +308,7 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 exitCode
 SampiTE::downloadEvents(t_eventList & eventList) {
 	unsigned len, index;
-	short retry = DEVICE_TE_SAMPI_RX_RETRY+1;
+	unsigned short retry;
 	char buf[DEVICE_TE_SAMPI_RX_BUFFER];
 	SampiTE::t_teResps resp;
 	unsigned device;
@@ -316,6 +316,9 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 	t_event * event;
 	bool readOk = false;
 	EVENT_CODE(evtLable);
+	exitCode result = OK;
+
+	d_tty->detachedMode(false);
 
 	// Sending download command #54
 	LOG4CPP_DEBUG(log, "Send command 54");
@@ -324,38 +327,43 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 	do {
 		// Reading next message
 		len = read(buf, DEVICE_TE_SAMPI_RX_BUFFER);
-		retry = DEVICE_TE_SAMPI_RX_RETRY;
+		retry = d_retry+1;
 		while ( !len && --retry) {
 			LOG4CPP_DEBUG(log, "Retrying download...");
 			len = read(buf, DEVICE_TE_SAMPI_RX_BUFFER);
 		};
 		if (!len) {
 			LOG4CPP_WARN(log, "Device not responding: download ABORTED");
-			return TE_RESTART_DOWNLOAD;
+			// If the TE does not respond we wait until the next download time
+			result = TE_NO_NEW_EVENTS;
+			goto download_end;
 		}
 
 		// Verifying message checksum
 		if ( !verifyChecksum(buf, len-1) ) {
 			LOG4CPP_WARN(log, "Checksum error on downloading message [%d]", downloadedRecords+1);
 			//TODO Aborting download to restart from this record
-			return TE_RESTART_DOWNLOAD;
+			result = TE_RESTART_DOWNLOAD;
+			goto download_end;
 		}
 
 		// NOTE: if this is not an ACK we should really come back and FIX THE CODE
 		resp = checkResponce(buf);
 		if ( resp > NAK_NO_NEW_EVENT ) {
 			LOG4CPP_FATAL(log, "Communication error: %s", verboseNak(resp).c_str());
-			return TE_NAK_RECEIVED;
+			result = TE_NAK_RECEIVED;
+			goto download_end;
 		}
 
 		if ( resp == NAK_NO_NEW_EVENT ) {
-			LOG4CPP_DEBUG(log, "No new events to download from SAMPI device/s");
+			LOG4CPP_DEBUG(log, "No more events from SAMPI");
 			if (downloadedRecords) {
 				LOG4CPP_DEBUG(log, "Notify events to be uploaded");
-				return OK;
+				result = OK;
+				goto download_end;
 			} else {
-				LOG4CPP_DEBUG(log, "No new events to be uploaded");
-				return TE_NO_NEW_EVENTS;
+				result = TE_NO_NEW_EVENTS;
+				goto download_end;
 			}
 		}
 
@@ -380,9 +388,12 @@ SampiTE::downloadEvents(t_eventList & eventList) {
 
 	} while (true);
 
-	LOG4CPP_DEBUG(log, "%d more event/s to download", downloadedRecords);
+	LOG4CPP_INFO(log, "%d new events downloaded", downloadedRecords);
 
-	return OK;
+download_end:
+
+	d_tty->detachedMode(true);
+	return result;
 
 }
 

@@ -70,6 +70,10 @@ DeviceTE::DeviceTE(t_teModels model, std::string const & logName)
 				DEVICETE_DEFAULT_POLLING_DELAY).c_str(),
 		"%i", &d_pollInterval, true);
 
+	sscanf(d_config.param("device_te_retry",
+				DEVICETE_DEFAULT_RETRY).c_str(),
+		"%hu", &d_retry, true);
+
 	d_forceRawUpload = d_config.testParam("device_te_forceRawUpload", DEVICETE_FORCERAW);
 	if ( d_forceRawUpload ) {
 		LOG4CPP_INFO(log, "Forcing RAW messages upload");
@@ -89,13 +93,13 @@ DeviceTE::DeviceTE(t_teModels model, std::string const & logName)
 
 	d_time = df->getDeviceTime();
 
-	// Opening connection to TE device
-	// NOTE this code SHOULD trigger an exception on errors...
-	// NOTE don't use an initialization string with TE devices...
-	result = d_tty->openSerial(false);
-	if (result!=OK) {
-		LOG4CPP_FATAL(log, "Failed opening TTY port");
-	}
+// 	// Opening connection to TE device
+// 	// NOTE this code SHOULD trigger an exception on errors...
+// 	// NOTE don't use an initialization string with TE devices...
+// 	result = d_tty->openSerial(false);
+// 	if (result!=OK) {
+// 		LOG4CPP_FATAL(log, "Failed opening TTY port");
+// 	}
 
 	// Registering device into the DeviceDB
 	dbReg();
@@ -182,6 +186,9 @@ exitCode DeviceTE::notifyEvents(void) {
 			}
 			// Setting event param
 			cSgd->setParam( "type", eventDescr[event->type]);
+
+			// Setting priority
+			cSgd->setPrio(3);
 
 			// Calling TE specific parser and event formatter
 			formatEvent(*event, *cSgd);
