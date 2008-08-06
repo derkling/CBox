@@ -44,14 +44,10 @@
 # define PIN_GPRS2_STATE 		PG24
 # define PORT_GPRS2_RST 		PORTG
 # define PIN_GPRS2_RST 			PG24
-# define PORT_TTY1_MUX1 		PORTG
-# define PIN_TTY1_MUX1 			PG28
-# define PORT_TTY1_MUX2			PORTG
-# define PIN_TTY1_MUX2 			PG29
-# define PORT_TTY2_MUX1			PORTG
-# define PIN_TTY2_MUX1 			PG28
-# define PORT_TTY2_MUX2			PORTG
-# define PIN_TTY2_MUX2 			PG29
+
+# define PORT_MUX1			PORTG
+# define PIN_MUX1_BIT1 			PG28
+# define PIN_MUX1_BIT2			PG29
 #endif
 
 
@@ -92,12 +88,9 @@ DeviceGPIO::DeviceGPIO(std::string const & logName) :
 	gpiosetdir(PORT_GPRS2_PWR,   DIRIN, PIN_GPRS2_PWR);
 	gpiosetdir(PORT_GPRS2_RST,   DIRIN, PIN_GPRS2_RST);
 	gpiosetdir(PORT_GPRS2_STATE, DIRIN, PIN_GPRS2_STATE);
-	// TTY1 mux
-	gpiosetdir(PORT_TTY1_MUX1, DIROUT, PIN_TTY1_MUX1);
-	gpiosetdir(PORT_TTY1_MUX2, DIROUT, PIN_TTY1_MUX2);
-	// TTY2 mux
-	gpiosetdir(PORT_TTY2_MUX1, DIROUT, PIN_TTY2_MUX1);
-	gpiosetdir(PORT_TTY2_MUX2, DIROUT, PIN_TTY2_MUX2);
+	// MUX1
+	gpiosetdir(PORT_MUX1, DIROUT, PIN_MUX1_BIT1);
+	gpiosetdir(PORT_MUX1, DIROUT, PIN_MUX1_BIT2);
 #endif
 
 
@@ -257,18 +250,13 @@ exitCode DeviceGPIO::ttyLock(unsigned short port) {
 		return OK;
 
 	// Acquiring mux lock to satefly use the port
-	if (port & 0x8) {
-		LOG4CPP_DEBUG(log, "Entering TTY2 mutex lock...");
-		d_ttyLock[TTY2].enterMutex ();
-		LOG4CPP_DEBUG(log, "TTY2 mutex lock acquired");
-	} else {
-		LOG4CPP_DEBUG(log, "Entering TTY1 mutex lock...");
-		d_ttyLock[TTY1].enterMutex ();
-		LOG4CPP_DEBUG(log, "TTY1 mutex lock acquired");
-	}
+	LOG4CPP_DEBUG(log, "Waiting for MUX1 lock...");
+
+	d_ttyLock[MUX1].enterMutex ();
+	LOG4CPP_DEBUG(log, "MUX1 lock acquired by port [%c]", 'A'-1+port);
 
 	// Switching MUX to te required port
-	ttySelect (port);
+	ttySelect(port);
 
 	return OK;
 }
@@ -278,13 +266,8 @@ exitCode DeviceGPIO::ttyUnLock(unsigned short port) {
 	if (port==TTY_SINGLE)
 		return OK;
 
-	if (port & 0x8) {
-		LOG4CPP_DEBUG(log, "Releasing TTY2 mutex lock");
-		d_ttyLock[TTY2].leaveMutex ();
-	} else {
-		LOG4CPP_DEBUG(log, "Releasing TTY1 mutex lock");
-		d_ttyLock[TTY1].leaveMutex ();
-	}
+	d_ttyLock[MUX1].leaveMutex();
+	LOG4CPP_DEBUG(log, "MUX1 lock released by port [%c]", 'A'-1+port);
 
 	return OK;
 }
@@ -295,28 +278,25 @@ exitCode DeviceGPIO::ttySelect(unsigned short port) {
 	if (port==TTY_SINGLE)
 		return OK;
 
-	if (port & 0x8) {
-		s0 = GPIO_TTY1_MUX1;
-		s1 = GPIO_TTY1_MUX2;
+	// Mapping Port A[1] on configuration bits [00]
+	port-=1;
+
+	if (port & (unsigned short)0x1) {
+		gpioWrite(GPIO_SET, GPIO_MUX1_BIT1);
 	} else {
-		s0 = GPIO_TTY2_MUX1;
-		s1 = GPIO_TTY2_MUX2;
+		gpioWrite(GPIO_CLEAR, GPIO_MUX1_BIT1);
 	}
 
-	if (port & 0x2) {
-		gpioWrite(GPIO_SET, s0);
+	if (port & (unsigned short)0x2) {
+		gpioWrite(GPIO_SET, GPIO_MUX1_BIT2);
 	} else {
-		gpioWrite(GPIO_CLEAR, s0);
-	}
-
-	if (port & 0x4) {
-		gpioWrite(GPIO_SET, s1);
-	} else {
-		gpioWrite(GPIO_CLEAR, s1);
+		gpioWrite(GPIO_CLEAR, GPIO_MUX1_BIT2);
 	}
 
 	// Wait few time to ensure proper switching
 	ost::Thread::sleep(200);
+
+	LOG4CPP_INFO(log, "TTY mux switched to port [%c]", 'A'+port);
 
 	return OK;
 }
@@ -334,21 +314,13 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 			port = PORT_GPRS2_PWR;
 			pin = PIN_GPRS2_PWR;
 			break;
-		case GPIO_TTY1_MUX1:
-			port = PORT_TTY1_MUX1;
-			pin = PIN_TTY1_MUX1;
+		case GPIO_MUX1_BIT1:
+			port = PORT_MUX1;
+			pin = PIN_MUX1_BIT1;
 			break;
-		case GPIO_TTY1_MUX2:
-			port = PORT_TTY1_MUX2;
-			pin = PIN_TTY1_MUX2;
-			break;
-		case GPIO_TTY2_MUX1:
-			port = PORT_TTY2_MUX1;
-			pin = PIN_TTY2_MUX1;
-			break;
-		case GPIO_TTY2_MUX2:
-			port = PORT_TTY2_MUX2;
-			pin = PIN_TTY2_MUX2;
+		case GPIO_MUX1_BIT2:
+			port = PORT_MUX1;
+			pin = PIN_MUX1_BIT2;
 			break;
 		default:
 			return GENERIC_ERROR;
@@ -394,25 +366,15 @@ DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
 			port = PORT_GPRS2_STATE;
 			pin = PORT_GPRS2_STATE;
 			break;
-		case GPIO_TTY1_MUX1:
-		 	LOG4CPP_DEBUG(log, "Reading GPIO_TTY1_MUX1");
-			port = PORT_TTY1_MUX1;
-			pin = PIN_TTY1_MUX1;
+		case GPIO_MUX1_BIT1:
+		 	LOG4CPP_DEBUG(log, "Reading PIN_MUX1_BIT1");
+			port = PORT_MUX1;
+			pin = PIN_MUX1_BIT1;
 			break;
-		case GPIO_TTY1_MUX2:
-		 	LOG4CPP_DEBUG(log, "Reading GPIO_TTY1_MUX2");
-			port = PORT_TTY1_MUX2;
-			pin = PIN_TTY1_MUX2;
-		break;
-		case GPIO_TTY2_MUX1:
-		 	LOG4CPP_DEBUG(log, "Reading GPIO_TTY2_MUX1");
-			port = PORT_TTY2_MUX1;
-			pin = PIN_TTY2_MUX1;
-			break;
-		case GPIO_TTY2_MUX2:
-		 	LOG4CPP_DEBUG(log, "Reading GPIO_TTY2_MUX2");
-			port = PORT_TTY2_MUX2;
-			pin = PIN_TTY2_MUX2;
+		case GPIO_MUX1_BIT2:
+		 	LOG4CPP_DEBUG(log, "Reading PIN_MUX1_BIT2");
+			port = PORT_MUX1;
+			pin = PIN_MUX1_BIT2;
 			break;
 		default:
 		 	LOG4CPP_DEBUG(log, "Undefined GPIO line to read [%d]", gpio);

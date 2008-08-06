@@ -69,16 +69,26 @@ public:
 	};
 	typedef enum gprsDevice t_gprsDevice;
 
+	// bit coding:
+	// p ssss x
+	// p    => port (TTY1,TTY2)
+	// ssss => channel [0-3]
+	// x	=> mux flag (0 single, 1 muxed)
 	enum ttySwitch {
 		TTY_SINGLE = 0,		// Special value: not multiplexed Port
-		TTY1_PORT0 = 1,
-		TTY1_PORT1 = 3,
-		TTY1_PORT2 = 5,
-		TTY1_PORT3 = 7,
-		TTY2_PORT0 = 9,
-		TTY2_PORT1 = 11,
-		TTY2_PORT2 = 13,
-		TTY2_PORT3 = 15,
+		TTY_MUX1_PORT1,
+		TTY_MUX1_PORT2,
+		TTY_MUX1_PORT3,
+		TTY_MUX1_PORT4,
+// 		TTY_SINGLE = 0,		// Special value: not multiplexed Port
+// 		TTY1_PORT0 = 1,
+// 		TTY1_PORT1 = 3,
+// 		TTY1_PORT2 = 5,
+// 		TTY1_PORT3 = 7,
+// 		TTY2_PORT0 = 9,
+// 		TTY2_PORT1 = 11,
+// 		TTY2_PORT2 = 13,
+// 		TTY2_PORT3 = 15,
 	};
 	typedef enum ttySwitch t_ttySwitch;
 
@@ -98,16 +108,16 @@ protected:
 		GPIO_GPRS2_PWR,
 		GPIO_GPRS2_STATE,
 		GPIO_GPRS2_RST,
-		GPIO_TTY1_MUX1,
-		GPIO_TTY1_MUX2,
-		GPIO_TTY2_MUX1,
-		GPIO_TTY2_MUX2,
+		GPIO_MUX1_BIT1,
+		GPIO_MUX1_BIT2,
+// 		GPIO_TTY2_MUX1,
+// 		GPIO_TTY2_MUX2,
 	};
 	typedef enum gpioLine t_gpioLine;
 
 	enum ttyMuxDevice {
-		TTY1 = 0,
-		TTY2 = 1,
+		MUX1 = 0,
+// 		MUX2 = 1,
 	};
 	typedef enum ttyMuxDevice t_ttyMuxDevice;
 
@@ -131,7 +141,8 @@ protected:
 	Configurator & d_config;
 
 	/// Multiplexed TTY mutex for exclusive access
-	ost::Mutex d_ttyLock[2];
+// 	ost::Mutex d_ttyLock[2];
+	ost::Mutex d_ttyLock[1];
 
 	/// The logger to use locally.
 	log4cpp::Category & log;
