@@ -53,6 +53,7 @@
 #include "controlbox/devices/DeviceFactory.h"
 #include "controlbox/devices/ATcontrol.h"
 #include "controlbox/devices/DeviceGPS.h"
+#include "controlbox/devices/te/DeviceTE.h"
 #include "controlbox/devices/gprs/DeviceGPRS.h"
 #include "controlbox/base/comsys/CommandDispatcher.h"
 #include "controlbox/devices/PollEventGenerator.h"
@@ -79,14 +80,8 @@ int cBoxMain(std::string const & conf,
 
 	controlbox::device::DeviceFactory * df;
 	controlbox::QueryRegistry * qr = 0;
-// 	controlbox::comsys::CommandDispatcher * stateCd = 0;
-// 	controlbox::device::DeviceGPRS * devGPRS = 0;
-// 	controlbox::device::DeviceATGPS * devATGPS = 0;
-// 	controlbox::device::ATcontrol * devAT = 0;
 	controlbox::device::DeviceSignals * devSig = 0;
-// 	controlbox::comsys::CommandDispatcher * pollDataCd = 0;
-// 	controlbox::comsys::Command * cmdPollData = 0;
-// 	controlbox::device::PollEventGenerator * peg = 0;
+	controlbox::device::DeviceTE * devTE = 0;
 	controlbox::device::WSProxyCommandHandler * ws = 0;
 
 	// Preloading the configuration options
@@ -104,50 +99,6 @@ int cBoxMain(std::string const & conf,
 		logger.error("Proxy initialization FAILED");
 		return -1;
 	}
-
-// 	logger.info("Initializing poll generator for periodic data collection... ");
-// 	cmdPollData = controlbox::comsys::Command::getCommand(
-// 				controlbox::device::PollEventGenerator::SEND_POLL_DATA,
-// 				controlbox::Device::EG_POLLER,
-// 				"SendPollData",
-// 				"PollData");
-// 	pollDataCd = new controlbox::comsys::CommandDispatcher(ws, false);
-// 	pollDataCd->setDefaultCommand(cmdPollData);
-// 	//FIXME the polling time should be, runtime configurable!
-// 	peg = df->getDevicePoller((600*1000)/10, "SendDataPoller");
-// 	peg->setDispatcher(pollDataCd);
-// 	peg->enable();
-
-// 	stateCd = new controlbox::comsys::CommandDispatcher(ws, false);
-//
-// 	logger.info("Initializing GPRS... ");
-// 	devGPRS = df->getDeviceGPRS();
-// 	if ( !devGPRS ) {
-// 		logger.error("GPRS initialization FAILED");
-// 	} else {
-// 		devGPRS->setDispatcher(stateCd);
-// 		devGPRS->enable();
-// 	}
-
-// 	logger.info("Initializing GPS/ODO/MEMS... ");
-// 	devATGPS = df->getDeviceATGPS();
-// 	if ( !devATGPS ) {
-// 		logger.error("GPS/ODO/MEMS initialization FAILED");
-// 	} else {
-// 		devATGPS->setDispatcher(stateCd);
-// 		devATGPS->enable();
-// 	}
-
-// NOTE disable console before use the AT device!!!
-// Disable this to avoid ttyS0 conflict with console...
-// 	logger.info("Initializing AT control interface... ");
-// 	devAT = controlbox::device::ATcontrol::getInstance();
-// 	if ( !devAT ) {
-// 		logger.error("AT control interface initialization FAILED");
-// 	} else {
-// 		devAT->setDispatcher(stateCd);
-// 		devAT->enable();
-// 	}
 
 	sleep(2);
 
@@ -178,23 +129,32 @@ int cBoxMain(std::string const & conf,
 		devSig->powerOn(false);
 	}
 
-	// Wait few moments for message (possible) uploading...
-	sleep(10);
+	// Deleting DeviceTE to ensure does not procuce any more messages
+	devTE = df->getDeviceTE();
+	delete devTE;
+
+// 	// Wait few moments for shutdown message (possible) uploading...
+// 	::sleep(5);
+//
+// 	// Requiring WSProxy to exit;
+// 	ws->onShutdown();
+
+	// Waiting few moments more to complete ws thread shutdown
+	::sleep(5);
 
 shutdown:
-// 	delete devGPRS;
-// 	delete devATGPS;
-// 	delete devAT;
 	delete ws;
 
 	return 0;
 
 }
 
+
 /// Print the Help menu
 void print_usage(char * progname) {
 
-	cout << "cBox ver. " << VERSION << endl;
+	cout << "cBox ver. " << VERSION << " (";
+	cout << "Build: " << __DATE__ << " " << __TIME__ << ")" << endl;
 	cout << "\tUsage: " << progname << " [options]" << endl;
 	cout << "\tOptions:" << endl;
 	cout << "\t -c, --configuration        Configuration file" << endl;
