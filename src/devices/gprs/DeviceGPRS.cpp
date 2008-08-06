@@ -46,13 +46,13 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 			CommandGenerator(logName),
 			Device(Device::DEVICE_GPRS, module, logName),
 			d_doExit(false),
+			d_monitorPppd(this),
 			d_config(Configurator::getInstance()),
 			d_module(module),
 			d_model(model),
 			d_curNetlinkName(0),
 			d_curNetlinkConf(0),
 			d_pppdPid(0),
-			d_runThread(0),
 			d_parserRunning(false),
 			d_mode(DEVICEGPRS_MODE_COMMAND),
 			d_netStatus(DeviceGPRS::LINK_DOWN),
@@ -893,9 +893,8 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 			//--- Notifying a LINK_UP
 			// NOTE when an API interface is UP, the GPRS connection
 			//	may NOT be up
-			updateState(LINK_API_UP);
 			pppNotifyState(true);
-			notifyCaller();
+// 			notifyCaller();
 			LOG4CPP_INFO(log, "PPPD daemon UP");
 
 			return OK;
@@ -1010,6 +1009,30 @@ OPENFIFO:
 	return OK;
 }
 
+
+DeviceGPRS::MonitorPppd::MonitorPppd(DeviceGPRS * gprs) :
+	d_gprs(gprs) {
+// 	LOG4CPP_DEBUG(log, "Build PPPD monitor thread");
+}
+
+void
+DeviceGPRS::MonitorPppd::run(void) {
+// 	std::ostringstream tName;
+//
+// 	tName << "run_" << d_name << "-" << d_module;
+// 	PosixThread::setName(tName.str().c_str());
+// 	d_monitorPppd = this;
+
+// 	LOG4CPP_INFO(log, "Starting thread [%s]", PosixThread::getName());
+// 	LOG4CPP_INFO(log, "Starting PPPD monitor thread...");
+// 	LOG4CPP_DEBUG(log, "Run thread [%s] is @ [%p]",
+// 			PosixThread::getName(),
+// 			d_runThread);
+
+	d_gprs->pppdMonitor();
+
+}
+
 exitCode
 DeviceGPRS::runParser() {
 	LOG4CPP_DEBUG(log, "Running DUMMY GPRS configuration");
@@ -1020,25 +1043,6 @@ void
 DeviceGPRS::run(void) {
 	LOG4CPP_DEBUG(log, "Running DUMMY GPRS configuration");
 }
-
-
-// void
-// PppLogParserThread::run(void) {
-// // 	std::ostringstream tName;
-// //
-// //
-// // 	tName << "run_" << d_name << "-" << d_module;
-// // 	PosixThread::setName(tName.str().c_str());
-// // 	d_runThread = this;
-// //
-// // 	LOG4CPP_INFO(log, "Starting thread [%s]", PosixThread::getName());
-// // 	LOG4CPP_DEBUG(log, "Run thread [%s] is @ [%p]",
-// // 			PosixThread::getName(),
-// // 			d_runThread);
-//
-// 	pppdMonitor();
-//
-// }
 
 
 } // namespace gprs

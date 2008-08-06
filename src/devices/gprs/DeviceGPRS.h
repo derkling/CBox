@@ -148,11 +148,10 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 		LINK_DOWN = 0,		///> No network connection
 		LINK_GOING_DOWN,	///> Terminating a network connection
 		LINK_GOING_UP,		///> Starting a network connection
-		LINK_API_UP,		///> The API interface is UP
 		LINK_UP			///> Active network connection
 	};
 	typedef enum netStatus t_netStatus;
-	
+
 // 	enum apiStatus {
 // 		LINK_API_DOWN = 0,	///> The API interface is down
 // 		LINK_API_GOING_DOWN,	///> The API interface is being actived
@@ -160,20 +159,20 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 // 		LINK_API_UP,		///> The API interface is Up
 // 	};
 // 	typedef enum apiStatus t_apiStatus;
-	
+
 	/// Network status description.
 	/// @note this array entries should match the values of t_netStatus enum
 	static const char *d_netStatusStr[];
-	
+
 	/// A linkname (i.e. an APN).
 	typedef char t_linkname[DEVICEGPRS_MAX_NETLINK_NAMELEN];
-	
+
 	enum simSlot {
 		SIM1 = 1,	///> first SIM slot
 		SIM2,		///> second SIM slot
 	};
 	typedef enum simSlot t_simSlot;
-	
+
 	/// GPRS device identification numners
 	struct identification {
 		std::string manufactor;		///< Modem producer
@@ -184,10 +183,10 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 		std::string simSlot;		///< SIM's slot actually actived
 	};
 	typedef struct identification t_identification;
-	
+
 	/// A generic list of strings.
 	typedef vector < std::string > t_stringVector;
-	
+
 	/// A netlink configuration
 	struct netlink {
 		t_simSlot	sim;		///> the sim to use
@@ -197,13 +196,13 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 		t_stringVector	lserv;		///> the list of server to witch sync IP
 	};
 	typedef struct netlink t_netlink;
-	
+
 	/// Map linknames (APN) to their configuration
 	typedef map<std::string, t_netlink*> t_supportedLinks;
-	
+
 	/// Map linknames (APN) to devices configured to handle that link
 	typedef multimap<std::string, DeviceGPRS*> t_mapLink2DeviceGPRS;
-	
+
 	/// A ppp interface configuration
 	struct pppd_configuration {
 		t_linkname linkname;	///< The linkname
@@ -220,10 +219,17 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
       protected:
 
 
-//      	/// A thread for log parsing
-// 	class PppLogParserThread : public ost::Thread {
-// 		void run (void);
-// 	};
+	/// A thread for log parsing
+	class MonitorPppd : public ost::PosixThread {
+	public:
+		MonitorPppd(DeviceGPRS * gprs);
+		~MonitorPppd() {};
+		void run (void);
+	protected:
+		DeviceGPRS * d_gprs;
+	};
+	// Allowing inner class to access DeviceAnalogSensors members
+	friend class MonitorPppd;
 
 
       protected:
@@ -247,17 +253,17 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// The GPRS module identification strings
 	t_identification d_ids;
-	
+
 	/// The network links (i.e. APN) supported by this modem
 	/// @note each modem could support up to DEVICEGPRS_MAX_NETLINKS
 	t_supportedLinks d_supportedLinks;
-	
+
 	/// The current netlink name
 	const std::string * d_curNetlinkName;
-	
+
 	/// The current netlink configuration
 	t_netlink * d_curNetlinkConf;
-	
+
 	/// The currently used SIM's number
 	std::string d_simNumber;
 
@@ -266,41 +272,38 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// The current NET link status
 	t_netStatus d_netStatus;
-	
+
 	/// The PPP configuration
 	t_pppd_configuration d_pppConf;
-	
+
 	/// The thread for parsing pppd log file.
-// 	PppLogParserThread d_parserThread;
-	
+	MonitorPppd d_monitorPppd;
+
 	/// Whatever the parser thread is running.
 	/// When this is false, all public command methods will fails
 	/// with an GPRS_PARSER_NOT_RUNNING exitCode.
 	bool d_parserRunning;
-	
+
 	/// The PID of the PPP daemon
 	pid_t d_pppdPid;
-	
+
 	/// The PPP daemon folder for logfile
 	std::string d_pppdLogFolder;
-	
+
 	/// The PPP daemon logfile
 	std::string d_pppdLogFile;
-	
+
 	/// Local IP address
 	std::string d_localIP;
 
 	/// Remote IP address
 	std::string d_remoteIP;
-	
+
 	/// DNS1
 	std::string d_dns1;
 
 	/// DNS2
 	std::string d_dns2;
-
-	/// The PPP parser thread.
-	ost::PosixThread * d_runThread;
 
 	static t_mapLink2DeviceGPRS d_mapLink2DeviceGPRS;
 
@@ -320,7 +323,7 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	static DeviceGPRS *getInstance(unsigned short module,
 					std::string const &logName =
 				       "DeviceGPRS");
-	
+
 	/// Return an instante of a gprs modem supporting the specified linkname.
 	/// @return 0 if the required linkname is not supported by the current
 	///		configuration
@@ -351,7 +354,7 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// Terminate the current GPRS session.
 	virtual exitCode disconnect();
-	
+
 
 	/// Get current Time in ISO 8601 format.
 	/// Complete date plus hours, minutes, seconds and a decimal fraction of a
@@ -371,27 +374,27 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// with a special UTC designator ("Z").
 	/// @param UTC set true to use UTC time zone designator (Z)
 	virtual std::string time(bool utc = false) const;
-	
+
 	/// Send an SMS to the specified number.
 	/// @param msg the string message to send; it should not exceed 160 chars
 	///		otherwise it will be truncated
 	/// @param number the cell number to witch the message should be sent
 	/// @return OK on success, otherwise... <i>to be defined</i>
 	virtual exitCode sendSMS(std::string number, std::string text);
-	
+
 	/// Get the current signal level.
 	virtual exitCode signalLevel(unsigned short & level);
-	
+
 	/// Get GPRS registration status
 	virtual exitCode gprsStatus(unsigned short & status);
-	
+
 	/// Get current NET link status
 	/// @return the NET link status as defined by the DeviceGPRS::t_netStatus type.
 	/// @see t_netStatus
 	inline DeviceGPRS::t_netStatus status() const {
 		return d_netStatus;
 	};
-	
+
 	/// Start the parser thread.
 	virtual exitCode runParser();
 
@@ -416,7 +419,7 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	///                 substring following param radix and type
 	inline std::string paramName(std::string param) {
 		std::ostringstream ostr("gprs_modem_", ios::ate);
-		
+
 		ostr << d_module << "_" << param;
 		return ostr.str();
 	}
@@ -429,15 +432,15 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	inline std::string paramName(std::string const &type,
 				     std::string param) {
 		std::ostringstream ostr("gprs_", ios::ate);
-		
+
 		ostr << type;
 		if (param.size()) {
 			ostr << "_" << param;
 		}
 		return ostr.str();
 	}
-	
-	/// Retrive the PID 
+
+	/// Retrive the PID
 	/// @param update set true to read the PID from ppp daemon log file
 	pid_t getPppdPid(bool update = true);
 
@@ -446,10 +449,10 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// GPRS_PPPD_NOT_RUNNING if ther's not a daemon to terminate
 	///         GPRS_PPPD_FAILURE on error stopping the daemon
 	exitCode pppdTerminate();
-	
+
 	/// Load supported netlinks configurations.
 	inline exitCode loadNetLinks();
-	
+
 	/// Load an APN configuration.
 	/// @param apnId the ID of the configuration to load, must be in [0..9]
 	/// @param apnName the simbolic name of the loaded APN configuration
@@ -457,20 +460,20 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// @return GPRS_NETLINK_NOT_SUPPORTED if the required configuration is
 	///		not present, OK otherwise
 	inline exitCode loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & conf);
-	
+
 #if 0
 // This code has been replaced by the DeviceSerial class
 	/// Open the serial port.
 	/// @return OK on success.
 	/// @see d_tty
 	exitCode openSerial();
-	
+
 	/// Close the serial port.
 	/// @param sync set true to force a flush of input/output buffers before
 	///	closeing the device.
 	/// @return OK on success
 	exitCode closeSerial(bool sync = false);
-	
+
 	/// Send a modem cmd using the TTY port.
 	/// @param cmd the command to send
 	/// @param resp if specified, it will return the modem responce;
@@ -478,45 +481,45 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// @note emtpy lines are discarded from responce lines
 	/// @return OK on success, GPRS_TTY_MODEM_NOT_RESPONDING otherwise.
 	exitCode sendSerial(std::string cmd, t_stringVector * resp = 0);
-	
+
 	/// Read from TTY port.
 	exitCode readSerial(t_stringVector * resp = 0);
 #endif
-	
+
 	exitCode getDeviceIds();
-		
+
 	/// Check if the modem is responding
 	exitCode checkModem();
-	
+
 	/// Cleaning up before exit.
 	void cleanUp();
-	
+
 	/// Notify a network status change.
 	exitCode updateState(t_netStatus state);
-	
-	
+
+
 	/// Callback to notify ppp daemon state change.
 	/// A derived class could implement this method to get a notify on
 	/// ppp daemon changing state.
 	virtual void pppNotifyState(bool running);
-	
+
 	/// Resume (eventually) suspended callers.
 	/// This method should be used by private/protected methods to resume
 	/// an eventually suspended caller.
 	exitCode notifyCaller(void);
-	
+
 	/// Ensure that the specified param is a pipe file.
 	exitCode checkPipe(std::string const & pipe);
-	
+
 	/// Get the PPP daemon logfile.
 	/// This method update also the d_pppdLogFile attribute
 	inline std::string pppDaemonLogfile(char *logFile = 0, unsigned int size = 0);
-	
+
 	/// Parse the PPP daemon log file for event generation.
 	/// This method generate net link events recognized by
 	/// parsing the PPP daemon log file.
 	exitCode pppdMonitor();
-	
+
 	/// Parse a PPP daemon log sentence for event generation.
 	/// This method generate net link events if the given sentence has been
 	/// recognized.
