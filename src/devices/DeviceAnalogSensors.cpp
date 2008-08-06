@@ -73,40 +73,7 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 
 	// Initialize sensors samples by reading inputs
 	d_sysfsbase = d_config.param("DigitalSensor_sysfsbase", AS_DEFAULT_SYSFSBASE);
-	LOG4CPP_INFO(log, "Using sysfsbase [%s]", d_sysfsbase.c_str());
-
-
-#if 0
-
-	initSensors();
-
-	//Moved to loadSensorConfiguration
-	// Load Sensor Configuration
-	sensor = AS_FIRST_ID;
-	asCfgLable << "AnalogSensor_" << sensor;
-	asCfg = d_config.param(asCfgLable.str(), "");
-
-	while ( asCfg.size() ) {
-
-		curSensor = parseCfgString(asCfg);
-
-		if ( curSensor ) {
-			// TODO: show the loaded sensor configuration
-			analogSensors[string(curSensor->id)] = curSensor;
-			logSensorParams(curSensor);
-		} else {
-			LOG4CPP_WARN(log, "Error on loading an Analog Sensor configuration");
-		}
-
-		// Looking for next sensor definition
-		sensor++; asCfgLable.str("");
-		asCfgLable << "AnalogSensor_" << sensor;
-		asCfg = d_config.param(asCfgLable.str(), "");
-	};
-
-	LOG4CPP_INFO(log, "Successfully loaded %d analog sensors configurations", analogSensors.size());
-
-#endif
+	LOG4CPP_DEBUG(log, "Using sysfsbase [%s]", d_sysfsbase.c_str());
 
 	// Initialize sensors samples by reading inputs
 	refresSensors();
@@ -153,45 +120,6 @@ DeviceAnalogSensors::loadI2Cbus () {
 	return OK;
 
 }
-
-
-#if 0
-/*
-inline
-exitCode DeviceAnalogSensors::confADconv() {
-	t_asMap::iterator it;
-	t_analogSensor * curSensor;
-	I2C_DATA i2cdata;
-
-	i2cdata.length = 1;
-	i2cdata.slave = pAs->address.i2cAddress.chipAddress;
-	i2cdata.reg = pAs->address.i2cAddress.reg;
-
-
-	LOG4CPP_DEBUG(log, "readI2C(pAs=%s, slave=%d, reg=%d)", pAs->id, i2cdata.slave, i2cdata.reg);
-
-#ifdef CONTROLBOX_CRIS
-	// Performing IOCTL on CRIS architecture
-	ioctl(fdI2C, _IO(ETRAXI2C_IOCTYPE, I2C_READREG_N), &i2cdata);
-
-
-
-
-	it = analogSensors.begin();
-	while ( it != analogSensors.end() ) {
-		curSensor = it->second;
-
-		if ( curSensor->proto == DeviceAnalogSensors::AS_PROTO_I2C ) {
-			// NOTE: to optimize here: now we reprogram each chip multiple
-			// 	time (one for each channel)
-
-		}
-
-	}
-
-}
-*/
-#endif
 
 inline exitCode
 DeviceAnalogSensors::loadSensorConfiguration(void) {
@@ -249,16 +177,6 @@ DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::s
 	sscanf(asCfg.c_str(), cfgTemplate.str().c_str(), pAs->id, &pAs->proto);
 
 	DLOG4CPP_DEBUG(log, "Id: [%s] Proto: [%d]", pAs->id, pAs->proto);
-#if 0
-// 	// Getting sensor id from lable
-// 	it = sensorLable.find(std::string(strId));
-// 	if (it == sensorLable.end() ) {
-// 		LOG4CPP_WARN(log, "Undefined Analog Sensor lable [%s], using default id=%d", strId, SENSOR_UNDEF);
-// 		pAs->id = SENSOR_UNDEF;
-// 	} else {
-// 		pAs->id = it->second;
-// 	}
-#endif
 
 	switch ( pAs->proto ) {
 		case AS_PROTO_I2C:
@@ -393,10 +311,12 @@ DeviceAnalogSensors::validateParams(DeviceAnalogSensors::t_analogSensor * pAs) {
 
 inline void
 DeviceAnalogSensors::logSensorParams(DeviceAnalogSensors::t_analogSensor * pAs) {
+
+#ifdef CONTROLBOX_DEBUG
 	std::ostringstream params("");
 
-	LOG4CPP_INFO(log, "ID: %-*s - %s", AS_MAX_ID_LENGTH, pAs->id, pAs->description);
-	LOG4CPP_INFO(log, "\tMin Sample:   %5d\t\tMax Sample:   %5d", pAs->minSample, pAs->maxSample);
+	LOG4CPP_DEBUG(log, "ID: %-*s - %s", AS_MAX_ID_LENGTH, pAs->id, pAs->description);
+	LOG4CPP_DEBUG(log, "\tMin Sample:   %5d\t\tMax Sample:   %5d", pAs->minSample, pAs->maxSample);
 
 // TODO: check why on cris log4cpp doesn't handle float conversione!
 /*
@@ -414,29 +334,30 @@ DeviceAnalogSensors::logSensorParams(DeviceAnalogSensors::t_analogSensor * pAs) 
 	params << " " << left << setw(AS_MAX_UNIT_LENGTH) << pAs->unit << right;
 	params << "\tMax Value:  " << setw(7) << std::setprecision(3) << pAs->maxValue;
 	params << " " << left << setw(AS_MAX_UNIT_LENGTH) << pAs->unit << right;
-	LOG4CPP_INFO(log, "\t%s", params.str().c_str());
+	LOG4CPP_DEBUG(log, "\t%s", params.str().c_str());
 
 	params.str("");
 	params << "Low Alarm:  " << setw(7) << std::setprecision(3) << sampleToValue(pAs, pAs->downLimit);
 	params << " " << left << setw(AS_MAX_UNIT_LENGTH) << pAs->unit << right;
 	params << "\tHigh Alarm:  " << setw(7) << std::setprecision(3) << sampleToValue(pAs, pAs->upperLimit);
 	params << " " << left << setw(AS_MAX_UNIT_LENGTH) << pAs->unit;
-	LOG4CPP_INFO(log, "\t%s", params.str().c_str());
+	LOG4CPP_DEBUG(log, "\t%s", params.str().c_str());
 
 
-	LOG4CPP_INFO(log, "\tSensor enabled:\t%s", pAs->enabled ? "YES" : "NO" );
+	LOG4CPP_DEBUG(log, "\tSensor enabled:\t%s", pAs->enabled ? "YES" : "NO" );
 	if (pAs->event) {
-		LOG4CPP_INFO(log, "\tAlarm enabled:\tYES, Event: %u - Poll time: %dms", pAs->event, pAs->alarmPollTime );
+		LOG4CPP_DEBUG(log, "\tAlarm enabled:\tYES, Event: %u - Poll time: %dms", pAs->event, pAs->alarmPollTime );
 	} else {
-		LOG4CPP_INFO(log, "\tAlarm enabled:\tNO");
+		LOG4CPP_DEBUG(log, "\tAlarm enabled:\tNO");
 	}
 	switch (pAs->proto) {
 	case AS_PROTO_I2C:
 		break;
 	case AS_PROTO_SYSFS:
-		LOG4CPP_INFO(log, "\tDevice:\t%s", pAs->sysfsPath);
+		LOG4CPP_DEBUG(log, "\tDevice:\t%s", pAs->sysfsPath);
 		break;
 	}
+#endif
 
 }
 
@@ -457,7 +378,7 @@ DeviceAnalogSensors::refresSensors() {
 		aSensor++;
 	}
 
-	LOG4CPP_INFO(log, "%s", values.str().c_str());
+	LOG4CPP_DEBUG(log, "%s", values.str().c_str());
 
 }
 
@@ -623,7 +544,8 @@ DeviceAnalogSensors::startMonitors() {
 		if ( pAs->event && pAs->alarmPollTime ) {
 			pAs->monitor = new DeviceAnalogSensors::Monitor(this, pAs, pAs->alarmPollTime);
 			(pAs->monitor)->start();
-			LOG4CPP_INFO(log, "Started monitor on sensor [%s]", pAs->id);
+			LOG4CPP_INFO(log, "Monitoring sensor [%s] with poll time [%d]",
+						pAs->id, pAs->alarmPollTime);
 		}
 		aSensor++;
 	}
@@ -871,7 +793,7 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 
 void DeviceAnalogSensors::run(void) {
 
-	LOG4CPP_INFO(log, "AnalogSensors Monitor Thread Started");
+	LOG4CPP_DEBUG(log, "AnalogSensors Monitor Thread Started");
 
 	// Eventually start the monitor threads (that could generat events)
 	startMonitors();
