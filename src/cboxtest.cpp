@@ -352,25 +352,27 @@ int main (int argc, char *argv[]) {
 /// Print the Help menu
 void print_usage(char * progname) {
 
-	cout << "Usage: " << progname << " [options]" << endl;
-	cout << "Options:" << endl;
-	cout << "-h, --help                 Print this help" << endl;
-	cout << "-r, --release              Force don't print debug messages" << endl;
-	cout << "-s, --sleep <seconds>      Seconds to wait between cycles" << endl;
-	cout << "-C, --configuration        Configuration file path" << endl;
-	cout << "-c, --cycles <count>       Test cycles number" << endl;
-	cout << "-y, --nocolors             Disable colors on output" << endl;
-	cout << "-l, --comlibstest          Do a Test on comlibs" << endl;
-	cout << "-e, --devdbtest            Do a Test on DeviceDB" << endl;
-	cout << "-d, --commandtest          Do a Test on DaricomCommand" << endl;
-	cout << "-w, --wsproxytest          Do a Test on WSProxyCommandHandler" << endl;
-	cout << "-g, --atgpstest            Do a Test on DeviceATGPS" << endl;
-	cout << "-o, --gpiotest             Do a Test on DeviceGPIO" << endl;
-	cout << "-n, --gprstest             Do a Test on DeviceGPRS" << endl;
-	cout << "-a, --astest               Do a Test on DeviceAS" << endl;
-	cout << "-b, --bstest               Do a Test on DeviceDS" << endl;
-	cout << "-i, --tetest               Do a Test on DeviceTE" << endl;
-	cout << "-t, --attest               Do a Test on the AT interface" << endl;
+	cout << "cBox ver. " << VERSION << " (";
+	cout << "Build: " << __DATE__ << " " << __TIME__ << ")" << endl;
+	cout << "\tUsage: " << progname << " [options]" << endl;
+	cout << "\tOptions:" << endl;
+	cout << "\t-h, --help                 Print this help" << endl;
+	cout << "\t-r, --release              Force don't print debug messages" << endl;
+	cout << "\t-s, --sleep <seconds>      Seconds to wait between cycles" << endl;
+	cout << "\t-C, --configuration        Configuration file path" << endl;
+	cout << "\t-c, --cycles <count>       Test cycles number" << endl;
+	cout << "\t-y, --nocolors             Disable colors on output" << endl;
+	cout << "\t-l, --comlibstest          Do a Test on comlibs" << endl;
+	cout << "\t-e, --devdbtest            Do a Test on DeviceDB" << endl;
+	cout << "\t-d, --commandtest          Do a Test on DaricomCommand" << endl;
+	cout << "\t-w, --wsproxytest          Do a Test on WSProxyCommandHandler" << endl;
+	cout << "\t-g, --atgpstest            Do a Test on DeviceATGPS" << endl;
+	cout << "\t-o, --gpiotest             Do a Test on DeviceGPIO" << endl;
+	cout << "\t-n, --gprstest             Do a Test on DeviceGPRS" << endl;
+	cout << "\t-a, --astest               Do a Test on DeviceAS" << endl;
+	cout << "\t-b, --bstest               Do a Test on DeviceDS" << endl;
+	cout << "\t-i, --tetest               Do a Test on DeviceTE" << endl;
+	cout << "\t-t, --attest               Do a Test on the AT interface" << endl;
 
 	cout << "\nPatrick Bellasi - derkling@gmail.com\n" << endl;
 
@@ -948,17 +950,17 @@ int test_devicegpio(log4cpp::Category & logger) {
 	logger.info("05 - Testing TTY's mutex... ");
 
 	logger.info("Locking TTY1... ");
-	devGPIO->ttyLock(device::DeviceGPIO::TTY1_PORT0);
-	logger.info("Locking TTY2... ");
-	devGPIO->ttyLock(device::DeviceGPIO::TTY2_PORT3);
+	devGPIO->ttyLock(device::DeviceGPIO::TTY_MUX1_PORT1);
+// 	logger.info("Locking TTY2... ");
+// 	devGPIO->ttyLock(device::DeviceGPIO::TTY2_PORT3);
 
 	logger.info("06 - Waiting %d [s]... ", sleeptime);
 	::sleep(sleeptime);
 
 	logger.info("UnLocking TTY1... ");
-	devGPIO->ttyUnLock(device::DeviceGPIO::TTY1_PORT0);
-	logger.info("UnLocking TTY2... ");
-	devGPIO->ttyUnLock(device::DeviceGPIO::TTY2_PORT3);
+	devGPIO->ttyUnLock(device::DeviceGPIO::TTY_MUX1_PORT1);
+// 	logger.info("UnLocking TTY2... ");
+// 	devGPIO->ttyUnLock(device::DeviceGPIO::TTY2_PORT3);
 
 	logger.info("06 - Powering Down GPRS... ");
 	devGPIO->gprsPower(device::DeviceGPIO::GPRS1, device::DeviceGPIO::GPIO_OFF);
