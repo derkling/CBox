@@ -105,19 +105,19 @@ class DeviceSerial : public ost::ttystream {
 
 	/// The TTY port configuration string.
 	std::string d_ttyConfig;
-		
+
 	/// The TTY virtual port (multiplexd phisical port)
 	unsigned short d_ttyMuxPort;
-		
+
 	/// The GPIO device used to handle multiplexed TTY ports
 	DeviceGPIO * d_gpio;
-		
+
 	/// True when detached mode is enabled
 	bool d_detachedMode;
-	
+
 	/// The line terminator.
 	char d_lineTerminator[3];
-	
+
 	/// The initialization string.
 	std::string d_initString;
 
@@ -126,7 +126,7 @@ class DeviceSerial : public ost::ttystream {
 
 	/// The responce timeout.
 	unsigned int d_respTimeout;
-	
+
 	/// The [BASE] to use for configuration parameters.
 	std::string d_base;
 
@@ -151,7 +151,7 @@ class DeviceSerial : public ost::ttystream {
 	/// @param init set true to send initialization string.
 	/// @return OK on success.
 	exitCode openSerial(bool init = false, t_stringVector * resp = 0);
-	
+
 	bool isOpen();
 
 	/// Close the serial port.
@@ -159,7 +159,7 @@ class DeviceSerial : public ost::ttystream {
 	///	closeing the device.
 	/// @return OK on success
 	exitCode closeSerial(bool sync = false);
-		
+
 	/// Configure detached operation mode
 	/// In detached operation mode the port will be opened/closed on each
 	/// read/write operation. This mode is disabled by default unless the port
@@ -175,7 +175,7 @@ class DeviceSerial : public ost::ttystream {
 	/// @note emtpy lines are discarded from responce lines
 	/// @return OK on success, GPRS_TTY_MODEM_NOT_RESPONDING otherwise.
 	exitCode sendSerial(std::string str, t_stringVector * resp = 0);
-	
+
 	/// Write a byte buffer to a TTY port.
 	/// @param cmd the buffer to write
 	/// @param len the number of bytes within buf
@@ -206,11 +206,11 @@ class DeviceSerial : public ost::ttystream {
 	///                 substring following param radix and type
 	inline std::string paramName(std::string param) {
 		std::ostringstream ostr("");
-		
+
 		ostr << d_base << "_" << param;
 		return ostr.str();
 	}
-	
+
 };
 
 }// namespace gprs

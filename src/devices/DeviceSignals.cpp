@@ -48,7 +48,7 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 	d_time = df->getDeviceTime();
 
 	d_devpath = d_config.param("Signal_devpath", DEVICESIGNALS_DEV_PATH);
-	LOG4CPP_INFO(log, "Using PortA device [%s]", d_devpath.c_str());
+	LOG4CPP_DEBUG(log, "Using PortA device [%s]", d_devpath.c_str());
 
 	d_curMask.loLines = 0x00;
 	d_curMask.hiLines = 0x00;
@@ -238,7 +238,7 @@ exitCode DeviceSignals::registerHandler(t_interrupt i, ost::PosixThread * t, int
 
 	updateInterrupts();
 
-	LOG4CPP_INFO(log, "Registerd new signal [%d] handler [%s:%lu]",
+	LOG4CPP_DEBUG(log, "Registerd new signal [%d] handler [%s:%lu]",
 			s, name[0] ? name : "UNK", t);
 
 	// Unlocking the Signal thread
@@ -265,7 +265,7 @@ exitCode DeviceSignals::unregisterHandler(ost::PosixThread * t) {
 		return INT_NO_HANDLER;
 	}
 
-	LOG4CPP_INFO(log, "Unregistering signal [%d] handler [%s:%lu]",
+	LOG4CPP_DEBUG(log, "Unregistering signal [%d] handler [%s:%lu]",
 			anH->second->signo,
 			anH->second->name[0] ? anH->second->name : "UNK",
 			t);
@@ -368,6 +368,7 @@ exitCode DeviceSignals::powerOn(bool on) {
 	cSgd->setParam( "dist_evtType", "0D");
 	cSgd->setParam( "dist_evtData", on ? "1" : "0" );
 	cSgd->setParam( "timestamp", d_time->time() );
+	cSgd->setPrio(0);
 
 	// Notifying command
 	notify(cSgd);
@@ -458,8 +459,11 @@ exitCode DeviceSignals::waitForIntr(t_intMask & levels) {
 
 	FD_ZERO(&set);
 	FD_SET(fd_dev, &set);
-	if ( select(fd_dev+1, &set, NULL, NULL, NULL) < 0) {
-		LOG4CPP_WARN(log, "select failed, %s", strerror(errno));
+	err = select(fd_dev+1, &set, NULL, NULL, NULL);
+	if ( err < 0) {
+		// An EINTR is received every time an handler is added
+		// this should not result in an warning
+		LOG4CPP_DEBUG(log, "select failed, %s", strerror(errno));
 		return INT_SELECT_FAILED;
 	}
 
@@ -485,7 +489,7 @@ void DeviceSignals::run(void)  {
 	t_hMap::iterator anH;
 	t_intMask curMask;
 
-	LOG4CPP_INFO(log, "monitoring thread started");
+	LOG4CPP_DEBUG(log, "monitoring thread started");
 
 	sigInstall(SIGCONT);
 	while (1) {
