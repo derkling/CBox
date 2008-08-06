@@ -113,6 +113,11 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 		(char **)NULL, 10);
 	LOG4CPP_INFO(log, "HighSpeedAlarm [%d m/s]", d_highSpeedAlarm);
 
+	d_maxSpeed = (unsigned)strtoul(
+		d_config.param("device_atgps_maxSpeed", ATGPS_DEFAULT_MAXSPEED).c_str(),
+		(char **)NULL, 10);
+	LOG4CPP_INFO(log, "MaxSpeed [%d m/s]", d_maxSpeed);
+
 	d_emergencyBreakAlarm = (unsigned)strtoul(
 		d_config.param("device_atgps_emergencyBreak", ATGPS_DEFAULT_EMERGENCY_BREAK).c_str(),
 		(char **)NULL, 10);
@@ -175,7 +180,7 @@ DeviceATGPS::initDevice(void) {
 	checkAlarms(false);
 
 	// Recovering TTY detached mode
-	d_tty->detachedMode();
+	d_tty->detachedMode(true);
 
 	return OK;
 
@@ -410,16 +415,18 @@ DeviceATGPS::getDeviceRemoteValue(t_atgpsCmds idx, char * buf, int & len) {
 
 	LOG4CPP_DEBUG(log, "===> [%s]", d_atgpsCmds[idx]);
 
-	LOG4CPP_DEBUG(log, "Entering mutex lock...");
+	// Acquiring mux lock to satefly access the device
+	LOG4CPP_DEBUG(log, "Waiting for ATGPS lock...");
 	d_lock.enterMutex ();
+	LOG4CPP_DEBUG(log, "ATGPS Lock acquired");
 
 	d_tty->detachedMode(false);
 	d_tty->sendSerial(d_atgpsCmds[idx], strlen(d_atgpsCmds[idx]));
 	d_tty->readSerial(buf, len);
-	d_tty->detachedMode();
+	d_tty->detachedMode(true);
 
-	LOG4CPP_DEBUG(log, "Releasing mutex lock");
 	d_lock.leaveMutex ();
+	LOG4CPP_DEBUG(log, "ATGPS Lock released");
 
 	LOG4CPP_DEBUG(log, "<=== [%s]", buf);
 
@@ -506,7 +513,6 @@ DeviceATGPS::setDeviceValue(t_atgpsCmds idx, const char * value) {
 	DeviceSerial::t_stringVector resp;
 	exitCode result;
 
-
 	len = snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%s", d_atgpsCmds[idx]);
 	if (len<0 ||
 		len > (DEVICE_ATGPS_RXTX_BUFFER-10) ) {
@@ -529,8 +535,17 @@ DeviceATGPS::setDeviceValue(t_atgpsCmds idx, const char * value) {
 	buf[len] = 0;
 
 	LOG4CPP_DEBUG(log, "Sending AT command [%s]", buf);
+
+	// Acquiring mux lock to satefly access the device
+	LOG4CPP_DEBUG(log, "Waiting for ATGPS lock...");
+	d_lock.enterMutex ();
+	LOG4CPP_DEBUG(log, "ATGPS Lock acquired");
+
 	d_tty->sendSerial(buf, len);
 	d_tty->readSerial(buf, len);
+
+	d_lock.leaveMutex ();
+	LOG4CPP_DEBUG(log, "ATGPS Lock released");
 
 
 // 	d_tty->sendSerial(buf, &resp);
@@ -547,6 +562,8 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	comsys::Command::t_cmdType cmdType;
 	comsys::Command * cSgd;
 	int eventCode = 0x00;
+	unsigned short prio = 2;
+	double speed;
 	std::ostringstream sbuf("");
 
 	switch (event) {
@@ -561,12 +578,18 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	case OVER_SPEED:
 		cmdType = ODOMETER_EVENT_OVER_SPEED;
 		eventCode = 0x17;
-		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << odoSpeed();
+		prio = 1;
+		speed = odoSpeed();
+		if (speed > (d_maxSpeed*3.6) ) {
+			speed = (d_maxSpeed*3.6);
+		}
+		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << speed;
 		LOG4CPP_DEBUG(log, "OVER_SPEED Event");
 		break;
 	case EMERGENCY_BREAK:
 		cmdType = ODOMETER_EVENT_EMERGENCY_BREAK;
 		eventCode = 0x23;
+		prio = 1;
 		sbuf << "0";
 		LOG4CPP_DEBUG(log, "EMERGENCY_BREAK Event");
 		break;
@@ -603,6 +626,7 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	}
 
 	cSgd->setParam("timestamp", d_time->time() );
+	cSgd->setPrio(prio);
 
 	if ( eventCode ) {
 		// This is a DIST event
@@ -634,7 +658,7 @@ DeviceATGPS::checkAlarms(bool notify) {
 		return ATGPS_NO_NEW_EVENTS;
 	}
 
-	LOG4CPP_INFO(log, "Event register [0x%04X]", reg);
+	LOG4CPP_DEBUG(log, "Event register [0x%04X]", reg);
 
 	if (!notify) {
 		LOG4CPP_DEBUG(log, "Notification disabled");

@@ -52,6 +52,8 @@
 #define ATGPS_DEFAULT_PPM		"16"
 /// Default minimum speed that trigger an alarm in [ms] (80km/h ~= 22m/s)
 #define ATGPS_DEFAULT_HIGHSPEED_ALARM	"22"
+/// Default maximum speed that can be reported in [ms] (130km/h ~= 35m/s)
+#define ATGPS_DEFAULT_MAXSPEED		"36"
 /// Default minimum speed deceleration that trigger a break alarm in [m/s] (30km/h/s ~= 8m/s^2)
 #define ATGPS_DEFAULT_EMERGENCY_BREAK	"8"
 /// Default initial distance [m/s]
@@ -177,6 +179,10 @@ protected:
 
     /// The high speed alarm threshold in [m/s]
     unsigned d_highSpeedAlarm;
+
+    /// The highest speed that can be reported in [m/s]
+    /// Speeds exceeding this value should be reported has this value
+    unsigned d_maxSpeed;
 
     /// The minimum decelleration that trigger an alarm [m/s]
     unsigned d_emergencyBreakAlarm;
