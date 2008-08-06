@@ -73,7 +73,25 @@
 /// @see deviceCode
 #define SERVICES_RANGE 100
 
+// #define C_WHITE(_msg_)  "\033[1;37m"##__msg__##"\033[0m"
+// #define C_LGRAY(_msg_)  "\033[37m"##__msg__##"\033[0m"
+// #define C_GRAY(_msg_)   "\033[1;30m"##__msg__##"\033[0m"
+// #define C_BLACK(_msg_)  "\033[30m"##__msg__##"\033[0m"
+// #define C_RED(_msg_)    "\033[31m"##__msg__##"\033[0m"
+// #define C_LRED(_msg_)   "\033[1;31m"##__msg__##"\033[0m"
+// #define C_GREEN(_msg_)  "\033[32m"##__msg__##"\033[0m"
+// #define C_LGREEN(_msg_) "\033[1;32m"##__msg__##"\033[0m"
+// #define C_BROWN(_msg_)  "\033[33m"##__msg__##"\033[0m"
+// #define C_YELLOW(_msg_) "\033[1;33m"##__msg__##"\033[0m"
+// #define C_BLUE(_msg_)   "\033[34m"##__msg__##"\033[0m"
+// #define C_LBLUE(_msg_)  "\033[1;34m"##__msg__##"\033[0m"
+// #define C_PURPLE(_msg_) "\033[35m"##__msg__##"\033[0m"
+// #define C_PINK(_msg_)   "\033[1;35m"##__msg__##"\033[0m"
+// #define C_CYAN(_msg_)   "\033[36m"##__msg__##"\033[0m"
+// #define C_LCYAN(_msg_)  "\033[1;36m"##__msg__##"\033[0m"
+
 extern bool useColors;
+
 
 namespace controlbox {
 
@@ -325,7 +343,7 @@ NOTE: This macro will generata code only if compiling with debug simbol
 	#define LOG4CPP_DEBUG(category, format, ...) { \
 			if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
 				std::ostringstream formatter("%s:%d - "); \
-				category.log(::log4cpp::Priority::DEBUG, "%s:%d - " format, __FILE__, __LINE__, ## __VA_ARGS__); \
+				category.log(::log4cpp::Priority::DEBUG, "%25s:%05d - " format, __FILE__, __LINE__, ## __VA_ARGS__); \
 			}\
 	}
 #else
@@ -346,8 +364,6 @@ Logs a message to a specified category with the INFO level.
 					category.log(::log4cpp::Priority::INFO, format, ## __VA_ARGS__); \
 			}\
 		}
-
-
 
 /**
 Logs a message to a specified category with the WARN level.
