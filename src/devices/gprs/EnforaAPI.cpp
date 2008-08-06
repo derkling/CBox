@@ -72,7 +72,7 @@ EnforaAPI::EnforaAPI(short module, std::string const & logName)
 	// Module specific initialization
 	result = initDeviceGPRS();
 	if ( result!=OK ) {
-		LOG4CPP_FATAL(log, "Failed to build the GPRS device");
+		LOG4CPP_FATAL(log, "Failed to initialize the GPRS device");
 		cleanUp();
 		throw new exceptions::SerialConfigurationException("Unable to open TTY port");
 	}
@@ -85,11 +85,17 @@ EnforaAPI::EnforaAPI(short module, std::string const & logName)
 	// Loading configuration profile (if not already done)
 	loadConfiguration();
 
+	LOG4CPP_INFO(log, "Starting PPPD monitor...");
+	d_monitorPppd.start();
+
 	// Configure the UDPAPI
-
 	// Switch to GPRS-disconnected mode
-
 	// Configure the host-to-modem PPP link
+	result = enableAPI();
+	if ( result!=OK ) {
+		LOG4CPP_FATAL(log, "Failed to enable UDP API interface");
+		cleanUp();
+	}
 
 }
 
@@ -117,7 +123,7 @@ EnforaAPI::powerOn(bool reset) {
 
 exitCode
 EnforaAPI::powerOff() {
-	LOG4CPP_DEBUG(log, "Powering-off GPRS device");
+	LOG4CPP_INFO(log, "Powering-off GPRS device");
 	d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_OFF);
 	return OK;
 }
@@ -134,14 +140,14 @@ exitCode EnforaAPI::initDeviceGPRS() {
 	for (retry_pwr=3; retry_pwr; retry_pwr--) {
 
 		// Powering on modem
-		result = powerOn(false);
+		result = powerOn(true);
 		if (result) {
 			LOG4CPP_WARN(log, "Failed to PowerOn modem");
 			break;
 		}
 
-		// Checking if modem is responding
-		for (retry_com=1; retry_com<4; retry_com++) {
+// 		// Checking if modem is responding
+// 		for (retry_com=1; retry_com<4; retry_com++) {
 
 			// Opening the TTY using the initialization string
 			//   (if provided by DeviceSerial configuration)
@@ -154,22 +160,23 @@ exitCode EnforaAPI::initDeviceGPRS() {
 			if (result==OK)
 				break;
 
-			LOG4CPP_DEBUG(log, "AT command mode NOT WORKING");
+			LOG4CPP_WARN(log, "AT command mode NOT WORKING");
 
 			d_tty->closeSerial();
-			LOG4CPP_DEBUG(log, "Modem communication failed, retyring in %d s",
-						  retry_com*5);
+// 			LOG4CPP_WARN(log, "Modem communication failed, retyring in %ds",
+// 						  retry_com*5);
 
-			//Waiting few seconds before retry
-			::sleep(retry_com*5);
-		}
+// 			//Waiting few seconds before retry
+// 			::sleep(retry_com*5);
+// 		}
 
 		if (result==OK)
 			break;
 
-		LOG4CPP_DEBUG(log, "Modem communication failed, resetting modem and retrying in 5s");
+		LOG4CPP_WARN(log, "Modem communication failed, restarting modem and retrying in 5s");
 
 		//Waiting few seconds before retry
+		powerOff();
 		::sleep(5);
 
 	}
@@ -178,7 +185,6 @@ exitCode EnforaAPI::initDeviceGPRS() {
 		LOG4CPP_FATAL(log, "GPRS not working");
 		return result;
 	}
-
 	LOG4CPP_DEBUG(log, "GPRS modem ready in AT command mode");
 	return result;
 
@@ -275,7 +281,7 @@ exitCode EnforaAPI::loadConfiguration() {
 
 
 exitCode
-EnforaAPI::enableAPI(std::string const & linkname) {
+EnforaAPI::enableAPI() {
 	t_apiCommand apiMsg;
 	t_apiResponce apiResp;
 	exitCode result;
@@ -303,7 +309,7 @@ EnforaAPI::enableAPI(std::string const & linkname) {
 
 //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 //TODO Use parameters for friend server configuration
-	d_tty->sendSerial("AT$FRIEND=01,1,\"151.20.55.27\",1721,2", &resp);
+	d_tty->sendSerial("AT$FRIEND=01,1,\"192.168.1.101\",1721,2", &resp);
 
 	// Configuring dynamic IP notifications
 	d_tty->sendSerial("AT$WAKEUP=2,1", &resp);
@@ -313,10 +319,18 @@ EnforaAPI::enableAPI(std::string const & linkname) {
 
 	// Configure netlink for non-GPRS connection mode
 	d_tty->sendSerial("AT$HOSTIF=3", &resp);
-	d_tty->sendSerial(d_supportedLinks[linkname]->pdpContext, &resp);
 
+#if 0
+// NOTE this code has been moved within the gprsUP command
+	d_tty->sendSerial(d_supportedLinks[linkname]->pdpContext, &resp);
+#else
+	// Setting a dummy CGDCONT to enable UDP API interface
+	// This command must be configured with a valid one before enabling
+	// GPRS connection
+// 	d_tty->sendSerial("AT+CGDCONT=1,\"IP\",\"ibox.tim.com\",,0,0", &resp);
+#endif
 	// NOTE the command preceding this one must clear all serial output!!!
-	d_tty->sendSerial(d_supportedLinks[linkname]->AtDial);
+	d_tty->sendSerial("ATD*99***1#");
 
 	// Releasing TTY devince for pppd
 	d_tty->closeSerial();
@@ -324,7 +338,7 @@ EnforaAPI::enableAPI(std::string const & linkname) {
 	LOG4CPP_DEBUG(log, "Configuration done: staring PPP daemon...");
 
 	// Start host-side PPP
-	LOG4CPP_DEBUG(log, "Starting non-GPRS connection [%s]...", d_pppdCommand.c_str());
+	LOG4CPP_DEBUG(log, "Starting PPPD [%s]...", d_pppdCommand.c_str());
 	if ( system(d_pppdCommand.c_str()) ) {
 		LOG4CPP_ERROR(log, "Failed starting non-GPRS connection: %s", strerror(errno));
 		return GPRS_PPPD_FAILURE;
@@ -336,7 +350,7 @@ EnforaAPI::enableAPI(std::string const & linkname) {
 	// Waiting for PPP being up and running
 	// We use busy waiting to avoid blocking on PPP daemon up...
 	while (sec-- && !d_apiEnabled) {
-		LOG4CPP_DEBUG(log, "Waiting for ppp being up [%d s]...", sec);
+		LOG4CPP_DEBUG(log, "Waiting for ppp being up [%02d s]...", sec);
 		::sleep(1);
 	}
 
@@ -468,7 +482,7 @@ EnforaAPI::sendAT(t_apiCommand & msg, t_apiResponce & resp) {
 				// Reset
 				LOG4CPP_INFO(log, "API not working, resetting device before retrying");
 				initDeviceGPRS();
-				enableAPI(d_curLinkname);
+				enableAPI();
 				break;
 			case GPRS_API_ATRECV_FAILED:
 			case GPRS_API_ATRECV_ERRORS:
@@ -646,10 +660,11 @@ EnforaAPI::updateNetworkConfiguration(void) {
 }
 
 exitCode
-EnforaAPI::gprsUP() {
+EnforaAPI::gprsUP(std::string const & linkname) {
 	t_apiCommand msg;
 	t_apiResponce resp;
 	exitCode result;
+	const char * atCmd;
 
 
 	if (d_netStatus == LINK_UP) {
@@ -657,7 +672,25 @@ EnforaAPI::gprsUP() {
 		return OK;
 	}
 
-	LOG4CPP_INFO(log, "Activating GPRS connection...");
+	LOG4CPP_INFO(log, "Activating GPRS connection [%s]...", linkname.c_str());
+
+// 	d_tty->sendSerial(d_supportedLinks[linkname]->pdpContext, &resp);
+	atCmd = (d_supportedLinks[linkname]->pdpContext).c_str();
+	memcpy(msg.field.data, atCmd, strlen(atCmd));
+	result = sendAT(msg, resp);
+	if ( result!=OK ) {
+		LOG4CPP_WARN(log, "API, SEND[%s]: %s", atCmd, resp.field.data);
+		return GPRS_API_GPRS_UP_FAILED;
+	}
+
+// 	d_tty->sendSerial(d_supportedLinks[linkname]->AtDial);
+// 	atCmd = (d_supportedLinks[linkname]->AtDial).c_str();
+// 	memcpy(msg.field.data, atCmd, strlen(atCmd));
+// 	result = sendAT(msg, resp);
+// 	if ( result!=OK ) {
+// 		LOG4CPP_WARN(log, "API, SEND[%s]: %s", atCmd, resp.field.data);
+// 		return GPRS_API_GPRS_UP_FAILED;
+// 	}
 
 	memcpy(msg.field.data, "AT$CONN\0", 8);
 	result = sendAT(msg, resp);
@@ -779,9 +812,9 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 		LOG4CPP_DEBUG(log, "The required netlink [%s] is already up", linkname.c_str());
 
 		// Ensuring API interface is up and running
-		result = enableAPI(linkname);
+		result = enableAPI();
 		if ( result!=OK ) {
-			LOG4CPP_ERROR(log, "API interface is NOT WORKING");
+			LOG4CPP_ERROR(log, "API interface NOT WORKING");
 			return result;
 		}
 
@@ -814,17 +847,21 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 		LOG4CPP_ERROR(log, "Netlink [%s] not supported by this GPRS device", linkname.c_str());
 		return GPRS_NETLINK_NOT_SUPPORTED;
 	}
+	LOG4CPP_DEBUG(log, "Required netlink [%s] supported", linkname.c_str());
+
+	LOG4CPP_DEBUG(log, "Netlink status is [%d]", d_netStatus);
 
 	// If we are already connected... first we should disconnect
 	if ( d_netStatus >= LINK_GOING_UP ) {
-		LOG4CPP_DEBUG(log, "Switching GPRS connection from [%s] to [%s]",
-				d_curNetlinkName->c_str(), linkname.c_str());
+		LOG4CPP_DEBUG(log, "Disconnecting current connection [%s]",
+				d_curNetlinkName->c_str());
 		result = disconnect();
 		if ( result!=OK ) {
 			LOG4CPP_DEBUG(log, "Failed disconnecting current connection");
 			return GPRS_RESET_REQUIRED;
 		}
 	}
+	LOG4CPP_DEBUG(log, "No active connections");
 
 	// Ensuring modem is powered up
 	result = powerOn(false);
@@ -832,6 +869,8 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 		LOG4CPP_ERROR(log, "GPRS modem powered-on");
 		return GPRS_RESET_REQUIRED;
 	}
+	LOG4CPP_DEBUG(log, "Modem is PoweredUp");
+
 
 
 
@@ -859,7 +898,7 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 	d_curNetlinkConf = it->second;
 
 	// Checking if the API is already running
-	result = enableAPI(linkname);
+	result = enableAPI();
 	if ( result!=OK ) {
 		LOG4CPP_ERROR(log, "API, failed enabling non-GPRS connection");
 		return GPRS_RESET_REQUIRED;
@@ -876,7 +915,7 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 	}
 
 	// Enabling GPRS connection
-	result = gprsUP();
+	result = gprsUP(linkname);
 	if (result!=OK) {
 		d_netStatus = LINK_DOWN;
 		LOG4CPP_ERROR(log, "API, failed enabling GPRS");
@@ -986,7 +1025,7 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 	// Checking if the API is already running
 	LOG4CPP_DEBUG(log, "API interface is [%s]", d_apiEnabled ? "ON" : "OFF" );
 	if (!d_apiEnabled) {
-		result = enableAPI(linkname);
+		result = enableAPI();
 		if ( result!=OK ) {
 			LOG4CPP_ERROR(log, "API, failed enabling non-GPRS connection");
 			return result;
@@ -1003,7 +1042,7 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 		}
 	}
 
-	result = gprsUP();
+	result = gprsUP(linkname);
 	if (result!=OK) {
 		LOG4CPP_ERROR(log, "API, failed enabling GPRS");
 		d_netStatus = LINK_DOWN;
@@ -1026,7 +1065,7 @@ exitCode
 EnforaAPI::connect(std::string const & linkname) {
 	exitCode result;
 
-	LOG4CPP_DEBUG(log, "Trying GPRS connection...");
+	LOG4CPP_DEBUG(log, "Trying GPRS connection [%s]...", linkname.c_str());
 	result = tryConnect(linkname);
 	if ( result==OK )
 		return OK;
@@ -1318,18 +1357,18 @@ EnforaAPI::runParser() {
 
 void
 EnforaAPI::run (void) {
-	std::ostringstream tName;
-
-
-	tName << "run_" << d_name << "-" << d_module;
-	PosixThread::setName(tName.str().c_str());
-	d_runThread = this;
-
-	LOG4CPP_DEBUG(log, "Starting thread [%s], code @ [%p]",
-			PosixThread::getName(),
-			d_runThread);
-
-	pppdMonitor();
+// 	std::ostringstream tName;
+//
+//
+// 	tName << "run_" << d_name << "-" << d_module;
+// 	PosixThread::setName(tName.str().c_str());
+// 	d_runThread = this;
+//
+// 	LOG4CPP_DEBUG(log, "Starting thread [%s], code @ [%p]",
+// 			PosixThread::getName(),
+// 			d_runThread);
+//
+// 	pppdMonitor();
 
 
 

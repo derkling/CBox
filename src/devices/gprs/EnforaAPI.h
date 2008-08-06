@@ -191,7 +191,7 @@ protected:
 	exitCode loadConfiguration();
 
 	/// Enable non-GPRS connection for the specified linkname
-	exitCode enableAPI(std::string const & linkname);
+	exitCode enableAPI();
 
 	exitCode disableAPI();
 
@@ -207,7 +207,7 @@ protected:
 
 	exitCode updateNetworkConfiguration(void);
 
-	exitCode gprsUP();
+	exitCode gprsUP(std::string const & linkname);
 
 	exitCode gprsDOWN();
 
