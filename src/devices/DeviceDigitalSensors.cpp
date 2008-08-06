@@ -151,6 +151,7 @@ DeviceDigitalSensors::parseCfgString(std::string const & dsCfg) {
 	t_digitalSensor * pDs = 0;
 	std::ostringstream cfgTemplate("");
 	int enabled, alarmEnabled;
+	unsigned short prio;
 	float downLimit, upperLimit;
 	char param[2];
 	char description[DS_DESC_START+1];
@@ -207,13 +208,13 @@ DLOG4CPP_DEBUG(log, "Bus: [0x%X] Address: [0x%X]"
 
 	// Parsing the remaining Protocol-Independant" params...
 	//NOTE %s in scanf don't cross spaces... we should use a trick to recovery the whole description string
-	cfgTemplate << " %i %" << DS_MAX_VALUE_LENGTH << "s %" << DS_MAX_VALUE_LENGTH << "s %c %i %d %" << DS_DESC_START << "s";
+	cfgTemplate << " %i %" << DS_MAX_VALUE_LENGTH << "s %" << DS_MAX_VALUE_LENGTH << "s %c %i %d %hu %" << DS_DESC_START << "s";
 DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 	sscanf(dsCfg.c_str(), cfgTemplate.str().c_str(),
 			&pDs->event, pDs->lvalue,
 			pDs->hvalue, param,
 			&pDs->trigger, &enabled,
-			description);
+			&pDs->prio, description);
 
 	pDs->enabled = enabled ? true : false;
 
@@ -240,12 +241,13 @@ DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 	}
 
 LOG4CPP_DEBUG(log, "Event: [0x%X] Param: [%d]"
-			" Trigger: [0x%X] Enabled: [%s]"
+			" Trigger: [0x%X] Enabled: [%s] Prio: [%hu]"
 			" Description: [%s]",
 				pDs->event,
 				pDs->param,
 				pDs->trigger,
 				pDs->enabled ? "YES" : "NO",
+				pDs->prio,
 				pDs->description);
 
 	if ( validateParams(pDs) ) {
@@ -320,25 +322,29 @@ DeviceDigitalSensors::validateParams(DeviceDigitalSensors::t_digitalSensor * pDs
 
 inline void
 DeviceDigitalSensors::logSensorParams(DeviceDigitalSensors::t_digitalSensor * pDs) {
+
+#ifdef CONTROLBOX_DEBUG
 	std::ostringstream params("");
 	char *trigger[] = { "None", "Going High", "Going Low", "Level Change" };
 
-	LOG4CPP_INFO(log, "ID: %-*s %s", DS_MAX_ID_LENGTH, pDs->id, pDs->description);
-	LOG4CPP_INFO(log, "\tChip: %1d-%04X,\tPort: %d,\tBit: %d",
+	LOG4CPP_DEBUG(log, "ID: %-*s %s", DS_MAX_ID_LENGTH, pDs->id, pDs->description);
+	LOG4CPP_DEBUG(log, "\tChip: %1d-%04X,\tPort: %d,\tBit: %d",
 			pDs->address.sysfsAddress.bus,
 			pDs->address.sysfsAddress.address,
 			pDs->address.sysfsAddress.port,
 			pDs->address.sysfsAddress.bit);
-	LOG4CPP_INFO(log, "\tEvent:\t\t0x%X", pDs->event);
-	LOG4CPP_INFO(log, "\tWhen High:\t%s", pDs->hvalue);
-	LOG4CPP_INFO(log, "\tWhen Low: \t%s", pDs->lvalue);
+	LOG4CPP_DEBUG(log, "\tEvent:\t\t0x%X", pDs->event);
+	LOG4CPP_DEBUG(log, "\tPrio:\t\t%hu", pDs->prio);
+	LOG4CPP_DEBUG(log, "\tWhen High:\t%s", pDs->hvalue);
+	LOG4CPP_DEBUG(log, "\tWhen Low: \t%s", pDs->lvalue);
 	if (pDs->hasParam) {
-		LOG4CPP_INFO(log, "\tParam:\t\t%d", pDs->param);
+		LOG4CPP_DEBUG(log, "\tParam:\t\t%d", pDs->param);
 	} else {
-		LOG4CPP_INFO(log, "\tParam:\t\t-");
+		LOG4CPP_DEBUG(log, "\tParam:\t\t-");
 	}
-	LOG4CPP_INFO(log, "\tTrigger:\t%s", trigger[pDs->trigger]);
-	LOG4CPP_INFO(log, "\tSensor enabled:\t%s", pDs->enabled ? "YES" : "NO" );
+	LOG4CPP_DEBUG(log, "\tTrigger:\t%s", trigger[pDs->trigger]);
+	LOG4CPP_DEBUG(log, "\tSensor enabled:\t%s", pDs->enabled ? "YES" : "NO" );
+#endif
 
 }
 
@@ -474,6 +480,7 @@ DeviceDigitalSensors::notifySensorEvent(t_digitalSensor & aSensor) {
 		return OUT_OF_MEMORY;
 	}
 
+	cSgd->setPrio(aSensor.prio);
 	cSgd->setParam( "event", aSensor.event);
 	cSgd->setParam( "value", aSensor.lastState);
 	cSgd->setParam( "status", (aSensor.lastState) ? aSensor.hvalue : aSensor.lvalue);
@@ -542,12 +549,14 @@ DeviceDigitalSensors::notifySensorChange(t_digitalSensor & aSensor, t_digitalSen
 
 	switch (aSensor.trigger) {
 	case DS_SIGNAL_ON_LOW:
-		if (state == DS_STATE_LOW)
+		if (state == DS_STATE_LOW) {
 			notifySensorEvent(aSensor);
+		}
 		break;
 	case DS_SIGNAL_ON_HIGH:
-		if (state == DS_STATE_HIGH)
+		if (state == DS_STATE_HIGH) {
 			notifySensorEvent(aSensor);
+		}
 		break;
 	case DS_SIGNAL_ON_BOTH:
 		notifySensorEvent(aSensor);

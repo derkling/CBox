@@ -169,6 +169,7 @@ public:
 	t_eventParam param;			///> an optional parameter associated to the event
 	t_digitalSensorTrigger trigger;		///> event notify triggering
 	bool enabled;				///> set if the sensor should be monitored
+	unsigned short prio;				///> event priority @see WSProxyCommandHandler.h
 	char description[DS_MAX_DESC_LENGTH+1];	///> sensor textual description
 	t_digitalSensorState lastState;		///> last state
     };
