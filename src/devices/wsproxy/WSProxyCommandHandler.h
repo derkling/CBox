@@ -85,6 +85,14 @@
 
 #define DEFAULT_DUMP_QUEUE_FILEPATH	"./wsUploadQueue.dump"
 
+/// The number of upload queue to use
+#define WSPROXY_UPLOAD_QUEUES		5
+/// The default upload queue to witch append messages without explicit priority
+#define WSPROXY_DEFAULT_QUEUE		2
+/// Messages with prio greate or equal this value are just queued but doesn't
+/// trigger the upload thread.
+#define WSPROXY_QUEUING_ONLY_PRI	4
+
 
 namespace controlbox {
 namespace device {
@@ -194,6 +202,8 @@ protected:
 
     typedef list<t_wsData *> t_uploadList;
 
+    typedef t_uploadList t_uploadQueues[WSPROXY_UPLOAD_QUEUES];
+
     /// A pointer to a command data parser function.
     /// It shuold be defined a command parser for each command type we
     /// understand. The command parser is a routine able to interpreter
@@ -284,11 +294,21 @@ protected:
     t_cmdParser d_cmdParser;
 
     /// List of messages waiting to be uploaded.
-    /// Messages ready to be uploaded are queued into this data structore.
+    /// Messages ready to be uploaded are queued into this data structure.
     /// A dedicated thread, defined by this class, is in charge to monitor this
     /// data structore and, once the network link is up, upload queued SOAP
     /// messages as soon as possible.
     t_uploadList d_uploadList;
+
+    /// The queues of messages waiting to be uploaded.
+    /// TODO describe queue usage (prios, queue-only queues, ...)
+    t_uploadQueues d_uploadQueues;
+
+    /// Set true when a new message has been added to the queues.
+    /// This flag is used by the upload algorithm in order to give priority to
+    /// low index queue, When it is set, the upload algorithm restart serving
+    /// queues from high priority ones.
+    bool d_queuesUpdated;
 
     /// The filepath for the file to use for uploadQueue dump and persistence
     std::string dumpQueueFilePath;
@@ -323,6 +343,10 @@ public:
     ///			implementation.
     exitCode notify(comsys::Command * cmd)
     throw (exceptions::IllegalCommandException);
+
+
+    /// Call this method to terminate the upload thread
+    void onShutdown(void);
 
 //-----[ Query interface ]------------------------------------------------------
     exitCode query(Querible::t_query & query);
@@ -439,12 +463,14 @@ protected:
     /// NOTE: on error queueMsg exit code is returned
     exitCode uploadMsg(t_wsData & wsData);
 
+    void printQueuesStatus(void);
+
     /// Queue a SOAP message to be uploaded to the WebService.
     /// SOAP messages ready to be uploaded to the WebService are simply
     /// queued into the upload queue by this method that also notify
     /// the upload theread about new data ready to be uploaded.
     /// @param message the gSOAP message to upload
-    exitCode queueMsg(t_wsData & wsData);
+    exitCode queueMsg(t_wsData & wsData, unsigned short prio = WSPROXY_DEFAULT_QUEUE);
 
     /// Check EndPoint piggybacked commands and trigger suitable options.
     exitCode checkEpCommands(EndPoint::t_epRespList &respList);
