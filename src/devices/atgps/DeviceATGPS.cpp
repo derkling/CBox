@@ -563,7 +563,7 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	comsys::Command * cSgd;
 	int eventCode = 0x00;
 	unsigned short prio = 2;
-	double speed;
+	unsigned int speed;
 	std::ostringstream sbuf("");
 
 	switch (event) {
@@ -579,9 +579,9 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 		cmdType = ODOMETER_EVENT_OVER_SPEED;
 		eventCode = 0x17;
 		prio = 1;
-		speed = odoSpeed();
-		if (speed > (d_maxSpeed*3.6) ) {
-			speed = (d_maxSpeed*3.6);
+		speed = (unsigned int)odoSpeed();
+		if ( speed > (d_maxSpeed*3.6) ) {
+			speed = (unsigned int)(d_maxSpeed*3.6);
 		}
 		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << speed;
 		LOG4CPP_DEBUG(log, "OVER_SPEED Event");
