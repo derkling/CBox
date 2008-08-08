@@ -59,24 +59,30 @@ WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
         d_lastStopTime(0),
         d_pollState(NOT_MOVING),
         d_queuesUpdated(false),
-        d_doExit(false) {
+        d_doExit(false),
+        d_okToExit(false) {
 
     LOG4CPP_DEBUG(log, "WSProxyCommandHandler(const std::string &, bool)");
 
     // Initializing configuration parameters
     preloadParams();
 
+    // Initializing Command Parsers
+    setupCommandParser();
+
+    // Setup upload queues
+    initUploadQueues();
+
+#if 0
     // Linking required devices
     linkDependencies();
-
-    // Initializing Command Parsers
-    initCommandParser();
 
     // Initializing Query interface
     exportQuery();
 
     // Starting the upload thread
     start();
+#endif
 
 }
 
@@ -94,7 +100,7 @@ WSProxyCommandHandler * WSProxyCommandHandler::getInstance(std::string const & l
 inline
 exitCode WSProxyCommandHandler::preloadParams() {
 
-    LOG4CPP_DEBUG(log, "Loading configuration params... ");
+    LOG4CPP_DEBUG(log, "Loading configuration params...");
 
     // TODO: check for params correctness!!!
     d_configurator.param("idAutista", WSPROXY_DEFAULT_IDA, true);
@@ -104,10 +110,66 @@ exitCode WSProxyCommandHandler::preloadParams() {
 
     dumpQueueFilePath = d_configurator.param("dumpQueueFilePath", DEFAULT_DUMP_QUEUE_FILEPATH);
 
+    return OK;
+}
+
+inline
+exitCode WSProxyCommandHandler::setupCommandParser() {
+
+    // TODO: Definire i CommandType... tipicamente sono associati
+    //		ai devices che li generano.
+
+    LOG4CPP_DEBUG(log, "Initializing command parsers...");
+
+    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_GET] = &WSProxyCommandHandler::cp_gpsEvent;
+    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_LOSE] = &WSProxyCommandHandler::cp_gpsEvent;
+
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_MOVE] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_STOP] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_OVER_SPEED] = &WSProxyCommandHandler::cp_sendOdoEvent;
+    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_EMERGENCY_BREAK] = &WSProxyCommandHandler::cp_sendOdoEvent;
+
+    d_cmdParser[DeviceGPRS::GPRS_STATUS_UPDATE] = &WSProxyCommandHandler::cp_gprsStatusUpdate;
+
+    d_cmdParser[PollEventGenerator::SEND_POLL_DATA] = &WSProxyCommandHandler::cp_sendPollData;
+    d_cmdParser[DeviceInCabin::SEND_GENERIC_DATA] = &WSProxyCommandHandler::cp_sendGenericData;
+    d_cmdParser[DeviceInCabin::SEND_CODED_EVENT] = &WSProxyCommandHandler::cp_sendCodedEvent;
+    d_cmdParser[DeviceDigitalSensors::DIGITAL_SENSORS_EVENT] = &WSProxyCommandHandler::cp_sendDSEvent;
+
+    d_cmdParser[DeviceTE::SEND_TE_EVENT] = &WSProxyCommandHandler::cp_sendTEEvent;
+    d_cmdParser[DeviceSignals::SYSTEM_EVENT] = &WSProxyCommandHandler::cp_sendSignalEvent;
+
+    return OK;
+}
+
+inline
+exitCode WSProxyCommandHandler::initUploadQueues() {
+
+	LOG4CPP_DEBUG(log, "Loading upload queues...");
+	// TODO load queues from file dump
 
 
+	LOG4CPP_INFO(log, "Upload queues loaded (%d priority levels)",
+				WSPROXY_UPLOAD_QUEUES);
+	printQueuesStatus();
+
+	return OK;
 
 }
+
+exitCode WSProxyCommandHandler::startUpload() {
+
+    // Linking required devices
+    linkDependencies();
+
+    // Initializing Query interface
+    exportQuery();
+
+    // Starting the upload thread
+    start();
+
+}
+
 
 #if 0
 inline
@@ -235,34 +297,6 @@ std::string WSProxyCommandHandler::listEndPoint() {
 
 }
 
-inline
-exitCode WSProxyCommandHandler::initCommandParser() {
-
-    // TODO: Definire i CommandType... tipicamente sono associati
-    //		ai devices che li generano.
-
-    LOG4CPP_DEBUG(log, "Initializing command parsers... ");
-
-    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_GET] = &WSProxyCommandHandler::cp_gpsEvent;
-    d_cmdParser[DeviceGPS::GPS_EVENT_FIX_LOSE] = &WSProxyCommandHandler::cp_gpsEvent;
-
-    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_MOVE] = &WSProxyCommandHandler::cp_sendOdoEvent;
-    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_STOP] = &WSProxyCommandHandler::cp_sendOdoEvent;
-    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_OVER_SPEED] = &WSProxyCommandHandler::cp_sendOdoEvent;
-    d_cmdParser[DeviceOdometer::ODOMETER_EVENT_EMERGENCY_BREAK] = &WSProxyCommandHandler::cp_sendOdoEvent;
-
-    d_cmdParser[DeviceGPRS::GPRS_STATUS_UPDATE] = &WSProxyCommandHandler::cp_gprsStatusUpdate;
-
-    d_cmdParser[PollEventGenerator::SEND_POLL_DATA] = &WSProxyCommandHandler::cp_sendPollData;
-    d_cmdParser[DeviceInCabin::SEND_GENERIC_DATA] = &WSProxyCommandHandler::cp_sendGenericData;
-    d_cmdParser[DeviceInCabin::SEND_CODED_EVENT] = &WSProxyCommandHandler::cp_sendCodedEvent;
-    d_cmdParser[DeviceDigitalSensors::DIGITAL_SENSORS_EVENT] = &WSProxyCommandHandler::cp_sendDSEvent;
-
-    d_cmdParser[DeviceTE::SEND_TE_EVENT] = &WSProxyCommandHandler::cp_sendTEEvent;
-    d_cmdParser[DeviceSignals::SYSTEM_EVENT] = &WSProxyCommandHandler::cp_sendSignalEvent;
-
-}
-
 WSProxyCommandHandler::~WSProxyCommandHandler() {
     t_EndPoints::iterator it;
 
@@ -335,14 +369,6 @@ throw (exceptions::IllegalCommandException) {
         wsDataRelease(wsData);
         return WS_MEM_FAILURE;
     }
-
-#if 0
-    // Trying to upload the message or storing it for delayed upload
-    // into the upload queue
-    if ( uploadMsg(*wsData) == OK) {
-        wsDataRelease(wsData);
-    }
-#endif
 
 	prio = cmd->getPrio();
 	LOG4CPP_DEBUG(log, "Message prio [%hu]", prio);
@@ -560,36 +586,6 @@ exitCode WSProxyCommandHandler::queueMsg(t_wsData & wsData, unsigned short prio)
 
 }
 
-exitCode WSProxyCommandHandler::uploadMsg(t_wsData & wsData) {
-	exitCode queueing;
-
-	LOG4CPP_DEBUG(log, "uploadMsg(t_wsData & wsData)");
-
-	d_uploadList.push_back(&wsData);
-	LOG4CPP_DEBUG(log, "%u data messages queued for delayed uplpoad", d_uploadList.size());
-
-#if 0
-#ifdef CONTROLBOX_USELAN
-        LOG4CPP_DEBUG(log, "CONTROLBOX_USELAN");
-        if ( 1 ) {
-#else
-	// FIXME we could have problems if we lost a LINK_UP notifications,
-	// e.g. because at initialization time the DeviceGPRS is build before
-	// the WSProxy and the link_up notification is thus lost
-	// This not safe: it's better to check for GPRS status by direct query
-        if (d_netStatus == DeviceGPRS::LINK_UP) {
-        //if ( d_devGPRS->status() == DeviceGPRS::LINK_UP) {
-#endif
-            LOG4CPP_DEBUG(log, "UPLOAD QUEUE: net link is up, polling the upload thread");
-            onPolling();
-        }
-#endif
-	LOG4CPP_DEBUG(log, "UPLOAD QUEUE: Data successfully queued, polling endpoints...");
-	onPolling();
-
-	return WS_DATA_QUEUED;
-
-}
 
 exitCode WSProxyCommandHandler::checkEpCommands(EndPoint::t_epRespList &respList) {
 	EndPoint::t_epResp * epResp;
@@ -740,35 +736,42 @@ void WSProxyCommandHandler::run(void) {
 			// Start serving queues from the higher priority ones
 			d_queuesUpdated = false;
 
-			for (qIndex=0; qIndex<WSPROXY_UPLOAD_QUEUES; qIndex++) {
+			for (qIndex=0;
+				!d_doExit && qIndex<WSPROXY_UPLOAD_QUEUES;
+				qIndex++) {
 
 				it = d_uploadQueues[qIndex].begin();
-
 				if ( it == d_uploadQueues[qIndex].end() ) {
 					continue;
 				}
 
 				LOG4CPP_DEBUG(log, "Serving queue Q%u...", qIndex);
 				while ( it != d_uploadQueues[qIndex].end() &&
-					!d_queuesUpdated &&
-					!d_doExit ) {
+					!d_queuesUpdated && !d_doExit ) {
+
 					result = callEndPoints( *(*it) );
-					// Removing the SOAP message from the upload queue;
 					if (result == OK) {
+						// Removing the SOAP message from the upload queue;
 						LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
 						it = d_uploadQueues[qIndex].erase(it);
 					}
+
 					printQueuesStatus();
 					it++;
+
+					if (d_queuesUpdated) {
+						LOG4CPP_DEBUG(log, "Queues updated: restarting serving high-priority ones");
+						break;
+					}
 				}
 
-				if (d_queuesUpdated) {
-					LOG4CPP_DEBUG(log, "Queues updated: restarting serving high-priority ones");
-					break;
-				}
 			}
 
 		} while (d_queuesUpdated);
+
+		if (d_doExit) {
+			break;
+		}
 
 		// Updating poll time (if needed)
 		updatePoller(false);
@@ -782,18 +785,41 @@ void WSProxyCommandHandler::run(void) {
 	delete d_pollCd;
 	delete d_pollCmd;
 
+	// Uploading last HIGH-PRIORITY message
+	it = d_uploadQueues[0].begin();
+	if ( it != d_uploadQueues[0].end() ) {
+		result = callEndPoints( *(*it) );
+		if (result == OK) {
+			// Removing the SOAP message from the upload queue;
+			LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
+			it = d_uploadQueues[qIndex].erase(it);
+		}
+	}
+
 	LOG4CPP_WARN(log, "Upload queue terminated");
+	d_okToExit = true;
 
 }
 
 void WSProxyCommandHandler::onShutdown(void) {
-	LOG4CPP_DEBUG(log, "Terminating the upload thread...");
+
+	d_queuesUpdated = true;
 	d_doExit = true;
+
+	LOG4CPP_WARN(log, "Terminating the upload thread...");
 	if ( isRunning() ) {
 		resume();
 	}
 
+	// Wait for upload thread stopping
+	LOG4CPP_DEBUG(log, "Waiting for upload thread to terminate");
+	while ( !d_okToExit ) {
+		LOG4CPP_DEBUG(log, "Waiting for upload thread to terminate");
+		::sleep(1);
+	}
+
 	//TODO save upload queue contents
+
 
 }
 

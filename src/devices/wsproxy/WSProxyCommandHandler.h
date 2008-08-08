@@ -319,6 +319,10 @@ protected:
     /// Set to true once we want to terminate the SOAP messages upload thread.
     bool d_doExit;
 
+    /// Set to true once queues messages have been safetly saved into persistent
+    /// memmory and we are ready to exit
+    bool d_okToExit;
+
 //------------------------------------------------------------------------------
 //				PUBLIC METHODS
 //------------------------------------------------------------------------------
@@ -343,6 +347,10 @@ public:
     ///			implementation.
     exitCode notify(comsys::Command * cmd)
     throw (exceptions::IllegalCommandException);
+
+    /// Start the upload thread.
+    /// This method must be called to start uploading messages
+    exitCode startUpload();
 
 
     /// Call this method to terminate the upload thread
@@ -374,6 +382,10 @@ protected:
     /// @return OK on success.
     inline exitCode preloadParams();
 
+    /// Initialize upload queues.
+    /// @return OK on success
+    inline exitCode initUploadQueues();
+
 //    /// Actives EndPoint mask;
 //     inline unsigned int epEnabled();
 
@@ -394,7 +406,7 @@ protected:
     /// structure ready to be uploaded by EndPoints.
     /// This method is called by the constructor to initialize the runtime
     /// support for command parser selection.
-    inline exitCode initCommandParser();
+    inline exitCode setupCommandParser();
 
 
     /// Return the poll time for the current device poll state
@@ -450,18 +462,6 @@ protected:
 
     /// A derived method to handle Abort delivered to the specified thread.
     void onException(void);
-
-    /// Try to immediatly upload the specified message.
-    /// This method queue the specified message into the upload queue
-    /// and, if the network link is up, signal the upload thread in order
-    /// to handle immediatly the queued SOAP message dispatching.
-    /// @param message the SOAP message to upload
-    /// @return WS_TRYING_UPLOAD if the network link is up and the upload thread will try
-    ///			an immediatly upload,
-    ///		WS_QUEUED_GSOAPMSG if the network link is down and the message has been queued for
-    ///			delayed update
-    /// NOTE: on error queueMsg exit code is returned
-    exitCode uploadMsg(t_wsData & wsData);
 
     void printQueuesStatus(void);
 
