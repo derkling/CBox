@@ -49,9 +49,6 @@ DeviceTime::DeviceTime(std::string const & logName) :
 
 	// Linking here all systems that could be used to get a time
 	df = DeviceFactory::getInstance();
-	// d_devGPS = df->getDeviceGPS();
-	// d_devGPRS = df->getDeviceGPRS();
-	// TODO: use also a DeviceGPRS!!!
 
 }
 
