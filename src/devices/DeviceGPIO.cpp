@@ -38,6 +38,7 @@
 # define PIN_GPRS1_STATE 		PG0
 # define PORT_GPRS1_RST 		PORTG
 # define PIN_GPRS1_RST 			PG0
+
 # define PORT_GPRS2_PWR 		PORTG
 # define PIN_GPRS2_PWR 			PG5
 # define PORT_GPRS2_STATE 		PORTG
@@ -190,36 +191,34 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 }
 
 exitCode DeviceGPIO::gprsReset(unsigned short gprs) {
-	t_gpioLine pinReset;
-	unsigned char pinResetPort;
-	t_gpioState curState;
+	unsigned char port;
+	unsigned int pin;
 
-	LOG4CPP_DEBUG(log, "Resetting GPRS-%s", (gprs==GPRS1) ? "1" : "2");
+	if ( gprsIsPowered(gprs) ) {
 
-	switch(gprs) {
-	case GPRS1:
-		pinResetPort = PORT_GPRS1_RST;
-		pinReset = GPIO_GPRS1_RST;
-	break;
-	case GPRS2:
-		pinResetPort = PORT_GPRS2_RST;
-		pinReset = GPIO_GPRS2_RST;
-	break;
-	default:
-		return GENERIC_ERROR;
+		switch(gprs) {
+		case GPRS1:
+			port = PORT_GPRS1_RST;
+			pin = PIN_GPRS1_RST;
+			break;
+		case GPRS2:
+			port = PORT_GPRS2_RST;
+			pin = PIN_GPRS2_RST;
+			break;
+		default:
+			return GENERIC_ERROR;
+		}
+
+		LOG4CPP_INFO(log, "Resetting GPRS-%s [P%c%u]",
+				(gprs==GPRS1) ? "1" : "2",
+				port, pin-1);
+
+		gpioclearbits(port, pin);
+		gpiosetdir(port, DIROUT, pin);
+		::sleep(2);
+		gpiosetdir(port, DIRIN, pin);
+
 	}
-
-/* OLD IMPLEMENTATION
-	gpioWrite(GPIO_SET, pinReset);
-	::sleep(1);
-	gpioWrite(GPIO_CLEAR, pinReset);
-	::sleep(10);
-*/
-	gpiosetdir(pinResetPort, DIROUT, pinReset);
-	gpioWrite(GPIO_CLEAR, pinReset);
-	::sleep(2);
-	gpiosetdir(pinResetPort, DIRIN, pinReset);
-	::sleep(10);
 
 	// Ensuring modem is powered up
 	return gprsPower(gprs, GPIO_ON);
@@ -310,9 +309,17 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 			port = PORT_GPRS1_PWR;
 			pin = PIN_GPRS1_PWR;
 			break;
+		case GPIO_GPRS1_RST:
+			port = PORT_GPRS1_RST;
+			pin = PIN_GPRS1_RST;
+			break;
 		case GPIO_GPRS2_PWR:
 			port = PORT_GPRS2_PWR;
 			pin = PIN_GPRS2_PWR;
+			break;
+		case GPIO_GPRS2_RST:
+			port = PORT_GPRS1_RST;
+			pin = PIN_GPRS1_RST;
 			break;
 		case GPIO_MUX1_BIT1:
 			port = PORT_MUX1;
@@ -323,23 +330,24 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 			pin = PIN_MUX1_BIT2;
 			break;
 		default:
+			LOG4CPP_WARN(log, "Writing on unsupported pin");
 			return GENERIC_ERROR;
 	}
 
 	switch(op) {
 		case GPIO_SET:
-			LOG4CPP_DEBUG(log, "Setting pin %u on port %hu",
-						  pin, port);
+			LOG4CPP_DEBUG(log, "Setting P%c%u",
+						  port, pin-1);
 			gpiosetbits(port, pin);
 			break;
 		case GPIO_CLEAR:
-			LOG4CPP_DEBUG(log, "Resetting pin %u on port %hu",
-						  pin, port);
+			LOG4CPP_DEBUG(log, "Resetting P%c%u",
+						  port, pin-1);
 			gpioclearbits(port, pin);
 			break;
 		case GPIO_TOGGLE:
-			LOG4CPP_DEBUG(log, "Toggling pin %u on port %hu",
-						  pin, port);
+			LOG4CPP_DEBUG(log, "Toggling P%c%u",
+						  port, pin-1);
 			gpiotogglebit(port, pin);
 			break;
 		default:
@@ -353,7 +361,7 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
 	unsigned char port;
 	unsigned int pin;
-	unsigned int level;
+	unsigned short level;
 
  	switch(gpio) {
 		case GPIO_GPRS1_STATE:
@@ -381,8 +389,12 @@ DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
 			return GPIO_UNDEF;
 	}
 
-	if (gpiogetbits(port, pin))
+	level = gpiogetbits(port, pin);
+	LOG4CPP_INFO(log, "Reading P%c%u [%hu]", port, pin-1, level);
+
+	if (level) {
 		return GPIO_ON;
+	}
 
 	return GPIO_OFF;
 }

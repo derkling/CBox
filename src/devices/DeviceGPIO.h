@@ -176,8 +176,8 @@ public:
 
 protected:
 
-    /// Create a new DeviceGPIO.
-    DeviceGPIO(std::string const & logName);
+	/// Create a new DeviceGPIO.
+	DeviceGPIO(std::string const & logName);
 
 	exitCode gpioWrite(t_gpioOperation op, t_gpioLine gpio);
 	t_gpioState gpioRead(t_gpioLine gpio);
