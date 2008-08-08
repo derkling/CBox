@@ -91,7 +91,7 @@ DeviceDigitalSensors::~DeviceDigitalSensors() {
 	}
 	sensors.clear();
 
-	// Destroing digital sensors attrbutes map
+	// Destroing digital sensors attributes map
 	anAttr = attrbutes.begin();
 	while ( anAttr != attrbutes.end()) {
 		anAttr->second->bits.clear();
@@ -99,11 +99,6 @@ DeviceDigitalSensors::~DeviceDigitalSensors() {
 		anAttr++;
 	}
 	attrbutes.clear();
-
-	// Closing I2C device
-// 	if ( fdI2C ) {
-//		std::close(fdI2C);
-// 	}
 
 }
 
