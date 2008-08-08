@@ -366,62 +366,17 @@ DeviceTE * DeviceFactory::getDeviceTE(std::string const & logName) {
 
 WSProxyCommandHandler * DeviceFactory::getWSProxy(std::string const & logName) {
 	static WSProxyCommandHandler * wsProxy = 0;
-	DeviceTime * devTime;
-	DeviceSignals * devSig;
-	DeviceGPRS * devGPRS;
-	DeviceATGPS * devATGPS;
-	DeviceAnalogSensors * devAS;
-	DeviceDigitalSensors * devDS;
-	DeviceTE * devTE;
-	comsys::CommandDispatcher * cd;
 
 	if (wsProxy) {
 		return wsProxy;
 	}
 
-	//-----[ Generators required ]--------------------------------------------------
-	// Building a DeviceTime
-	devTime = getDeviceTime("DeviceTime");
-	devSig = getDeviceSignals("DeviceSignals");
-	devATGPS = getDeviceATGPS("DeviceATGPS");
-	devAS = getDeviceAS("DeviceAS");
-	devDS = getDeviceDS("DeviceDS");
-	devTE = getDeviceTE("DeviceTE");
-
-	//NOTE We don't neede to build the GPRS devices since they will be builded
-	//	directly from the EndPoint as they need them
-	//FIXME this call is needed just to bind the DeviceGPRS to the
-	// command dispatcher => it should be better to move this command dispatcher
-	// within the WSProxy such to have the possibility to bind objects build
-	// after the WSProxy creation...
-	devGPRS = getDeviceGPRS("DeviceGPRS");
-
-	//-----[ Handler ]--------------------------------------------------------------
-	// Building the WSProxy
 	wsProxy = WSProxyCommandHandler::getInstance("WSProxy");
-
-	//-----[ Dispatcher ]-----------------------------------------------------------
-	LOG4CPP_DEBUG(log, "Building a WS CommandDispatcher");
-	cd = new comsys::CommandDispatcher(wsProxy, false);
-
-	LOG4CPP_DEBUG(log, "Binding DeviceTime to the WS CommandDispatcher");
-	devTime->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceSignals to the WS CommandDispatcher");
-	devSig->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceATGPS to the WS CommandDispatcher");
-	devATGPS->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceAS to the WS CommandDispatcher");
-	devAS->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceDS to the WS CommandDispatcher");
-	devDS->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceTE to the WS CommandDispatcher");
-	devTE->setDispatcher(cd, true);
-	LOG4CPP_DEBUG(log, "Binding DeviceGPRS to the WS CommandDispatcher");
-	devGPRS->setDispatcher(cd, true);
 
 	return wsProxy;
 
 }
+
 
 }// namespace device
 }// namespace controlbox
