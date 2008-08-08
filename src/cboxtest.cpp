@@ -735,6 +735,7 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 	controlbox::device::FileWriterCommandHandler * fw = 0;
 	controlbox::comsys::CommandDispatcher * cd = 0;
 	controlbox::device::DeviceGPRS * devGPRS = 0;
+	controlbox::device::DeviceGPIO * devGPIO = 0;
 	controlbox::device::ATcontrol * at = 0;
 	controlbox::QueryRegistry * qr = 0;
 	unsigned short level;
@@ -763,13 +764,6 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 		cout << "Exception caught" << endl;
 	}
 
-// 	logger.info("---- Initializiig a CommandAT");
-// 	at = controlbox::device::ATcontrol::getInstance();
-// 	qr = QueryRegistry::getInstance();
-// 	at->setDispatcher(cd);
-// 	at->enable();
-// 	logger.info("Dump QueryRegistry... %s", qr->printRegistry().c_str());
-
 	sleep(5);
 	logger.info("Connecting GPRS...");
 	if ( devGPRS->connect("tinlink") == OK ) {
@@ -784,10 +778,6 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 	devGPRS->signalLevel(level);
 	logger.info("Signal level [%u]", level);
 
-// 	sleep(2);
-// 	logger.info("Testing SMS...");
-// 	devGPRS->sendSMS("+393473153808", "cBox Test");
-
 
 	logger.info("---- The system is ready for network testing! Repeatly connection [%d times, one time each %d seconds]...", cycles, sleeptime);
 	while ( cycles-- ) {
@@ -799,48 +789,8 @@ int test_devicegprs(log4cpp::Category & logger, int sleeptime) {
 		}
 	}
 
-/*
-	logger.info("06 - Testing rapid re-linking... ");
-	// 1
-	devGPRS->disconnect();
-	sleep(10);
-	if ( devGPRS->connect("tinlink") == OK ) {
-		logger.info("04 - Connection UP AND RUNNRING");
-	} else {
-		logger.error("04 - Connection PROBLEMS");
-		goto shutdown;
-	}
-	sleep(3);
-	// 2
-	devGPRS->disconnect();
-	sleep(1);
-	if ( devGPRS->connect("tinlink") == OK ) {
-		logger.info("04 - Connection UP AND RUNNRING");
-	} else {
-		logger.error("04 - Connection PROBLEMS");
-		goto shutdown;
-	}
-	sleep(5);
-	// 3
-	devGPRS->disconnect();
-	sleep(3);
-	if ( devGPRS->connect("tinlink") == OK ) {
-		logger.info("04 - Connection UP AND RUNNRING");
-	} else {
-		logger.error("04 - Connection PROBLEMS");
-		goto shutdown;
-	}
-	sleep(10);
-*/
-
 
 gprs_shutdown:
-
-//	devGPRS->disable();
-
-// 	logger.info("---- Shutting down the CommandAT... ");
-// 	delete at;
-// 	logger.info("DONE!");
 
 	logger.info("---- Shutting down the DeviceGPRS... ");
 	devGPRS->disconnect();
