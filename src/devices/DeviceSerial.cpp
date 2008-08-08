@@ -84,6 +84,10 @@ DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName
 	d_initString = d_config.param(paramName("tty_initString"),
 					DEVICESERIAL_DEFAULT_INIT_STRING);
 
+	sscanf(d_config.param(paramName("tty_flowCtrl"),
+		DEVICESERIAL_DEFAULT_FLOW_CTRL).c_str(),
+		"%i", &d_flowCtrl);
+
 	sscanf(d_config.param(paramName("tty_respDelay"),
 		DEVICESERIAL_DEFAULT_RESPONCE_DELAY).c_str(),
 		"%i", &d_respDelay);
@@ -134,6 +138,7 @@ DeviceSerial::openSerial(bool init, t_stringVector * resp) {
 		LOG4CPP_INFO(log, "Opening TTY [%s]", d_ttyConfig.c_str());
 	}
 
+	// Openinf the port
 	this->open(d_ttyConfig.c_str());
 	if ( !(*this) ) {
 		if (d_gpio) {
@@ -145,6 +150,21 @@ DeviceSerial::openSerial(bool init, t_stringVector * resp) {
 	}
 	// Disabling TTY buffers
 	this->interactive(true);
+
+	// Configuring Flow Control
+	switch (d_flowCtrl) {
+	case ost::Serial::flowSoft:
+		LOG4CPP_DEBUG(log, "Setting software flow control (XON/XOFF)");
+		this->setFlowControl(ost::Serial::flowSoft);
+		break;
+	case ost::Serial::flowHard:
+		LOG4CPP_DEBUG(log, "Setting hardware flow control (RTS/CTS)");
+		this->setFlowControl(ost::Serial::flowHard);
+		break;
+	default:
+		LOG4CPP_DEBUG(log, "Disabling flow control");
+		this->setFlowControl(ost::Serial::flowNone);
+	}
 
 	d_isOpen = true;
 

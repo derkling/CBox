@@ -43,6 +43,8 @@
 #  define DEVICESERIAL_DEFAULT_LINE_TERMINATOR	"\r"
 /// The default initialization string
 #  define DEVICESERIAL_DEFAULT_INIT_STRING	""
+/// The default flow control
+#  define DEVICESERIAL_DEFAULT_FLOW_CTRL	"0"
 /// The default minimum time [ms] to wait between a write and the following read
 #  define DEVICESERIAL_DEFAULT_RESPONCE_DELAY	"500"
 /// Timeout [ms] for non-blochking TTY reading
@@ -120,6 +122,9 @@ class DeviceSerial : public ost::ttystream {
 
 	/// The initialization string.
 	std::string d_initString;
+
+	/// The flow control to use
+	ost::Serial::Flow d_flowCtrl;
 
 	/// The minimum responce delay.
 	unsigned int d_respDelay;
