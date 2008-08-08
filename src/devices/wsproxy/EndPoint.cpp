@@ -112,7 +112,6 @@ exitCode EndPoint::process(unsigned int msgCount, std::string const & msg, unsig
 	LOG4CPP_DEBUG(log, "EP-SWITCH: message processing START, queue mask [0x%02X]", epEnabledQueues);
 
 	result = this->upload(epEnabledQueues, msg, respList);
-
 	if (result == OK) {
 		LOG4CPP_INFO(log, "==> %d [0x%02X]", msgCount, epEnabledQueues);
 	}

@@ -165,7 +165,8 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 	LOG4CPP_DEBUG(log, "EP-DIST: connecting GPRS netlink [%s]...", d_netlink.c_str());
 	result = d_devGPRS->connect(d_netlink);
 	if ( result != OK ) {
-		LOG4CPP_WARN(log, "EP-DIST: Unable to connect GPRS [%d]", result);
+		LOG4CPP_WARN(log, "Unable to connect GPRS");
+		LOG4CPP_DEBUG(log, "EP-DIST: gprs connect failed [%d]", result);
 		return result;
 	}
 
