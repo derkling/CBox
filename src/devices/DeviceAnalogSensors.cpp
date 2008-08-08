@@ -82,22 +82,20 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 
 DeviceAnalogSensors::~DeviceAnalogSensors() {
 	t_asMap::iterator aSensor;
+	DeviceAnalogSensors::t_analogSensor * pAs;
 
 	LOG4CPP_INFO(log, "Stopping DeviceAnalogSensors");
 
 	// Destroing analog sensors map
 	aSensor = analogSensors.begin();
 	while ( aSensor != analogSensors.end()) {
-		delete aSensor->second;
+		pAs = aSensor->second;
+		delete pAs->monitor;
+		delete pAs;
 		aSensor++;
 	}
 
 	analogSensors.clear();
-
-	// Closing I2C device
-	if ( fdI2C ) {
-//		std::close(fdI2C);
-	}
 
 }
 
