@@ -672,7 +672,6 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
 	LOG4CPP_INFO(log, "==> %d [0x%02X]", wsData.msgCount, wsData.endPoint);
 
 	result = (*it)->process(wsData.msgCount, msg.str(), wsData.endPoint, wsData.respList);
-
 	if ( result == OK ) {
 		checkEpCommands(wsData.respList);
 	}
@@ -681,6 +680,11 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
 	case WS_FORMAT_ERROR:
 		LOG4CPP_WARN(log, "Discarding message due to format error");
 		wsData.endPoint = 0x0;
+//FIXME if we do that, we risk to denay the upload to other endpoint that
+//	have an alive GPRS network
+// 	case GPRS_NETWORK_UNREGISTERED:
+// 		LOG4CPP_WARN(log, "GPRS network not available, retrying later");
+// 		return result;
 	}
 
         it++;
@@ -1011,9 +1015,9 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
     count++;
 
     // Pressure on "Sospensioni"
-    result = d_devAS->read("P_SOFFIONI", asValue);
+    result = d_devAS->read("04_APRES", asValue);
     if (result != OK) {
-    	LOG4CPP_DEBUG(log, "Analog sensor P_SOFFIONI not defined");
+    	LOG4CPP_DEBUG(log, "Analog sensor 04_APRES not defined");
     } else {
 	strId << "03";
 	asValue = ((asValue) > 0x270F ) ? 0x270f : asValue;
