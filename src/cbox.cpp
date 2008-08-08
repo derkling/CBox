@@ -51,18 +51,99 @@
 #include "controlbox/base/Utility.h"
 #include "controlbox/base/QueryRegistry.h"
 #include "controlbox/devices/DeviceFactory.h"
-#include "controlbox/devices/ATcontrol.h"
-#include "controlbox/devices/DeviceGPS.h"
-#include "controlbox/devices/te/DeviceTE.h"
+
+#include "controlbox/devices/DeviceTime.h"
+#include "controlbox/devices/DeviceSignals.h"
 #include "controlbox/devices/gprs/DeviceGPRS.h"
-#include "controlbox/base/comsys/CommandDispatcher.h"
-#include "controlbox/devices/PollEventGenerator.h"
-#include "controlbox/devices/FileWriterCommandHandler.h"
+#include "controlbox/devices/atgps/DeviceATGPS.h"
+#include "controlbox/devices/DeviceAnalogSensors.h"
+#include "controlbox/devices/DeviceDigitalSensors.h"
+#include "controlbox/devices/te/DeviceTE.h"
+
 #include "controlbox/devices/wsproxy/WSProxyCommandHandler.h"
+
+#include "controlbox/base/comsys/CommandDispatcher.h"
+// #include "controlbox/devices/ATcontrol.h"
+
+
 
 #define GCC_SPLIT_BLOCK __asm__ ("");
 
 log4cpp::Category & logger = log4cpp::Category::getInstance("controlbox");
+
+// Devices
+controlbox::device::DeviceFactory * df = 0;
+controlbox::QueryRegistry * qr = 0;
+
+controlbox::device::DeviceTime * devTime = 0;
+controlbox::device::DeviceSignals * devSig = 0;
+controlbox::device::DeviceGPRS * devGPRS = 0;
+controlbox::device::DeviceATGPS * devATGPS = 0;
+controlbox::device::DeviceAnalogSensors * devAS = 0;
+controlbox::device::DeviceDigitalSensors * devDS = 0;
+controlbox::device::DeviceTE * devTE = 0;
+
+controlbox::device::WSProxyCommandHandler * uploader = 0;
+
+controlbox::comsys::CommandDispatcher * cd;
+
+bool useColors = true;
+
+int setupQueues(void) {
+
+	logger.info("Setting up upload queues");
+
+	uploader = df->getWSProxy();
+	if ( !uploader ) {
+		logger.error("Proxy initialization FAILED");
+		return -1;
+	}
+
+	return 0;
+}
+
+int setupDevices(void) {
+
+	logger.info("Setting up devices");
+
+	df = controlbox::device::DeviceFactory::getInstance();
+	cd = new controlbox::comsys::CommandDispatcher(uploader, false);
+
+	devTime = df->getDeviceTime("DeviceTime");
+	devTime->setDispatcher(cd, true);
+
+	devSig = df->getDeviceSignals("DeviceSignals");
+	devSig->setDispatcher(cd, true);
+
+	devATGPS = df->getDeviceATGPS("DeviceATGPS");
+	devATGPS->setDispatcher(cd, true);
+
+	devGPRS = df->getDeviceGPRS("DeviceGPRS");
+	devGPRS->setDispatcher(cd, true);
+
+	devAS = df->getDeviceAS("DeviceAS");
+	devAS->setDispatcher(cd, true);
+
+	devDS = df->getDeviceDS("DeviceDS");
+	devDS->setDispatcher(cd, true);
+
+	devTE = df->getDeviceTE("DeviceTE");
+	devTE->setDispatcher(cd, true);
+
+	return 0;
+
+}
+
+
+int startUpload(void) {
+
+	logger.info("Starting upload thread");
+
+	uploader->startUpload();
+
+	return 0;
+
+}
 
 void shandler(int sig) {
 
@@ -70,37 +151,23 @@ void shandler(int sig) {
 
 }
 
-bool useColors = true;
-
 int cBoxMain(std::string const & conf,
 		std::string const & cmdlog) {
 	sigset_t mask;
 	struct sigaction act;
 	int status;
 
-	controlbox::device::DeviceFactory * df;
-	controlbox::QueryRegistry * qr = 0;
-	controlbox::device::DeviceSignals * devSig = 0;
-	controlbox::device::DeviceTE * devTE = 0;
-	controlbox::device::WSProxyCommandHandler * ws = 0;
-
 	// Preloading the configuration options
 	controlbox::Configurator::getInstance(conf);
 
 	qr = controlbox::QueryRegistry::getInstance();
-
-	// We use a DeviceFatory to build all others dependencies
-	// and link them to the WSProxy
 	df = controlbox::device::DeviceFactory::getInstance();
 
-	//--- Installing Handlers
-	ws = df->getWSProxy();
-	if ( !ws ) {
-		logger.error("Proxy initialization FAILED");
-		return -1;
-	}
+	setupQueues();
 
-	sleep(2);
+	setupDevices();
+
+	startUpload();
 
 	sigemptyset(&mask);
 	act.sa_handler = shandler;
@@ -113,7 +180,7 @@ int cBoxMain(std::string const & conf,
 	}
 
 	logger.info("System Up and Running");
-	sleep(2);
+	::sleep(2);
 
 	logger.info("Sending PowerOn Event... ");
 	devSig = df->getDeviceSignals();
@@ -129,23 +196,27 @@ int cBoxMain(std::string const & conf,
 		devSig->powerOn(false);
 	}
 
-	// Deleting DeviceTE to ensure does not procuce any more messages
-	devTE = df->getDeviceTE();
+	// Deleting Devices to ensure they don't generate new messages
 	delete devTE;
+	delete devDS;
 
-// 	// Wait few moments for shutdown message (possible) uploading...
-// 	::sleep(5);
-//
-// 	// Requiring WSProxy to exit;
-// 	ws->onShutdown();
-
-	// Waiting few moments more to complete ws thread shutdown
+	// Wait few moments for shutdown message (possible) uploading...
 	::sleep(5);
 
-shutdown:
-	delete ws;
+	// Requiring WSProxy to exit;
+	// FIXME this should be a blocking call?!?
+	uploader->onShutdown();
 
-	return 0;
+shutdown:
+	delete devGPRS;
+
+// FIXME the following devices have some problems on deleting them
+// 	delete devAS;
+// 	delete devATGPS;
+// 	delete devSig;
+// 	delete uploader;
+
+	return EXIT_SUCCESS;
 
 }
 
