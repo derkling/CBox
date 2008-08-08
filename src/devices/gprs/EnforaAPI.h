@@ -225,7 +225,7 @@ protected:
 
 	exitCode gprsStatus(unsigned short & status);
 
-	exitCode gprsRegistered(void);
+	exitCode gprsRegistered(bool resetOnFailure = true);
 
 	/// Notify friends servers about a network configuration change.
 	exitCode notifyFriends();
