@@ -50,6 +50,8 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	Device(Device::DEVICE_DS, 0, logName),
 	d_config(Configurator::getInstance()),
 	d_sysfsbase(""),
+	d_pcaDevices(0),
+	d_sensorNotify(this),
 	log(Device::log) {
 	DeviceFactory * df = DeviceFactory::getInstance();
 
@@ -61,6 +63,9 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	d_signals = df->getDeviceSignals();
 	d_i2cBus = df->getDeviceI2CBus();
 	d_time = df->getDeviceTime();
+
+	d_pcaAddrs[0] = 0;
+	d_pcaAddrs[1] = 0;
 
 	loadSensorConfiguration();
 	LOG4CPP_INFO(log, "Successfully loaded %d digital sensors configurations", count());
@@ -74,14 +79,19 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	d_intrLine = atoi(d_config.param("DigitalSensor_PA_intrline", DS_DEFAULT_PA_INTRLINE).c_str());
 	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
 
+	d_sensorNotify.start();
+
 }
 
 
 DeviceDigitalSensors::~DeviceDigitalSensors() {
 	t_dsMap::iterator aSensor;
 	t_attrMap::iterator anAttr;
+	t_pcaStateList::iterator aDeviceState;
 
 	LOG4CPP_INFO(log, "Stopping DeviceDigitalSensors");
+
+	d_sensorNotify.doExit();
 
 	// Destroing digital sensors map
 	aSensor = sensors.begin();
@@ -99,6 +109,12 @@ DeviceDigitalSensors::~DeviceDigitalSensors() {
 		anAttr++;
 	}
 	attrbutes.clear();
+
+	aDeviceState = d_pcaStateList.begin();
+	while ( aDeviceState != d_pcaStateList.end() ) {
+		delete[] (*aDeviceState);
+		aDeviceState++;
+	}
 
 }
 
@@ -151,6 +167,7 @@ DeviceDigitalSensors::parseCfgString(std::string const & dsCfg) {
 	char param[2];
 	char description[DS_DESC_START+1];
 	char * descStart;
+	unsigned short i;
 
 	LOG4CPP_DEBUG(log, "parseCfgString(dsCfg=%s)", dsCfg.c_str());
 
@@ -163,10 +180,10 @@ DeviceDigitalSensors::parseCfgString(std::string const & dsCfg) {
 	// DigitalSensor_N id proto bus address port bit| event param trig enable description
 
 	cfgTemplate << "%" << DS_MAX_ID_LENGTH << "s %u";
-DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
+	DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 	sscanf(dsCfg.c_str(), cfgTemplate.str().c_str(), pDs->id, &pDs->proto);
 
-DLOG4CPP_DEBUG(log, "Id: [%s] Proto: [%d]", pDs->id, pDs->proto);
+	DLOG4CPP_DEBUG(log, "Id: [%s] Proto: [%d]", pDs->id, pDs->proto);
 
 	switch ( pDs->proto ) {
 		case DS_PROTO_SYSFS:
@@ -176,23 +193,41 @@ DLOG4CPP_DEBUG(log, "Id: [%s] Proto: [%d]", pDs->id, pDs->proto);
 			cfgTemplate << "%*" << DS_MAX_ID_LENGTH << "s %*u";
 			// - select Protocol-Specifics substrings...
 			cfgTemplate << " %i %i %d %d";
-DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
+			DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 			sscanf(dsCfg.c_str(), cfgTemplate.str().c_str(),
 				&pDs->address.sysfsAddress.bus,
 				&pDs->address.sysfsAddress.address,
 				&pDs->address.sysfsAddress.port,
 				&pDs->address.sysfsAddress.bit);
 
-DLOG4CPP_DEBUG(log, "Bus: [0x%X] Address: [0x%X]"
+			LOG4CPP_DEBUG(log, "Bus: [0x%X] Address: [0x%X]"
 				" Port: [%d] Bit: [%d]",
 				pDs->address.sysfsAddress.bus,
 				pDs->address.sysfsAddress.address,
 				pDs->address.sysfsAddress.port,
 				pDs->address.sysfsAddress.bit);
 
+
+
+			for (i=0; i<DS_MAX_PCA9555_SENSORS; i++) {
+				if (d_pcaAddrs[i] == pDs->address.sysfsAddress.address) {
+					LOG4CPP_DEBUG(log, "PCA9555 sensor @0x%02X already added", d_pcaAddrs[i]);
+					break;
+				}
+				if (d_pcaAddrs[i]==0) {
+					d_pcaAddrs[i] = pDs->address.sysfsAddress.address;
+					d_pcaDevices++;
+					LOG4CPP_DEBUG(log, "PCA9555 sensor @0x%02X added", d_pcaAddrs[i]);
+					break;
+				}
+			}
+
+
+
 			// Reformatting parsing string to throw away parsed substrings
 			cfgTemplate.str("");
 			cfgTemplate << "%*" << DS_MAX_ID_LENGTH << "s %*u %*i %*i %*d %*d";
+
 		break;
 
 		default:
@@ -204,7 +239,7 @@ DLOG4CPP_DEBUG(log, "Bus: [0x%X] Address: [0x%X]"
 	// Parsing the remaining Protocol-Independant" params...
 	//NOTE %s in scanf don't cross spaces... we should use a trick to recovery the whole description string
 	cfgTemplate << " %i %" << DS_MAX_VALUE_LENGTH << "s %" << DS_MAX_VALUE_LENGTH << "s %c %i %d %hu %" << DS_DESC_START << "s";
-DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
+	DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 	sscanf(dsCfg.c_str(), cfgTemplate.str().c_str(),
 			&pDs->event, pDs->lvalue,
 			pDs->hvalue, param,
@@ -235,7 +270,7 @@ DLOG4CPP_DEBUG(log, "Format string: [%s]", cfgTemplate.str().c_str());
 		strncpy(pDs->description, descStart, DS_MAX_DESC_LENGTH);
 	}
 
-LOG4CPP_DEBUG(log, "Event: [0x%X] Param: [%d]"
+	LOG4CPP_DEBUG(log, "Event: [0x%X] Param: [%d]"
 			" Trigger: [0x%X] Enabled: [%s] Prio: [%hu]"
 			" Description: [%s]",
 				pDs->event,
@@ -399,31 +434,12 @@ DeviceDigitalSensors::lookUpBit (t_bitMap &map, t_bitOffset bit) {
 
 inline exitCode
 DeviceDigitalSensors::getPortStatus(t_attribute const & anAttr, t_portStatus & value) {
+
 	std::ostringstream path("");
 	int fd;
 	char svalue[4];
 	int i = 2;
 
-#if 0
-	path << d_sysfsbase << "/" << anAttr.id;
-
-	fd = ::open(path.str().c_str(), O_RDONLY);
-	if (fd == -1) {
-		LOG4CPP_ERROR(log, "Failed to open attrib [%s]", path.str().c_str());
-		return DS_PORT_READ_ERROR;
-	}
-
-	read(fd, svalue, 3);
-	errno = 0;
-	value = strtol(svalue, (char **)NULL, 10);
-	if (errno) {
-		LOG4CPP_ERROR(log, "string value [%s] conversion failed, %s",
-				svalue, strerror(errno));
-		::close(fd);
-		return DS_VALUE_CONVERSION_FAILED;
-	}
-	::close(fd);
-#endif
 	exitCode result;
 	DeviceI2CBus::t_i2cCommand regs;
 	DeviceI2CBus::t_i2cReg val;
@@ -438,6 +454,29 @@ DeviceDigitalSensors::getPortStatus(t_attribute const & anAttr, t_portStatus & v
 	value = val;
 
 	LOG4CPP_DEBUG(log, "Readed value: %02X", value);
+
+	return OK;
+
+}
+
+inline exitCode
+DeviceDigitalSensors::getPortNextStatus(t_attribute const & anAttr, t_portStatus & value) {
+	unsigned short i;
+
+	// Looking for device index
+	for (i=0; i<d_pcaDevices ;i++) {
+		if ( d_pcaAddrs[i]==anAttr.addr )
+			break;
+	}
+
+	LOG4CPP_DEBUG(log, "Reading PCA9555-%u, Port%u", i, anAttr.reg);
+
+	// Returning the required Port
+	if ( anAttr.reg==0 ) {
+		value = d_pcaNextState[i].port0;
+	} else {
+		value = d_pcaNextState[i].port1;
+	}
 
 	return OK;
 }
@@ -579,7 +618,7 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 	usleep(DS_LOW_PASS_FILTER_DELAY);
 // #endif
 
-	if (getPortStatus(anAttr, value) != OK) {
+	if (getPortNextStatus(anAttr, value) != OK) {
 		LOG4CPP_ERROR(log, "Unable to update port [%s] status", anAttr.id);
 		return DS_PORT_UPDATE_FAILED;
 	}
@@ -626,6 +665,7 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 
 inline exitCode
 DeviceDigitalSensors::updateSensors(void) {
+#if 0
 	t_attrMap::iterator anAttr;
 	t_portStatus value;
 	bool newEvents = false;
@@ -645,29 +685,90 @@ DeviceDigitalSensors::updateSensors(void) {
 
 	return OK;
 
-}
-
-/* TEST new DeviceI2CBus Interface
-inline exitCode
-DeviceDigitalSensors::updateSensors(void) {
-	DeviceI2CBus::t_i2cCommand	regs[2] = {0x00, 0x01};
-	DeviceI2CBus::t_i2cReg		vals[2] = {0x00, 0x00};
-	short len = 2;
+#else
+	t_pcaStateVect state = new t_pca9555[d_pcaDevices];
+	unsigned short i;
 	exitCode result;
+	DeviceI2CBus::t_i2cCommand regs;
+	short len = 1;
+	DeviceI2CBus::t_i2cReg val;
 
-	result = d_i2cBus->read(0x21, regs, len, vals, len);
-	if ( result != OK ) {
-		LOG4CPP_ERROR(log, "Update sensors failed!");
-		return result;
+	for (i=0; i<d_pcaDevices; i++) {
+
+		regs = 0x00;
+		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "Failed reading Port0 PCA9555@0x%02X", d_pcaAddrs[i]);
+			return result;
+		}
+		state[i].port0 = val;
+
+		regs = 0x01;
+		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "Failed reading Port1 PCA9555@0x%02X", d_pcaAddrs[i]);
+			return result;
+		}
+		state[i].port1 = val;
+
+		LOG4CPP_DEBUG(log, "Updated PCA9555@0x%02X status [0x%02X,0x%02X]",
+				d_pcaAddrs[i], state[i].port0, state[i].port1);
+
 	}
 
-	LOG4CPP_DEBUG(log, "0x%02X 0x%02X", vals[0], vals[1]);
-
-
-	return OK;
+	d_pcaStateList.push_back(state);
+	d_sensorNotify.resume();
+	LOG4CPP_DEBUG(log, "Resuming notify thread");
+#endif
 
 }
-*/
+
+void DeviceDigitalSensors::sensorsNotify (void) {
+	t_pcaStateVect state;
+	t_attrMap::iterator anAttr;
+
+	while ( !d_pcaStateList.empty() ) {
+
+		d_pcaNextState = d_pcaStateList.front();
+		LOG4CPP_DEBUG(log, "Notify sensors change...");
+
+		anAttr = attrbutes.begin();
+		while ( anAttr != attrbutes.end()) {
+			checkPortStatusChange(*(anAttr->second));
+			anAttr++;
+		}
+
+		d_pcaStateList.pop_front();
+	}
+
+	LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
+
+}
+
+DeviceDigitalSensors::SensorNotify::SensorNotify(DeviceDigitalSensors * ds) :
+	d_ds(ds),
+	d_doExit(false) {
+}
+
+void DeviceDigitalSensors::SensorNotify::doExit(void) {
+	d_doExit = true;
+	this->resume();
+}
+
+void
+DeviceDigitalSensors::SensorNotify::run(void) {
+
+	do {
+		suspend();
+		if (d_doExit) {
+			break;
+		}
+		d_ds->sensorsNotify();
+	} while(1);
+
+}
+
+
 
 void   DeviceDigitalSensors::run (void) {
 	pid_t tid;

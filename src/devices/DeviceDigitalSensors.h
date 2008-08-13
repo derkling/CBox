@@ -50,6 +50,8 @@
 #define DS_MAX_DESC_LENGTH	63
 #define DS_DESC_START		5
 
+#define DS_MAX_PCA9555_SENSORS	2
+
 /// us delay for the low-pass interrupt filter
 #define DS_LOW_PASS_FILTER_DELAY 200
 
@@ -196,6 +198,24 @@ public:
     /// A list of sensor attributes
     typedef map<std::string, t_attribute*> t_attrMap;
 
+	/// A PCA9555 device input status.
+	struct pca9555 {
+		t_port port0;
+		t_port port1;
+	};
+	typedef struct pca9555 t_pca9555;
+
+	/// Address of sensors
+	/// @note must match t_pcaSensors entries
+	typedef t_address t_pcaAddr[DS_MAX_PCA9555_SENSORS];
+
+	/// Status of sensors
+	/// @note must match t_pcaSensorsAddrs entries
+	typedef t_pca9555 * t_pcaStateVect;
+
+	/// A list of readed t_pcaSensors
+	typedef list<t_pcaStateVect> t_pcaStateList;
+
 
 protected:
 
@@ -233,6 +253,38 @@ protected:
 
     /// The map of confgiured attributes
     t_attrMap attrbutes;
+
+
+	/// Address of PCA devices
+	t_pcaAddr d_pcaAddrs;
+
+	/// Number of PCA9555 devices loaded
+	unsigned short d_pcaDevices;
+
+	/// The list of PCA9555 sensors reads
+	t_pcaStateList d_pcaStateList;
+
+	/// The next state to be notified
+	t_pcaStateVect d_pcaNextState;
+
+	/// A thread for sensors notification
+	class SensorNotify : public ost::PosixThread {
+	public:
+		SensorNotify(DeviceDigitalSensors * ds);
+		~SensorNotify() {};
+		void run (void);
+		void doExit(void);
+	protected:
+		DeviceDigitalSensors * d_ds;
+		bool d_doExit;
+	};
+	// Allowing inner class to access DeviceAnalogSensors members
+	friend class SensorNotify;
+
+	/// The thread for sensors events notification
+	SensorNotify d_sensorNotify;
+
+
 
     /// The logger to use locally.
     log4cpp::Category & log;
@@ -280,6 +332,8 @@ protected:
 
     inline exitCode getPortStatus(t_attribute const & anAttr, t_portStatus & value);
 
+    inline exitCode getPortNextStatus(t_attribute const & anAttr, t_portStatus & value);
+
     /// Initialize the current sensors status.
     inline exitCode initSensors(void);
 
@@ -292,6 +346,8 @@ protected:
     inline exitCode updateSensors(void);
 
     // EventDispatcher interface to handle EventGenerator events
+
+    void sensorsNotify (void);
 
     /// Upload SOAP message's Thread body.
     void run(void);
