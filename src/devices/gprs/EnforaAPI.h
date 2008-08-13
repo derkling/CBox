@@ -223,6 +223,8 @@ protected:
 
 	exitCode signalLevel(unsigned short & level);
 
+	exitCode gsmStatus(unsigned short & status);
+
 	exitCode gprsStatus(unsigned short & status);
 
 	exitCode gprsRegistered(bool resetOnFailure = true);

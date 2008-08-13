@@ -112,7 +112,7 @@ EnforaAPI::powerOn(bool reset) {
 	exitCode result;
 
 	if (reset) {
-		LOG4CPP_WARN(log, "Resetting modem");
+		LOG4CPP_WARN(log, "Resetting");
 		result = d_gpio->gprsReset(d_module);
 		if ( result==OK ) {
 			LOG4CPP_DEBUG(log, "Modem powered-up, waiting 10s before continuing...");
@@ -121,7 +121,7 @@ EnforaAPI::powerOn(bool reset) {
 		return result;
 	}
 
-	LOG4CPP_INFO(log, "Powering-on modem");
+	LOG4CPP_INFO(log, "Powering-on");
 	result = d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_ON);
 	if ( result==OK ) {
 		LOG4CPP_DEBUG(log, "Modem powered-up, waiting 10s before continuing...");
@@ -132,7 +132,7 @@ EnforaAPI::powerOn(bool reset) {
 
 exitCode
 EnforaAPI::powerOff() {
-	LOG4CPP_INFO(log, "Powering-off GPRS device");
+	LOG4CPP_INFO(log, "Powering-off");
 	d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_OFF);
 	return OK;
 }
@@ -690,34 +690,27 @@ EnforaAPI::gprsUP(std::string const & linkname) {
 
 	LOG4CPP_INFO(log, "Activating GPRS connection [%s]...", linkname.c_str());
 
-// 	d_tty->sendSerial(d_supportedLinks[linkname]->pdpContext, &resp);
 	atCmd = (d_supportedLinks[linkname]->pdpContext).c_str();
 	memcpy(msg.field.data, atCmd, strlen(atCmd));
 	result = sendAT(msg, resp);
 	if ( result!=OK ) {
-		LOG4CPP_WARN(log, "API, SEND[%s]: %s", atCmd, resp.field.data);
+		LOG4CPP_WARN(log, "API, Failed SEND[%s]: %s", atCmd, resp.field.data);
 		return GPRS_API_GPRS_UP_FAILED;
 	}
-
-// 	d_tty->sendSerial(d_supportedLinks[linkname]->AtDial);
-// 	atCmd = (d_supportedLinks[linkname]->AtDial).c_str();
-// 	memcpy(msg.field.data, atCmd, strlen(atCmd));
-// 	result = sendAT(msg, resp);
-// 	if ( result!=OK ) {
-// 		LOG4CPP_WARN(log, "API, SEND[%s]: %s", atCmd, resp.field.data);
-// 		return GPRS_API_GPRS_UP_FAILED;
-// 	}
 
 	memcpy(msg.field.data, "AT$CONN\0", 8);
 	result = sendAT(msg, resp);
 	if ( result!=OK ) {
-		LOG4CPP_WARN(log, "API, SEND[AT$CONN]: %s", resp.field.data);
+		LOG4CPP_WARN(log, "API, Failed SEND[AT$CONN]: %s", resp.field.data);
 		return GPRS_API_GPRS_UP_FAILED;
 	}
 
 	if ( !strstr(resp.field.data, "CONNECT") ) {
-		LOG4CPP_WARN(log, "API, GPRS connect failed");
-		return GPRS_API_GPRS_UP_FAILED;
+		LOG4CPP_WARN(log, "API, Failed CONNECT");
+		// NOTE we should avoid multiple modem reset points: thus
+		// here we ensure a reset is requested and let the caller perform this
+		// if needed
+		return GPRS_RESET_REQUIRED;
 	}
 
 	result = updateNetworkConfiguration();
@@ -1154,6 +1147,45 @@ EnforaAPI::signalLevel(unsigned short & level) {
 }
 
 exitCode
+EnforaAPI::gsmStatus(unsigned short & status) {
+	t_apiCommand msg;
+	t_apiResponce resp;
+	t_stringVector vresp;
+	exitCode result;
+	char * pos;
+
+	if (d_apiEnabled) {
+		LOG4CPP_DEBUG(log, "Query GSM status using API interface");
+
+		memcpy(msg.field.data, "AT+CREG?\0", 10);
+		result = sendAT(msg, resp);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "API, SEND[AT+CREG?] failed");
+			return result;
+		}
+
+		LOG4CPP_DEBUG(log, "API, SEND[AT+CREG?]: %s", resp.field.data);
+
+		// responce example "+CREG: 0,1"
+		pos = strstr(resp.field.data, ",");
+		if (!pos) {
+			LOG4CPP_DEBUG(log, "Failed parsing AT+CREG? responce [%s]", resp.field.data);
+			status = 0;
+			return GPRS_API_GPRS_UP_FAILED;
+		}
+		sscanf(pos+1, "%hu", &status);
+
+	} else {
+		LOG4CPP_DEBUG(log, "Query GSM status using AT interface");
+		d_tty->sendSerial("AT+CREG?", &vresp);
+		//TODO implement the returning of the value
+		status = 0;
+	}
+
+	return OK;
+}
+
+exitCode
 EnforaAPI::gprsStatus(unsigned short & status) {
 	t_apiCommand msg;
 	t_apiResponce resp;
@@ -1162,6 +1194,7 @@ EnforaAPI::gprsStatus(unsigned short & status) {
 	char * pos;
 
 	if (d_apiEnabled) {
+
 		LOG4CPP_DEBUG(log, "Query GPRS status using API interface");
 
 		memcpy(msg.field.data, "AT+CGREG?\0", 10);
@@ -1198,6 +1231,46 @@ EnforaAPI::gprsRegistered(bool resetOnFailure) {
 	unsigned short status;
 	exitCode result;
 
+	// Checking GSM registration status
+	result = gsmStatus(status);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "Failed querying GPRS Network registration status");
+		goto exit_reset;
+	}
+
+	LOG4CPP_DEBUG(log, "GSM registration status [%hu]", status);
+	switch (status) {
+	case 0:
+		LOG4CPP_ERROR(log, "GSM not registered (not searching)");
+		result = GPRS_NETWORK_REGDENIED;
+		break;
+	case 1:
+		LOG4CPP_DEBUG(log, "GSM registered (home network)");
+		result = OK;
+		break;
+	case 2:
+		LOG4CPP_WARN(log, "GSM not registered (searching)");
+		result = GPRS_NETWORK_UNREGISTERED;
+		break;
+	case 3:
+		LOG4CPP_ERROR(log, "GSM registration denied");
+		result = GPRS_NETWORK_REGDENIED;
+		break;
+	case 5:
+		LOG4CPP_DEBUG(log, "GSM registered (roaming)");
+		result = OK;
+		break;
+	default:
+		LOG4CPP_ERROR(log, "Unknowen");
+		result = GPRS_NETWORK_REGDENIED;
+		break;
+	}
+
+	if (result!=OK) {
+		goto exit_reset;
+	}
+
+	// Checking GPRS registration status
 	result = gprsStatus(status);
 	if ( result != OK ) {
 		LOG4CPP_ERROR(log, "Failed querying GPRS Network registration status");
@@ -1234,12 +1307,13 @@ EnforaAPI::gprsRegistered(bool resetOnFailure) {
 
 exit_reset:
 
+	// NOTE we should avoid multiple modem reset points: thus
+	// here we ensure a reset is requested and let the caller perform this
+	// if needed
 	if ( resetOnFailure &&
 		result != OK &&
 		result != GPRS_NETWORK_UNREGISTERED ) {
-		LOG4CPP_WARN(log, "Resetting modem");
-		disableAPI();
-		powerOn(true);
+		result = GPRS_RESET_REQUIRED;
 	}
 
 	return result;
