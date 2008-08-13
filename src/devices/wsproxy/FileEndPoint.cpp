@@ -96,10 +96,11 @@ exitCode FileEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 
 	if (d_fepCategory) {
 		LOG4CPP_DEBUG(log, "Dumping message to journal [%s]", msg.c_str());
-		LOG4CPP_INFO((*d_fepCategory), "%s", msg.c_str());
+// 		LOG4CPP_INFO((*d_fepCategory), "%s", msg.c_str());
+		d_fepCategory->log(::log4cpp::Priority::INFO, "%s", msg.c_str());
 	}
 
-	LOG4CPP_INFO(log, "    [0 - %s]", d_filename.c_str());
+	LOG4CPP_INFO(log, "    [%c - %s]", getQueueLable(d_epQueueMask), d_filename.c_str());
 
 	// Resetting this File EndPoint queue
 	epEnabledQueues ^= d_epQueueMask;

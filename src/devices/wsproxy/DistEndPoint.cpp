@@ -186,7 +186,7 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 		}
 
 		d_csoap.endpoint = (*srv).c_str();
-		LOG4CPP_INFO(log, "    [%d - %s]", srvNumber, d_csoap.endpoint);
+		LOG4CPP_INFO(log, "    [%c - %s]", getQueueLable(getQueueMask(epEnabledQueues, srvNumber)), d_csoap.endpoint);
 
 		wsresult = d_csoap.__ns3__uploadData ( &soapMsg, &wsResp );
 
@@ -265,8 +265,9 @@ DistEndPoint::srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumbe
 
 }
 
-void
-DistEndPoint::resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNumber) {
+
+unsigned int
+DistEndPoint::getQueueMask(unsigned int & epEnabledQueues, unsigned short srvNumber) {
 	unsigned int bit;
 	unsigned int shift;
 
@@ -275,6 +276,16 @@ DistEndPoint::resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNu
 				bit, d_qmShiftCount, srvNumber, shift);
 
 	bit = ((unsigned int)0x1<<shift);
+	return bit;
+
+}
+
+
+void
+DistEndPoint::resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNumber) {
+	unsigned int bit;
+
+	bit = getQueueMask(epEnabledQueues,srvNumber);
 	LOG4CPP_DEBUG(log, "EP-DIST: Resetting Queue BitMask [0x%02X], EnabledQueues [0x%02X]",
 			bit, epEnabledQueues);
 

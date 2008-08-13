@@ -188,6 +188,7 @@ protected:
     struct wsData {
 	unsigned int msgCount;			///< local message ID (used for local debugging)
 	unsigned int endPoint;			///< endPoint mask
+	unsigned short prio;			///< the message priority
 	t_idSource idSrc;			///< Source ID
 	t_timeStamp tx_date;			///< Trasmission data
 	t_timeStamp rx_date;			///< Reception data
@@ -470,10 +471,13 @@ protected:
     /// queued into the upload queue by this method that also notify
     /// the upload theread about new data ready to be uploaded.
     /// @param message the gSOAP message to upload
-    exitCode queueMsg(t_wsData & wsData, unsigned short prio = WSPROXY_DEFAULT_QUEUE);
+    exitCode queueMsg(t_wsData & wsData);
 
     /// Check EndPoint piggybacked commands and trigger suitable options.
     exitCode checkEpCommands(EndPoint::t_epRespList &respList);
+
+    /// Get a char-string representation of enabled queues
+    std::string getQueueMask(unsigned int queues);
 
     /// Effectively upload a message to the associated EndPoints
     /// This method is the MUTEX protected access to EndPoints.

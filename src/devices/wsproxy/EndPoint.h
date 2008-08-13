@@ -192,6 +192,9 @@ protected:
     /// @param resp the eventually returned EndPoint responce
     virtual exitCode upload(unsigned int & epEnabledQueues, std::string const & msg, EndPoint::t_epRespList &respList) =0;
 
+    /// Return the char lable of the specified queue bitmask
+    char getQueueLable(unsigned int queue);
+
 };
 
 

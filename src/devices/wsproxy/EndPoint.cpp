@@ -96,6 +96,23 @@ EndPoint::getEndPoint(unsigned short const type,
 
 }
 
+char EndPoint::getQueueLable(unsigned int queue) {
+	unsigned int enabled;
+	unsigned short i;
+	char lable = 'A';
+
+	enabled = EndPoint::getEndPointQueuesMask();
+
+	for (i=0; i<(sizeof(queue)*8); i++) {
+		if (queue & (0x1<<i)) {
+			break;
+		}
+		lable++;
+	}
+	return lable;
+
+}
+
 exitCode EndPoint::process(unsigned int msgCount, std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList) {
 	exitCode result;
 
@@ -112,9 +129,9 @@ exitCode EndPoint::process(unsigned int msgCount, std::string const & msg, unsig
 	LOG4CPP_DEBUG(log, "EP-SWITCH: message processing START, queue mask [0x%02X]", epEnabledQueues);
 
 	result = this->upload(epEnabledQueues, msg, respList);
-	if (result == OK) {
-		LOG4CPP_INFO(log, "==> %d [0x%02X]", msgCount, epEnabledQueues);
-	}
+// 	if (result == OK) {
+// 		LOG4CPP_INFO(log, "==> %d [0x%02X]", msgCount, epEnabledQueues);
+// 	}
 
 	LOG4CPP_DEBUG(log, "EP-SWITCH: message processing END, queue mask [0x%02X]", epEnabledQueues);
 

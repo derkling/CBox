@@ -114,6 +114,7 @@ protected:
 	void logSOAPFault(struct soap * csoap);
 
 	bool srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumber);
+	unsigned int getQueueMask(unsigned int & epEnabledQueues, unsigned short srvNumber);
 	void resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNumber);
 
 };

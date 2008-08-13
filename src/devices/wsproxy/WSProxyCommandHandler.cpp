@@ -336,7 +336,6 @@ throw (exceptions::IllegalCommandException) {
     t_cmdParser::iterator it;
     t_wsData * wsData = 0;
     exitCode result;
-    unsigned short prio;
 
     LOG4CPP_DEBUG(log, "%s:%d WSProxyCommandHandler::notify(Command * cmd)", __FILE__, __LINE__);
 
@@ -370,10 +369,11 @@ throw (exceptions::IllegalCommandException) {
         return WS_MEM_FAILURE;
     }
 
-	prio = cmd->getPrio();
-	LOG4CPP_DEBUG(log, "Message prio [%hu]", prio);
+	// Setting message priority
+	wsData->prio = cmd->getPrio();
+	LOG4CPP_DEBUG(log, "Message prio [%hu]", wsData->prio);
 
-	result = queueMsg(*wsData, prio);
+	result = queueMsg(*wsData);
 	if (result!=OK) {
 		LOG4CPP_WARN(log, "Failed queuing message");
 		return result;
@@ -563,22 +563,24 @@ void WSProxyCommandHandler::printQueuesStatus(void) {
 
 }
 
-exitCode WSProxyCommandHandler::queueMsg(t_wsData & wsData, unsigned short prio) {
+exitCode WSProxyCommandHandler::queueMsg(t_wsData & wsData) {
 	std::ostringstream queueStatus("");
 	unsigned short i;
 
-	if ( prio>= WSPROXY_UPLOAD_QUEUES )
-		prio = (WSPROXY_UPLOAD_QUEUES-1);
+	if ( wsData.prio >= WSPROXY_UPLOAD_QUEUES )
+		wsData.prio = (WSPROXY_UPLOAD_QUEUES-1);
 
-	LOG4CPP_DEBUG(log, "Queuing message with prio [%d]", prio);
+	LOG4CPP_DEBUG(log, "Queuing message with prio [%d]", wsData.prio);
 
-	d_uploadQueues[prio].push_front(&wsData);
+	d_uploadQueues[wsData.prio].push_front(&wsData);
 	d_queuesUpdated = true;
+
+	LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
 
 	printQueuesStatus();
 
 	// Trigger upload thread only if this is not a queuing-only message
-	if ( prio < WSPROXY_QUEUING_ONLY_PRI ) {
+	if ( wsData.prio < WSPROXY_QUEUING_ONLY_PRI ) {
 		onPolling();
 	}
 
@@ -624,6 +626,24 @@ exitCode WSProxyCommandHandler::checkEpCommands(EndPoint::t_epRespList &respList
 	}
 }
 
+std::string WSProxyCommandHandler::getQueueMask(unsigned int queues) {
+	unsigned int enabled;
+	unsigned short i;
+	char buf[] = "__________\n";
+
+
+	enabled = EndPoint::getEndPointQueuesMask();
+
+	for (i=0; i<10; i++) {
+		if ( ! (enabled & (0x01<<i)) )
+			break;
+		buf[i] = (queues & (0x01<<i)) ? ('A'+i) : '-';
+	}
+	buf[i]=0;
+
+	return buf;
+}
+
 exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     std::ostringstream msg("");
     t_EndPoints::iterator it;
@@ -658,14 +678,12 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     msg << wsData.rx_lon << ";";
     msg << wsData.msg.str();
 
-    //LOG4CPP_DEBUG(log, "Msg:\n%s", msg.str().c_str());
+    LOG4CPP_INFO(log, "Q%u [%05d:%s] ==>", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
 
     // Sending message to all EndPoints
     it = d_endPoints.begin();
     while ( it != d_endPoints.end() ) {
 	LOG4CPP_DEBUG(log, "UPLOAD THREAD: Prosessing msg with EndPoint [%s]", ((*it)->name()).c_str() );
-
-	LOG4CPP_INFO(log, "==> %d [0x%02X]", wsData.msgCount, wsData.endPoint);
 
 	result = (*it)->process(wsData.msgCount, msg.str(), wsData.endPoint, wsData.respList);
 	if ( result == OK ) {
@@ -691,7 +709,7 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     // Remove data ONLY if all endPoints have successfully completed
     // their processing
     if ( wsData.endPoint ) {
-        LOG4CPP_DEBUG(log, "UPLOAD THREAD: upload NOT completed: rescheduling for future processing");
+        LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
         result = WS_UPLOAD_FAULT;
     } else {
         LOG4CPP_DEBUG(log, "UPLOAD THREAD: data processing completed by all EndPoint");
@@ -730,22 +748,36 @@ void WSProxyCommandHandler::run(void) {
 
 	LOG4CPP_INFO(log, "Upload thread started");
 
-	while ( !d_doExit ) {
+	do { // While system is running...
 
-		do {
+		// Updating poll time (if needed)
+		updatePoller(false);
+
+		LOG4CPP_WARN(log, "UPLOAD THREAD: SUSPENDING");
+		suspend();
+
+		do { // While new messages have been queued during upload...
+
 			// Start serving queues from the higher priority ones
 			d_queuesUpdated = false;
+			LOG4CPP_WARN(log, "Queue update flag reset");
 
+			// Upload each queue in higher priority order
 			for (qIndex=0;
-				!d_doExit && qIndex<WSPROXY_UPLOAD_QUEUES;
+				qIndex<WSPROXY_UPLOAD_QUEUES &&
+				!d_queuesUpdated && !d_doExit;
 				qIndex++) {
 
+				// Find the first higher priority queue not empty
 				it = d_uploadQueues[qIndex].begin();
 				if ( it == d_uploadQueues[qIndex].end() ) {
 					continue;
 				}
 
 				LOG4CPP_DEBUG(log, "Serving queue Q%u...", qIndex);
+
+				// While the queue is not empty and no new messages
+				// has been queued, or the system is shutting down...
 				while ( it != d_uploadQueues[qIndex].end() &&
 					!d_queuesUpdated && !d_doExit ) {
 
@@ -754,38 +786,27 @@ void WSProxyCommandHandler::run(void) {
 						// Removing the SOAP message from the upload queue;
 						LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
 						it = d_uploadQueues[qIndex].erase(it);
+					} else {
+						// NOTE the erase already update the iterator to the
+						// next entry! ;-)
+						it++;
 					}
 
 					printQueuesStatus();
-					it++;
-
-					if (d_queuesUpdated) {
-						LOG4CPP_DEBUG(log, "Queues updated: restarting serving high-priority ones");
-						break;
-					}
 				}
 
 			}
 
-		} while (d_queuesUpdated);
+		} while (d_queuesUpdated && !d_doExit);
 
-		if (d_doExit) {
-			break;
-		}
-
-		// Updating poll time (if needed)
-		updatePoller(false);
-
-		LOG4CPP_DEBUG(log, "UPLOAD THREAD: SUSPENDING");
-		suspend();
-	}
+	} while ( !d_doExit );
 
 	// Terminating the Poll Event Generator
 	delete d_devPoll;
 	delete d_pollCd;
 	delete d_pollCmd;
 
-	// Uploading last HIGH-PRIORITY message
+	// Uploading last-one HIGH-PRIORITY message
 	it = d_uploadQueues[0].begin();
 	if ( it != d_uploadQueues[0].end() ) {
 		result = callEndPoints( *(*it) );
@@ -857,6 +878,7 @@ WSProxyCommandHandler::t_wsData * WSProxyCommandHandler::newWsData(t_idSource sr
     // DEFAULT initialization
     wsData->msgCount = ++d_msgCount;
     wsData->endPoint = EndPoint::getEndPointQueuesMask();
+    wsData->prio = WSPROXY_DEFAULT_QUEUE;
     wsData->idSrc = src;
     strncpy(wsData->rx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
     (wsData->rx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
