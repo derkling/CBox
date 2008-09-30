@@ -35,6 +35,7 @@
 #include <controlbox/base/Configurator.h>
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceTime.h>
+#include <controlbox/devices/SignalHandler.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/base/Device.h>
 #include <controlbox/devices/DeviceOdometer.h>
@@ -75,10 +76,11 @@ namespace device {
 ///	</li>
 /// </ul>
 /// @see CommandHandler
-class DeviceArdu : public Device,
-			public comsys::CommandGenerator,
-			public device::DeviceOdometer,
-			public device::DeviceGPS {
+class DeviceArdu : public comsys::CommandGenerator,
+			public Device,
+			public DeviceOdometer,
+			public SignalHandler,
+			public DeviceGPS {
 
 //------------------------------------------------------------------------------
 //				Class Members
@@ -111,7 +113,7 @@ protected:
     };
     typedef enum sysfsValue t_sysfsValue;
 
-    static char *d_sysfsParams[];
+    static const char *d_sysfsParams[];
 
    enum arduEvents {
 	MOVE		= 0x1,
@@ -150,6 +152,10 @@ protected:
 
     /// The initial distance [m]
     unsigned long d_initDistance;
+
+
+	/// Number of notifies received
+	unsigned int d_notifies;
 
     /// The logger to use locally.
     log4cpp::Category & log;
@@ -281,6 +287,9 @@ protected:
 
     /// Read a value from a sysfs attribute
     exitCode getSysfsValue(t_sysfsValue idx, unsigned long & value);
+
+
+    void signalNotify(void);
 
     /// Upload SOAP message's thread body.
     void run(void);
