@@ -1,7 +1,11 @@
 
 #include "DeviceTE.h"
 
-#include "SampiTE.h"
+#include "Sampi500.h"
+#include "Sampi550.h"
+#include "VegaII.h"
+#include "Isoil.h"
+#include "Somefi.h"
 
 #include <controlbox/base/comsys/Command.h>
 #include <controlbox/devices/DeviceFactory.h>

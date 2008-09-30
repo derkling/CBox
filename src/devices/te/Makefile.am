@@ -10,7 +10,11 @@ AUTOMAKE_OPTIONS = foreign 1.4
 INCLUDES	= -I@top_srcdir@
 
 SOURCES = DeviceTE.h DeviceTE.ih DeviceTE.cpp
-SOURCES+= SampiTE.h SampiTE.ih SampiTE.cpp
+SOURCES+= Sampi500.h Sampi500.ih Sampi500.cpp
+SOURCES+= Sampi550.h Sampi550.ih Sampi550.cpp
+SOURCES+= VegaII.h VegaII.ih VegaII.cpp
+SOURCES+= Isoil.h Isoil.ih Isoil.cpp
+SOURCES+= Somefi.h Somefi.ih Somefi.cpp
 
 noinst_LTLIBRARIES	= libte.la
 libte_la_SOURCES	= $(SOURCES)

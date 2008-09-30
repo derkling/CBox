@@ -46,16 +46,16 @@ DeviceTE::DeviceTE(t_teModels model, std::string const & logName)
 	throw (exceptions::SerialDeviceException*) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_TE, model, logName),
-	d_tty(0),
 	d_doExit(false),
 	d_config(Configurator::getInstance()),
 	d_model(model),
+	d_tty(0),
 #ifdef DARICOMDEBUG
 	d_forceDownload(false);
 #endif
 	log(Device::log) {
 	DeviceFactory * df = DeviceFactory::getInstance();
-	exitCode result;
+	std::string l_param;
 
 	LOG4CPP_DEBUG(log, "DeviceTE(std::string const &)");
 
@@ -66,13 +66,11 @@ DeviceTE::DeviceTE(t_teModels model, std::string const & logName)
 	}
 
 	// Loading configuration params
-	sscanf(d_config.param("device_te_polling_delay",
-				DEVICETE_DEFAULT_POLLING_DELAY).c_str(),
-		"%i", &d_pollInterval, true);
+	l_param = d_config.param("device_te_polling_delay", DEVICETE_DEFAULT_POLLING_DELAY, true);
+	sscanf(l_param.c_str(), "%i", &d_pollInterval);
 
-	sscanf(d_config.param("device_te_retry",
-				DEVICETE_DEFAULT_RETRY).c_str(),
-		"%hu", &d_retry, true);
+	l_param = d_config.param("device_te_retry", DEVICETE_DEFAULT_RETRY, true);
+	sscanf(l_param.c_str(), "%hu", &d_retry);
 
 	d_forceRawUpload = d_config.testParam("device_te_forceRawUpload", DEVICETE_FORCERAW);
 	if ( d_forceRawUpload ) {
@@ -117,8 +115,14 @@ DeviceTE * DeviceTE::getInstance() {
 	model = (t_teModels) atoi (config.param("device_te_model", DEVICETE_DEFAULT_MODEL).c_str());
 
 	switch ( model ) {
-		case SAMPI:
-			d_instance = new SampiTE();
+		case SAMPI500:
+			d_instance = new Sampi500();
+			break;
+		case SAMPI550:
+			d_instance = new Sampi550();
+			break;
+		case VEGAII:
+			d_instance = new VegaII();
 			break;
 		default:
 			return 0;
@@ -153,13 +157,13 @@ DeviceTE::t_cmdType DeviceTE::mapEvent2cmdType(t_eventType type) {
 
 inline
 exitCode DeviceTE::notifyEvents(void) {
-	t_event * event;
+	t_event * l_event;
 	comsys::Command * cSgd;
 	bool rawNotify = false;
 
 	while ( !d_eventsToNotify.empty() ) {
 
-		event = d_eventsToNotify.front();
+		l_event = d_eventsToNotify.front();
 
 // Events that are knowen could be formatted in a specific notification.
 // In this case we could decide to upload both the event-specific message or
@@ -174,24 +178,24 @@ exitCode DeviceTE::notifyEvents(void) {
 
 			if (rawNotify || d_forceRawUpload) {
 				rawNotify = false;
-				event->type = UNDEF;
+				l_event->type = UNDEF;
 			}
 
 			// Build a new command
-// 			cSgd = comsys::Command::getCommand(mapEvent2cmdType(event->type), Device::DEVICE_TE, "DEVICE_TE", name());
+// 			cSgd = comsys::Command::getCommand(mapEvent2cmdType(l_event->type), Device::DEVICE_TE, "DEVICE_TE", name());
 			cSgd = comsys::Command::getCommand(DeviceTE::SEND_TE_EVENT, Device::DEVICE_TE, "DEVICE_TE", name());
 			if ( !cSgd ) {
 				LOG4CPP_FATAL(log, "Unable to build a new Command");
 				return OUT_OF_MEMORY;
 			}
 			// Setting event param
-			cSgd->setParam( "type", eventDescr[event->type]);
+			cSgd->setParam( "type", eventDescr[l_event->type]);
 
 			// Setting priority
 			cSgd->setPrio(3);
 
 			// Calling TE specific parser and event formatter
-			formatEvent(*event, *cSgd);
+			formatEvent(*l_event, *cSgd);
 
 			// Checking if a "timestamp" has been defined, otherwise we add a local timestamp
 			if ( !cSgd->hasParam("timestamp") ) {
@@ -200,12 +204,12 @@ exitCode DeviceTE::notifyEvents(void) {
 				cSgd->setParam( "timestamp", d_time->time() );
 			}
 
-			//cSgd->setParam( "event",  formatEvent(*event));
+			//cSgd->setParam( "event",  formatEvent(*l_event));
 
 			// Notifying the command
 			notify(cSgd);
 
-			if (event->type != UNDEF) {
+			if (l_event->type != UNDEF) {
 				rawNotify = true;
 			} else {
 				break;
@@ -218,7 +222,7 @@ exitCode DeviceTE::notifyEvents(void) {
 
 		// Removing command from the list
 		d_eventsToNotify.pop_front();
-		delete event;
+		delete l_event;
 
 	}
 	return OK;
@@ -227,7 +231,11 @@ exitCode DeviceTE::notifyEvents(void) {
 void DeviceTE::run (void) {
 	exitCode downloadExitCode;
 
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "DeviceTE thread (%u) started", d_pid);
+
 	while ( !d_doExit ) {
+
 		// NOTE by setting d_pollInterval==0 we disable the TE polling query
 		if (d_pollInterval) {
 
@@ -245,6 +253,9 @@ void DeviceTE::run (void) {
 				case TE_RESTART_DOWNLOAD:
 					LOG4CPP_DEBUG(log, "Retrying download");
 					continue;
+				default:
+					LOG4CPP_WARN(log, "Anomal result code");
+					break;
 			}
 
 		}

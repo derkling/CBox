@@ -38,6 +38,7 @@
 #include <controlbox/devices/DeviceSerial.h>
 #include <controlbox/devices/DeviceTime.h>
 
+/// Default TE model (this should match a valid value of t_teModels)
 #define DEVICETE_DEFAULT_MODEL   		"0"
 #define DEVICETE_DEFAULT_TTY			"/dev/ttyUSB0:9600,8,n,1"
 #define DEVICETE_DEFAULT_POLLING_DELAY		"60000"
@@ -111,19 +112,21 @@ class DeviceTE : public comsys::CommandGenerator, public Device  {
 		SEND_DAY_END,
 		SEND_LOAD,
 		SEND_DOWNLOAD,
-		SEND_GENERIC_SAMPI,
+		SEND_GENERIC_SAMPI500,
+		SEND_GENERIC_SAMPI550,
+		SEND_GENERIC_VEGAII,
 		SEND_GENERIC_ISOIL,
 		SEND_GENERIC_SOMEFI,
-		SEND_GENERIC_VEGA,
 	};
 	typedef enum cmdType t_cmdType;
 
 	/// The TE device model.
 	enum teModels {
-		SAMPI = 0,
+		SAMPI500 = 0,
+		SAMPI550,
+		VEGAII,
 		ISOIL,
 		SOMEFI,
-		VEGA
 	};
 	typedef enum teModels t_teModels;
 
@@ -153,8 +156,8 @@ class DeviceTE : public comsys::CommandGenerator, public Device  {
 	/// and the eventtually checksum.
 	struct event {
 		t_eventType type;	///< the event
-		std::string event;	///< the event string (pure information without
-					///< any additional communication control token
+		std::string event;	///< the event string (plain information without
+					///< any additional communication control token)
 	};
 	typedef struct event t_event;
 
@@ -242,17 +245,6 @@ class DeviceTE : public comsys::CommandGenerator, public Device  {
 	/// all new events from the TE device and it's expected to store them
 	/// into the provided  list.
 	virtual exitCode downloadEvents(t_eventList & eventList) = 0;
-
-/*
-	/// Format an event.
-	/// This method shold return the specified event in the format
-	/// required by the WebService specification for the corresponding type.
-	/// @param type the type of event, this correspond to the required format
-	///	to be returned.
-	/// @param event the list of events to reformat. Element
-	///	in this list must be returned such that each node contain
-	///	a string suitable to be uploaded
-	virtual std::string formatEvent(t_event const & event) = 0;*/
 
 	/// Format an event.
 	/// This method should parse the event string and fill some of the command
