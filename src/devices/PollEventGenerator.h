@@ -48,7 +48,7 @@ namespace device {
 /// class is in the enabled state: otherwise poll events are definitively
 /// lost.
 /// @see EventGenerator
-class PollEventGenerator : public comsys::EventGenerator, public Device {
+class PollEventGenerator : public Device, public comsys::EventGenerator {
 
 public:
     /// Generated Messages
@@ -114,6 +114,9 @@ public:
     /// Return the current pollTime
     /// @return the current pollTime in milliseconds
     timeout_t pollTime() const;
+
+    /// Generate a new event asyncronously
+    void trigger();
 
 
 protected:

@@ -37,8 +37,8 @@ DeviceFactory * DeviceFactory::d_instance = 0;
 
 
 DeviceFactory::DeviceFactory(std::string const & logName) :
-        log(log4cpp::Category::getInstance("controlbox."+logName)),
-        d_devDB(* DeviceDB::getInstance()) {
+        d_devDB(* DeviceDB::getInstance()),
+        log(log4cpp::Category::getInstance("controlbox."+logName)) {
 }
 
 DeviceFactory * DeviceFactory::getInstance(std::string const & logName) {

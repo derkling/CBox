@@ -33,10 +33,10 @@ namespace controlbox {
 namespace device {
 
 
-PollEventGenerator::PollEventGenerator(timeout_t pollTime, std::string const & logName) :
+PollEventGenerator::PollEventGenerator(timeout_t p_pollTime, std::string const & logName) :
+        Device(Device::EG_POLLER, p_pollTime, logName),
         comsys::EventGenerator(logName),
-        Device(Device::EG_POLLER, pollTime, logName),
-        d_pollTime(pollTime),
+        d_pollTime(p_pollTime),
         log(Device::log) {
 
     LOG4CPP_DEBUG(log, "PollEventGenerator(unsigned int, std::string const &)");
@@ -49,12 +49,13 @@ PollEventGenerator::PollEventGenerator(timeout_t pollTime, std::string const & l
 }
 
 
-PollEventGenerator::PollEventGenerator(timeout_t pollTime, comsys::Dispatcher * dispatcher,
+PollEventGenerator::PollEventGenerator(timeout_t p_pollTime, comsys::Dispatcher * dispatcher,
                                        bool enabled,
                                        std::string const & logName) :
-        d_pollTime(pollTime), // To ensure the pollTime is set correctly before starting the thread (if enabled)
-        comsys::EventGenerator(dispatcher, enabled, logName),
-        Device(Device::EG_POLLER, pollTime, logName),
+        Device(Device::EG_POLLER, p_pollTime, logName),
+        // NOTE we must ensure the pollTime is set correctly before starting the thread (if enabled)
+        comsys::EventGenerator(dispatcher, false, logName),
+        d_pollTime(p_pollTime),
         log(Device::log) {
 
     LOG4CPP_DEBUG(log, "PollEventGenerator(unsigned int, Dispatcher *, bool, string const &)");
@@ -62,6 +63,9 @@ PollEventGenerator::PollEventGenerator(timeout_t pollTime, comsys::Dispatcher * 
     // Registering device into the DeviceDB
     dbReg(true);
 
+    if ( enabled ) {
+	this-enable();
+    }
 
 }
 
@@ -78,11 +82,13 @@ PollEventGenerator::~PollEventGenerator() {
 }
 
 
-exitCode PollEventGenerator::setPollTime(timeout_t pollTime, bool reset) {
+exitCode PollEventGenerator::setPollTime(timeout_t p_pollTime, bool reset) {
 
     LOG4CPP_DEBUG(log, "PollEventGenerator::setPollTime(timeout_t, bool");
 
-    d_pollTime = pollTime;
+    d_pollTime = p_pollTime;
+
+    return OK;
 
 }
 
@@ -95,16 +101,21 @@ timeout_t PollEventGenerator::pollTime() const {
 
 }
 
+void PollEventGenerator::trigger() {
+	LOG4CPP_DEBUG(log, "Async Polling");
+	notify(false);
+}
 
 void   PollEventGenerator::run (void) {
 
-    LOG4CPP_INFO(log, "PollEventGenerator thread started");
+    d_pid = getpid();
+    LOG4CPP_INFO(log, "DevicePoller thread (%u) started", d_pid);
 
     while (true) {
         LOG4CPP_DEBUG(log, "Next poll within %d ms", d_pollTime);
         sleep(d_pollTime);
         LOG4CPP_DEBUG(log, "Polling");
-        notify();
+        notify(false);
     }
 
 

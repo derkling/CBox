@@ -60,9 +60,6 @@ protected:
 	/// The Configurator to use for getting configuration params
 	Configurator & d_config;
 
-	/// The logger to use locally.
-	log4cpp::Category & log;
-
 	/// The I2C adapter device filepath
 	std::string d_devpath;
 
@@ -74,6 +71,9 @@ protected:
 
 	/// Mutex for exclusive access to I2C bus
 	ost::Mutex d_busLock;
+
+	/// The logger to use locally.
+	log4cpp::Category & log;
 
 public:
 

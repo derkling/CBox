@@ -108,27 +108,27 @@ exitCode ATcontrol::exportQuery() {
     //--- "Invio dato generico da palmare"
     //EXPORT_QUERY(SEND_GENERIC_DATA, &DeviceInCabin::qh_SendGenericData, "SGD", "Send generic data", "String max 200 char", QST_WO);
 
-
+    return OK;
 }
 
 
-exitCode ATcontrol::query(t_query & query) {
+exitCode ATcontrol::query(t_query & p_query) {
     exitCode queryResult;
 
     LOG4CPP_DEBUG(log, "Received new query id:[%d] name:[%s], type:[%d], value:[%s]",
-                  query.descr->id, query.descr->name.c_str(), query.type, query.value.c_str());
+                  p_query.descr->id, p_query.descr->name.c_str(), p_query.type, p_query.value.c_str());
 
     // Query dispatching and error
-    queryResult = d_hR->call(query.descr->id, query);
+    queryResult = d_hR->call(p_query.descr->id, p_query);
     if ( queryResult != OK ) {
-        LOG4CPP_WARN(log, "Query [%s] FAILED: %s", query.descr->name.c_str(), query.value.c_str());
+        LOG4CPP_WARN(log, "Query [%s] FAILED: %s", p_query.descr->name.c_str(), p_query.value.c_str());
         return queryResult;
     }
 
     // Sending responce only if required
-    if ( query.responce ) {
-        LOG4CPP_DEBUG(log, "Query [%s] responce: %s%c", query.descr->name.c_str(), query.value.c_str(), d_delimiter);
-        d_tty << query.value.c_str() << d_delimiter << flush;
+    if ( p_query.responce ) {
+        LOG4CPP_DEBUG(log, "Query [%s] responce: %s%c", p_query.descr->name.c_str(), p_query.value.c_str(), d_delimiter);
+        d_tty << p_query.value.c_str() << d_delimiter << flush;
     }
 
     return OK;
@@ -138,7 +138,7 @@ exitCode ATcontrol::query(t_query & query) {
 
 void ATcontrol::doParse (void) {
     std::string sentence;
-    int line = 0;
+//     int line = 0;
     Querible * querible;
     Querible::t_query theQuery;
     exitCode queryResult;
@@ -257,7 +257,8 @@ Querible * ATcontrol::parseQuery (std::string const & atCommand, Querible::t_que
 
 void ATcontrol::run(void)  {
 
-    LOG4CPP_DEBUG(log, "ATcontrol thread started");
+    d_pid = getpid();
+    LOG4CPP_INFO(log, "ATcontrol thread (%u) started", d_pid);
 
     // NOTE: Handle the case of EOF from input...
     // on that cases shuld be correct to destroy restart the parsing

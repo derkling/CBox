@@ -39,7 +39,7 @@ namespace controlbox {
 namespace device {
 
 /// A DeviceTime.
-class DeviceTime : public comsys::CommandGenerator, public Device {
+class DeviceTime : public Device, public comsys::CommandGenerator {
 
 public:
 
@@ -48,14 +48,14 @@ protected:
 
     static DeviceTime * d_instance;
 
-    /// The logger to use locally.
-    log4cpp::Category & log;
-
     /// The DeviceGPS
     DeviceGPS * d_devGPS;
 
     /// The DeviceGPRS
     DeviceGPRS * d_devGPRS;
+
+    /// The logger to use locally.
+    log4cpp::Category & log;
 
 public:
 

@@ -80,7 +80,7 @@ DeviceI2CBus * DeviceI2CBus::getInstance(std::string const & logName) {
 }
 
 exitCode DeviceI2CBus::selectDevice(int addr) {
-	int result;
+	int result = 0;
 
 	if (!fd_dev) {
 		LOG4CPP_ERROR(log, "Device not open");
@@ -92,7 +92,9 @@ exitCode DeviceI2CBus::selectDevice(int addr) {
 	if ( addr == d_devAddr )
 		return OK;
 
+#ifdef CONTROLBOX_CRIS
 	result = ioctl(fd_dev, I2C_SLAVE_FORCE, addr);
+#endif
 	if ( result < 0) {
 		LOG4CPP_ERROR(log, "Slave 0x%02X access error: %s\n", addr, strerror(errno));
 		return I2C_DEV_ACCESS_ERROR;

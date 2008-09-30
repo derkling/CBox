@@ -79,6 +79,7 @@ exitCode DeviceInCabin::exportQuery() {
     //-----[ GPRS ]
     EXPORT_QUERY(DeviceGPRS::GPRS_STATUS_UPDATE, &DeviceInCabin::qh_GPRS_LinkStatusUpdate, "LSU", "Network link status update", "Define first the link of interest", QST_RW);
 
+    return OK;
 }
 
 
@@ -86,22 +87,22 @@ exitCode DeviceInCabin::exportQuery() {
 //-----[ Query handlers ]-------------------------------------------------------
 
 // Lisk knowed commands
-exitCode DeviceInCabin::qh_ListKnowenCommands (t_query & query) {
+exitCode DeviceInCabin::qh_ListKnowenCommands (t_query & p_query) {
     QueryRegistry * qR = QueryRegistry::getInstance();
 
-    LOG4CPP_DEBUG(log, "DeviceInCabin::qh_ListKnowenCommands(type=%d)", query.type);
+    LOG4CPP_DEBUG(log, "DeviceInCabin::qh_ListKnowenCommands(type=%d)", p_query.type);
 
-    switch ( query.type ) {
+    switch ( p_query.type ) {
 
     case QM_QUERY:
-        LOG4CPP_DEBUG(log, "QUERY[CCON]", query.value.c_str());
-        RETURN_VALUE(query, "Availables AT Commands:%s", (qR->printRegistry()).c_str());
+        LOG4CPP_DEBUG(log, "QUERY[CCON]", p_query.value.c_str());
+        RETURN_VALUE(p_query, "Availables AT Commands:%s", (qR->printRegistry()).c_str());
         break;
     case QM_VALUES:
-        RETURN_VALUE(query, "Return the list of availables AT commands\r\nFormat: AT+%s\n\r", query.descr->name.c_str());
+        RETURN_VALUE(p_query, "Return the list of availables AT commands\r\nFormat: AT+%s\n\r", p_query.descr->name.c_str());
         break;
     case QM_SET:
-        RETURN_VALUE(query, "Read is the only mode supported by this query\n\r");
+        RETURN_VALUE(p_query, "Read is the only mode supported by this query\n\r");
         return HR_QUERYMODE_NOT_SUPPORTED;
 
     }
@@ -111,36 +112,36 @@ exitCode DeviceInCabin::qh_ListKnowenCommands (t_query & query) {
 }
 
 // Is 'Concentratore' Connected?
-exitCode DeviceInCabin::qh_IsConcConn (t_query & query) {
+exitCode DeviceInCabin::qh_IsConcConn (t_query & p_query) {
 
     LOG4CPP_DEBUG(log, "QUERY[CCON]");
-    RETURN_VALUE(query, "1");
+    RETURN_VALUE(p_query, "1");
     return OK;
 
 }
 
 // Send Generic Data
-exitCode DeviceInCabin::qh_SendGenericData (t_query & query) {
+exitCode DeviceInCabin::qh_SendGenericData (t_query & p_query) {
     comsys::Command * cSgd;
     std::ostringstream buf("");
 
-    switch ( query.type ) {
+    switch ( p_query.type ) {
 
     case QM_QUERY:
-        RETURN_VALUE(query, "Read mode not supported for this query\n\r");
+        RETURN_VALUE(p_query, "Read mode not supported for this query\n\r");
         return HR_QUERYMODE_NOT_SUPPORTED;
 
     case QM_VALUES:
-        RETURN_VALUE(query, "Send Generic Data\r\nFormat: AT+%s=<message to send>\n\r", query.descr->name.c_str());
+        RETURN_VALUE(p_query, "Send Generic Data\r\nFormat: AT+%s=<message to send>\n\r", p_query.descr->name.c_str());
         return OK;
 
     case QM_SET:
-        LOG4CPP_DEBUG(log, "AT+%s=%s", query.descr->name.c_str(), query.value.c_str());
+        LOG4CPP_DEBUG(log, "AT+%s=%s", p_query.descr->name.c_str(), p_query.value.c_str());
 
-        cSgd = comsys::Command::getCommand(SEND_GENERIC_DATA, Device::DEVICE_IC, "DEVICE_IC", Utils::strFormat("IC_%s", query.descr->name.c_str()));
+        cSgd = comsys::Command::getCommand(SEND_GENERIC_DATA, Device::DEVICE_IC, "DEVICE_IC", Utils::strFormat("IC_%s", p_query.descr->name.c_str()));
         if ( !cSgd ) {
             LOG4CPP_FATAL(log, "Unable to build a new Command");
-            RETURN_VALUE(query, "OUT_OF_MEMORY");
+            RETURN_VALUE(p_query, "OUT_OF_MEMORY");
             return OUT_OF_MEMORY;
         }
 
@@ -148,7 +149,7 @@ exitCode DeviceInCabin::qh_SendGenericData (t_query & query) {
         buf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)0x09;
         cSgd->setParam( "dist_evtType", buf.str());
 //         cSgd->setParam( "dist_evtType", 0x09 );
-        cSgd->setParam( "dist_evtData", query.value );
+        cSgd->setParam( "dist_evtData", p_query.value );
         cSgd->setParam( "timestamp", d_time->time() );
 
         // Notifying command
@@ -160,19 +161,19 @@ exitCode DeviceInCabin::qh_SendGenericData (t_query & query) {
 }
 
 // Send Coded Event
-exitCode DeviceInCabin::qh_SendCodedEvent (t_query & query) {
+exitCode DeviceInCabin::qh_SendCodedEvent (t_query & p_query) {
     comsys::Command * cSgd;
     std::string strToReturn("");
     std::ostringstream buf("");
 
-    switch ( query.type ) {
+    switch ( p_query.type ) {
 
     case QM_QUERY:
-        RETURN_VALUE(query, "Read mode not supported for this query\n\r");
+        RETURN_VALUE(p_query, "Read mode not supported for this query\n\r");
         return HR_QUERYMODE_NOT_SUPPORTED;
 
     case QM_VALUES:
-        APPEND_STRING(strToReturn, "%s\r\nFormat: AT+%s=<event code>\n\r", query.descr->description.c_str(), query.descr->name.c_str());
+        APPEND_STRING(strToReturn, "%s\r\nFormat: AT+%s=<event code>\n\r", p_query.descr->description.c_str(), p_query.descr->name.c_str());
         APPEND_STRING(strToReturn, " Availables code:\n\r");
         APPEND_STRING(strToReturn, " 01 - Traffico regolare\n\r");
         APPEND_STRING(strToReturn, " 02 - Traffico intenssconnessoo\n\r");
@@ -192,16 +193,16 @@ exitCode DeviceInCabin::qh_SendCodedEvent (t_query & query) {
         APPEND_STRING(strToReturn, " 10 - Nebbia intensa\n\r");
         APPEND_STRING(strToReturn, " 11 - Incidente\n\r");
         APPEND_STRING(strToReturn, " 12 - Lavori in corso\n\r");
-        RETURN_VALUE(query, strToReturn.c_str());
+        RETURN_VALUE(p_query, strToReturn.c_str());
         return OK;
 
     case QM_SET:
-        LOG4CPP_DEBUG(log, "AT+%s=%s", query.descr->name.c_str(), query.value.c_str());
+        LOG4CPP_DEBUG(log, "AT+%s=%s", p_query.descr->name.c_str(), p_query.value.c_str());
 
-        cSgd = comsys::Command::getCommand(SEND_CODED_EVENT, Device::DEVICE_IC, "DEVICE_IC", Utils::strFormat("IC_%s", query.descr->name.c_str()));
+        cSgd = comsys::Command::getCommand(SEND_CODED_EVENT, Device::DEVICE_IC, "DEVICE_IC", Utils::strFormat("IC_%s", p_query.descr->name.c_str()));
         if ( !cSgd ) {
             LOG4CPP_FATAL(log, "Unable to build a new Command");
-            RETURN_VALUE(query, "OUT_OF_MEMORY");
+            RETURN_VALUE(p_query, "OUT_OF_MEMORY");
             return OUT_OF_MEMORY;
         }
 
@@ -210,7 +211,7 @@ exitCode DeviceInCabin::qh_SendCodedEvent (t_query & query) {
         cSgd->setParam( "dist_evtType", buf.str());
 // 	cSgd->setParam( "dist_evtType", 0x0A );
         buf.str("");
-        buf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << query.value;
+        buf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << p_query.value;
         cSgd->setParam( "dist_evtData", buf.str() );
         cSgd->setParam( "timestamp", d_time->time() );
 
@@ -224,31 +225,31 @@ exitCode DeviceInCabin::qh_SendCodedEvent (t_query & query) {
 }
 
 // Link Status Update
-exitCode DeviceInCabin::qh_GPRS_LinkStatusUpdate (t_query & query) {
-	QueryRegistry * qR = QueryRegistry::getInstance();
+exitCode DeviceInCabin::qh_GPRS_LinkStatusUpdate (t_query & p_query) {
+// 	QueryRegistry * qR = QueryRegistry::getInstance();
 	DeviceGPRS * gprs;
-	DeviceGPRS::t_netStatus state;
+	unsigned short state;
 	exitCode result;
-	
-	LOG4CPP_DEBUG(log, "DeviceGPRS::qh_LinkStatusUpdate(type=%d)", query.type);
-	
+
+	LOG4CPP_DEBUG(log, "DeviceGPRS::qh_LinkStatusUpdate(type=%d)", p_query.type);
+
 	gprs = d_df->getDeviceGPRS();
-	
-	switch ( query.type ) {
-	
+
+	switch ( p_query.type ) {
+
 	case QM_QUERY:
-		LOG4CPP_DEBUG(log, "QUERY[%s]", query.value.c_str());
-		RETURN_VALUE(query, "%s", DeviceGPRS::d_netStatusStr[gprs->status()]);
+		LOG4CPP_DEBUG(log, "QUERY[%s]", p_query.value.c_str());
+		RETURN_VALUE(p_query, "%s", DeviceGPRS::d_netStatusStr[gprs->status()]);
 		break;
 	case QM_VALUES:
-		RETURN_VALUE(query, "Return the GPRS link state\r\n"
+		RETURN_VALUE(p_query, "Return the GPRS link state\r\n"
 					"Format: AT+%s=<state>\n\r"
-					"  <state>: 0=DOWN, 1=UP\n\r", query.descr->name.c_str());
+					"  <state>: 0=DOWN, 1=UP\n\r", p_query.descr->name.c_str());
 		break;
 	case QM_SET:
-		LOG4CPP_DEBUG(log, "AT+%s=%s", query.descr->name.c_str(), query.value.c_str());
+		LOG4CPP_DEBUG(log, "AT+%s=%s", p_query.descr->name.c_str(), p_query.value.c_str());
 		//FIXME the linkname MUST be defined as a parameter
-		sscanf(query.value.c_str(), "%1d", &state);
+		sscanf(p_query.value.c_str(), "%1hu", &state);
 		switch(state) {
 		case 0:
 			result = gprs->disconnect();
@@ -270,9 +271,9 @@ exitCode DeviceInCabin::qh_GPRS_LinkStatusUpdate (t_query & query) {
 			LOG4CPP_ERROR(log, "Unknowed GPRS Link Status Update command [%d]", state);
 		}
 	return OK;
-	
+
 	}
-	
+
 	return OK;
 }
 
