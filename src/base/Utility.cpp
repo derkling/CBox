@@ -36,7 +36,6 @@
 
 namespace controlbox {
 
-
 std::string Utils::strFormat(const char* stringFormat, ...) {
     va_list va;
     char buff[BUFF_SIZE];
@@ -49,5 +48,48 @@ std::string Utils::strFormat(const char* stringFormat, ...) {
 
     return string(buff);
 }
+
+//-----[ Base64 Encoding/Decoding routines ]------------------------------------
+
+exitCode Utils::b64enc(const char *p_in, size_t p_inlen, char *p_out, size_t p_outlen) {
+
+	// Check for OUTPUT size based on input len...
+	if ( p_outlen < BASE64_LENGTH(p_inlen) ) {
+		// FAIL: input too long
+		return CONVERSION_ERROR;
+	}
+	// Encode input buffer
+	base64_encode (p_in, p_inlen, p_out, p_outlen);
+
+	return OK;
+
+}
+
+exitCode Utils::b64enc(const char *p_in, size_t p_inlen, char **p_out, size_t &p_outlen) {
+	size_t l_outlen;
+
+	l_outlen = base64_encode_alloc(p_in, p_inlen, p_out);
+	if ( p_out==NULL && l_outlen==0 && p_inlen!= 0 ) {
+		// FAIL: input too long
+		return CONVERSION_ERROR;
+	}
+	if ( p_out==NULL ) {
+		// FAIL: memory allocation error
+		return OUT_OF_MEMORY;
+	}
+
+	return OK;
+}
+
+
+exitCode Utils::b64dec(const char *p_in, char *p_out, size_t & p_outlen) {
+
+#warning Dummy b64dec implementation: Base64 decoding NOT yet supported
+	p_outlen = 0;
+	p_out[0] = 0;
+
+	return OK;
+}
+
 
 }

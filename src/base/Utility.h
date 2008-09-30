@@ -95,11 +95,6 @@ extern bool useColors;
 
 namespace controlbox {
 
-class Utils {
-public:
-    static std::string strFormat(const char* stringFormat, ...);
-};
-
 typedef unsigned char	u8;
 typedef unsigned short	u16;
 typedef unsigned long	u32;
@@ -113,6 +108,7 @@ enum exitCode_ {
     OUT_OF_MEMORY,
     BUFFER_OVERFLOW,
     CONVERSION_ERROR,
+    CS_DISPATCH_FAILURE,
     DB_DEVICE_NOT_EXIST,
     DB_DEVICE_DUPLICATE,
     DB_REGISTRATION_FAILURE,
@@ -130,6 +126,7 @@ enum exitCode_ {
     INT_SELECT_FAILED,
     INT_SIGNAL_ERROR,
     INT_NO_HANDLER,
+    INT_ACBAT_SWITCH,
     I2C_DEV_FAILED,
     I2C_DEV_NOT_OPEN,
     I2C_DEV_ACCESS_ERROR,
@@ -153,6 +150,7 @@ enum exitCode_ {
     WS_LINK_DOWN,
     WS_MEM_FAILURE,
     WS_LOCAL_COMMAND,
+    WS_POLLER_UPDATE_NOT_NEEDED,
     GPS_CONFIGURATION_FAILURE,
     GPS_TTY_OPEN_FAILURE,
     GPRS_DEVICE_NOT_PRESENT,
@@ -198,6 +196,7 @@ enum exitCode_ {
     GPRS_API_ATRECV_ERRORS,
     GPRS_API_GPRS_UP_FAILED,
     GPRS_API_GPRS_UP_PARAMS_FAILED,
+    GPRS_API_PARSE_ERROR,
     GPRS_RESOLVER_CONFIGURE_FAILED,
     GPRS_ROUTING_CONFIGURE_FAILED,
     GPRS_API_GPRS_DOWN_FAILED,
@@ -269,6 +268,16 @@ enum commonService_ {
 };
 typedef enum commonService_ commonService;
 
+class Utils {
+
+public:
+	static std::string strFormat(const char* stringFormat, ...);
+	static exitCode b64enc(const char *in, size_t inlen, char *out, size_t outlen);
+	static exitCode b64enc(const char *in, size_t inlen, char **out, size_t &outlen);
+	static exitCode b64dec(const char *inbuf, char *outbuf, size_t & out_len);
+
+};
+
 
 /** @addtogroup LoggingMacros Logging macros
 @{
@@ -330,15 +339,7 @@ NOTE: This macro will generata code only if compiling with debug simbol
 @param category the category to be used.
 @param message the message string to log.
 */
-// #ifdef CONTROLBOX_DEBUG
-// #define LOG4CPP_DEBUG(category, format, ...) { \
-// 					if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
-// 						category.log(::log4cpp::Priority::DEBUG, format, ## __VA_ARGS__); \
-// 					}\
-// 			}
-// #else
-// #define LOG4CPP_DEBUG(category, format, ...)
-// #endif
+#undef LOG4CPP_DEBUG
 #ifdef CONTROLBOX_DEBUG
 	#define LOG4CPP_DEBUG(category, format, ...) { \
 			if (LOG4CPP_UNLIKELY(category.isDebugEnabled())) {\
@@ -356,6 +357,7 @@ Logs a message to a specified category with the INFO level.
 @param category the category to be used.
 @param message the message string to log.
 */
+#undef LOG4CPP_INFO
 #define LOG4CPP_INFO(category, format, ...) { \
 			if (category.isInfoEnabled()) {\
 				if (useColors) \
@@ -371,6 +373,7 @@ Logs a message to a specified category with the WARN level.
 @param category the category to be used.
 @param message the message string to log.
 */
+#undef LOG4CPP_WARN
 #define LOG4CPP_WARN(category, format, ...) { \
 			if (category.isWarnEnabled()) {\
 				if (useColors) \
@@ -386,6 +389,7 @@ Logs a message to a specified category with the ERROR level.
 @param category the category to be used.
 @param message the message string to log.
 */
+#undef LOG4CPP_ERROR
 #define LOG4CPP_ERROR(category, format, ...) { \
 			if (category.isErrorEnabled()) {\
 				if (useColors) \
@@ -401,6 +405,7 @@ Logs a message to a specified category with the CRIT level.
 @param category the category to be used.
 @param message the message string to log.
 */
+#undef LOG4CPP_CRIT
 #define LOG4CPP_CRIT(category, format, ...) { \
 			if (category.isCritEnabled()) {\
 				if (useColors) \
@@ -417,6 +422,7 @@ Logs a message to a specified category with the FATAL level.
 @param category the category to be used.
 @param message the message string to log.
 */
+#undef LOG4CPP_FATAL
 #define LOG4CPP_FATAL(category, format, ...) { \
 			if (category.isFatalEnabled()) {\
 				if (useColors) \
