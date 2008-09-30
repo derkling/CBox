@@ -40,6 +40,9 @@
 #define ENFORAAPI_AT_CMD_MAXLEN		256
 #define ENFORAAPI_AT_RESP_MAXLEN	4096
 
+#define ENFORAAPI_AT_CMD_TIMEOUT	180
+#define ENFORAAPI_AT_QRY_TIMEOUT	70
+
 // #define ENFORA_SMS_NUMBER		"+393473153808"
 #define ENFORA_SMS_NUMBER		""
 
@@ -113,14 +116,6 @@ protected:
 
 	struct sockaddr_in d_apiRemoteAddr;
 
-	std::string	d_apiRemoteIP;
-
-	uint16_t	d_apiRemotePort;
-
-	std::string	d_apiLocalIP;
-
-	uint16_t	d_apiLocalPort;
-
 	std::string	d_smsNotifyNumber;
 
 	/// API Commands headers
@@ -193,15 +188,20 @@ protected:
 	/// Enable non-GPRS connection for the specified linkname
 	exitCode enableAPI();
 
+	/// Verify if the API is working
+	exitCode checkAPI();
+
 	exitCode disableAPI();
+
+	exitCode resetAPI();
 
 	exitCode initSocket();
 
 	/// Send an AT command using the API.
 	///
-	exitCode sendAT(t_apiCommand & msg, t_apiResponce & resp);
+	exitCode sendAT(t_apiCommand & msg, t_apiResponce & resp, unsigned int timeout = ENFORAAPI_AT_QRY_TIMEOUT);
 
-	exitCode getResponce(t_apiResponce & resp);
+	exitCode getResponce(t_apiResponce & resp, unsigned int timeout = ENFORAAPI_AT_QRY_TIMEOUT);
 
 	exitCode addHeader(t_apiCommand & msg, t_apiType t, bool toString = false);
 
@@ -223,11 +223,15 @@ protected:
 
 	exitCode signalLevel(unsigned short & level);
 
+	exitCode gsmRegister();
+
 	exitCode gsmStatus(unsigned short & status);
+
+	exitCode gprsAttach(bool on = true);
 
 	exitCode gprsStatus(unsigned short & status);
 
-	exitCode gprsRegistered(bool resetOnFailure = true);
+	exitCode gprsRegistered(bool resetOnFailure = false);
 
 	/// Notify friends servers about a network configuration change.
 	exitCode notifyFriends();

@@ -83,11 +83,24 @@ EnforaAPI::EnforaAPI(short module, std::string const & logName)
 	//NOTE modem identifications should be done using AUTOSENSING! ;-)
 
 	// Loading configuration profile (if not already done)
-	loadConfiguration();
+	result = loadConfiguration();
+	if ( result==GPRS_RESET_REQUIRED ) {
+		result = initDeviceGPRS();
+		if ( result!=OK ) {
+			LOG4CPP_FATAL(log, "Failed to initialize the GPRS device");
+			cleanUp();
+			throw new exceptions::SerialConfigurationException("Unable to open TTY port");
+		}
+	}
 
 	LOG4CPP_INFO(log, "Starting PPPD monitor...");
 	d_monitorPppd.start();
 
+
+// FIXME this has to be removed, because the API could not respond since
+// 	we are trying to attach GSM network... we try into the upload thread
+//	to enable the API
+/*
 	// Configure the UDPAPI
 	// Switch to GPRS-disconnected mode
 	// Configure the host-to-modem PPP link
@@ -96,6 +109,7 @@ EnforaAPI::EnforaAPI(short module, std::string const & logName)
 		LOG4CPP_FATAL(log, "Failed to enable UDP API interface");
 		cleanUp();
 	}
+*/
 
 }
 
@@ -111,23 +125,23 @@ exitCode
 EnforaAPI::powerOn(bool reset) {
 	exitCode result;
 
-	if (reset) {
+	if ( reset ) {
 		LOG4CPP_WARN(log, "Resetting");
 		result = d_gpio->gprsReset(d_module);
-		if ( result==OK ) {
-			LOG4CPP_DEBUG(log, "Modem powered-up, waiting 10s before continuing...");
-			::sleep(10);
+		if ( result!=OK ) {
+			return GPRS_RESET_REQUIRED;
 		}
-		return result;
-	}
-
-	LOG4CPP_INFO(log, "Powering-on");
-	result = d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_ON);
-	if ( result==OK ) {
 		LOG4CPP_DEBUG(log, "Modem powered-up, waiting 10s before continuing...");
 		::sleep(10);
+		return OK;
 	}
-	return result;
+
+	result = d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_ON);
+	if (result != OK ) {
+		return GPRS_RESET_REQUIRED;
+	}
+
+	return OK;
 }
 
 exitCode
@@ -140,7 +154,7 @@ EnforaAPI::powerOff() {
 exitCode EnforaAPI::initDeviceGPRS() {
 	exitCode result;
 	t_stringVector resp;
-	unsigned short retry_pwr, retry_com;
+	unsigned short retry_pwr;
 	unsigned short level;
 
 	// Ensuring API is disabled
@@ -198,44 +212,50 @@ exitCode EnforaAPI::initDeviceGPRS() {
 
 exitCode EnforaAPI::loadConfiguration() {
 	t_stringVector resp;
-	std::ostringstream buf("AT+CSCA=+");
 	std::string value;
+	char * l_start;
+
 
 	// Loading configuration params
-
 	d_pppdCommand	= d_config.param(paramName("api_pppdCommand"), "");
 
-	d_apiRemoteIP	= d_config.param(paramName("api_remoteIP"), DEFAULT_REMOTE_IP);
-	value = d_config.param(paramName("api_remotePort"), DEFAULT_REMOTE_PORT);
-	sscanf(value.c_str(), "%i", &d_apiRemotePort);
-
-	d_apiLocalIP	= d_config.param(paramName("api_localIP"), DEFAULT_LOCAL_IP);
-	value = d_config.param(paramName("api_localPort"), DEFAULT_LOCAL_PORT);
-	sscanf(value.c_str(), "%i", &d_apiLocalPort);
-
 	LOG4CPP_DEBUG(log, "API configuration, local %s:%d - remote %s:%d",
-				d_apiLocalIP.c_str(), d_apiLocalPort,
-				d_apiRemoteIP.c_str(), d_apiRemotePort);
+				API_LOCAL_IP, API_LOCAL_PORT,
+				API_REMOTE_IP, API_REMOTE_PORT);
 
 	d_smsNotifyNumber = d_config.param(paramName("sms_number"), ENFORA_SMS_NUMBER);
 
 
+// 	// Enabling 900/1800 MHz frequency selection
+// 	d_tty->sendSerial("AT%BAND=1,3", &resp);
+// 	// Searching operator
+// 	d_tty->sendSerial("AT+COPS", &resp);
+
+
 	// Autosensing current configuration
-	if ( d_tty->sendSerial("AT$IOCFG?", &resp) != OK ) {
+	if ( d_tty->sendSerial("AT$USRVAL?", &resp) != OK ) {
 		LOG4CPP_DEBUG(log, "Failed reading current configuration");
 		return GPRS_TTY_MODEM_NOT_RESPONDING;
 	}
 
-	//TODO parse responce to get the current IOCFG
-	// responce format:
-	// "$IOCFG: 00000000000000000000 00000000000000000000"
-	if (resp[0] == "$IOCFG: 00000000000000000000  00000000000000000000") {
+	l_start = strstr(resp[0].c_str(), API_CONF_VER);
+	if ( l_start ) {
 		LOG4CPP_DEBUG(log, "Modem already configured");
 		return OK;
 	}
 
+	LOG4CPP_WARN(log, "Loading modem configuration...");
+LOG4CPP_WARN(log, "Modem configuration DISABLED by code (AT$USRVAL=%s)", resp[0].c_str());
+return OK;
+
+	// USE AT$USRVAL to store the configuration revision number
+
+
 	// Resetting to factory defaults
 	d_tty->sendSerial("AT&F;E0;Q0;V1;&C1");
+
+	// Enabling 900/1800 MHz frequency selection
+	d_tty->sendSerial("AT%BAND=1,3", &resp);
 
 	// Configuring GPIO direction
 	d_tty->sendSerial("AT$IOCFG=00000000000000000000");
@@ -252,86 +272,136 @@ exitCode EnforaAPI::loadConfiguration() {
 	// Disabling Power-Up Message
 	d_tty->sendSerial("AT$PWRMSG=,1");
 
-	// GSM not registered
+
+
+	// GSM not registered (not searching)
 	d_tty->sendSerial("AT$EVENT=1,0,9,0,0");
 	// Setting LOW GPIO1
 	d_tty->sendSerial("AT$EVENT=1,3,8,0,0");
 
-	// Searching for GSM or problems
-	d_tty->sendSerial("AT$EVENT=2,0,9,2,4");
-	// Setting HIGH GPIO1
-	d_tty->sendSerial("AT$EVENT=2,3,16,0,0");
+	// GSM registration denied or unk problems
+	d_tty->sendSerial("AT$EVENT=2,0,9,3,4");
+	// Setting LOW GPIO1
+	d_tty->sendSerial("AT$EVENT=2,3,8,0,0");
 
-	// GSM registered @ home network
-	d_tty->sendSerial("AT$EVENT=3,0,9,1,1");
+	// Searching for GSM
+	d_tty->sendSerial("AT$EVENT=3,0,9,2,2");
 	// Slow falshing GPIO1
 	d_tty->sendSerial("AT$EVENT=3,3,32,458753,0");
 
-	// GSM registered in roaming
-	d_tty->sendSerial("AT$EVENT=4,0,9,5,5");
-	// Slow falshing GPIO1
-	d_tty->sendSerial("AT$EVENT=4,3,32,458753,0");
+	// GSM registered (home network) or roaming
+	d_tty->sendSerial("AT$EVENT=4,0,9,1,1");
+	// Setting HIGH GPIO1
+	d_tty->sendSerial("AT$EVENT=4,3,16,0,0");
 
-	// GPRS not registered
-	d_tty->sendSerial("AT$EVENT=5,0,11,0,0");
-	// Setting LOW GPIO2
-	d_tty->sendSerial("AT$EVENT=5,3,9,0,0");
+	// GSM registered (roaming)
+	d_tty->sendSerial("AT$EVENT=5,0,9,5,5");
+	// Setting HIGH GPIO1
+	d_tty->sendSerial("AT$EVENT=5,3,16,0,0");
 
-	// GPRS registered to home network NOT IP
-	d_tty->sendSerial("AT$EVENT=6,0,11,1,1");
+	// GPRS not registered (not serching) reg denied or unk problems
+	d_tty->sendSerial("AT$EVENT=6,0,10,0,0");
+	// Setting HIGH GPIO2
+	d_tty->sendSerial("AT$EVENT=6,3,17,0,0");
+
+	// GPRS registration denied or unk problems
+	d_tty->sendSerial("AT$EVENT=7,0,10,3,4");
+	// Setting HIGH GPIO2
+	d_tty->sendSerial("AT$EVENT=7,3,17,0,0");
+
+	// Searching for GPRS
+	d_tty->sendSerial("AT$EVENT=8,0,10,2,2");
 	// Slow falshing GPIO2
-	d_tty->sendSerial("AT$EVENT=6,3,33,458753,0");
+	d_tty->sendSerial("AT$EVENT=8,3,33,458753,0");
 
-	// Set HIGH GPIO3 at modem power on
-	d_tty->sendSerial("AT$EVENT=7,0,8,1,1");
-	// Setting HIGH GPIO3
-	d_tty->sendSerial("AT$EVENT=7,3,18,0,0");
+	// GPRS registered (home network) or roaming
+	d_tty->sendSerial("AT$EVENT=9,0,10,1,1");
+	// Setting LOW GPIO2
+	d_tty->sendSerial("AT$EVENT=9,3,9,0,0");
+
+	// GPRS registered (roaming)
+	d_tty->sendSerial("AT$EVENT=10,0,10,5,5");
+	// Setting LOW GPIO2
+	d_tty->sendSerial("AT$EVENT=10,3,9,0,0");
+
+	// Getting IP Address
+	d_tty->sendSerial("AT$EVENT=11,0,11,1,1");
+	// Slow falshing GPIO1
+	d_tty->sendSerial("AT$EVENT=11,3,32,1,0");
+
+	// Losing IP Address
+	d_tty->sendSerial("AT$EVENT=12,0,11,0,0");
+	// Setting HIGH GPIO1
+	d_tty->sendSerial("AT$EVENT=12,3,16,0,0");
+
+
 
 	// Configuring for textual SMS
 	d_tty->sendSerial("AT+CMGF=1");
 
+	// Saving confgiuration revision to flash memory
+	d_tty->sendSerial("AT$USRVAL=" API_CONF_VER , &resp);
+
 	// Saving current settings
 	d_tty->sendSerial("AT&W");
+
+	return GPRS_RESET_REQUIRED;
+
+}
+
+
+exitCode
+EnforaAPI::checkAPI() {
+	t_apiCommand apiMsg;
+	t_apiResponce apiResp;
+	exitCode result;
+
+	LOG4CPP_DEBUG(log, "Checking if API is correctly working...");
+	memcpy(apiMsg.field.data, "AT\0", 3);
+	result = sendAT(apiMsg, apiResp);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "API not working");
+		return result;
+	}
+
+	LOG4CPP_DEBUG(log, "API is working correctly");
+	return OK;
 
 }
 
 
 exitCode
 EnforaAPI::enableAPI() {
-	t_apiCommand apiMsg;
-	t_apiResponce apiResp;
 	exitCode result;
 	t_stringVector resp;
 	short sec = 60;		// Seconds to wait for PPP daemon being Up
+	char atCmd[64];
 
 	LOG4CPP_DEBUG(log, "API interface is [%s]", d_apiEnabled ? "ON" : "OFF" );
 
 	if (d_apiEnabled) {
-		LOG4CPP_DEBUG(log, "Checking if API is correctly working...");
-		memcpy(apiMsg.field.data, "AT+CSQ\0", 7);
-		result = sendAT(apiMsg, apiResp);
-		if (result) {
-			LOG4CPP_ERROR(log, "API not working");
-			return GPRS_API_GPRS_UP_FAILED;
-		}
-		LOG4CPP_DEBUG(log, "API is working");
-		return OK;
+		return checkAPI();
 	}
 
 	LOG4CPP_INFO(log, "Enabling API interface...");
 
 	// Setting modem IP and local IP as friend server
-	d_tty->sendSerial("AT$UDPAPI=\"192.168.1.101\",1720", &resp);
+// 	d_tty->sendSerial("AT$UDPAPI=\"" API_REMOTE_IP "\",1721", &resp);
+	sprintf(atCmd, "AT$UDPAPI=\"%s\",%d", API_REMOTE_IP, API_REMOTE_PORT);
+	d_tty->sendSerial(atCmd, &resp);
 
 //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 //TODO Use parameters for friend server configuration
-	d_tty->sendSerial("AT$FRIEND=01,1,\"192.168.1.101\",1721,2", &resp);
+// 	d_tty->sendSerial("AT$FRIEND=01,1,\"" API_LOCAL_IP "\"," API_REMOTE_PORT ",2", &resp);
+	sprintf(atCmd, "AT$FRIEND=01,1,\"%s\",%d,2", API_LOCAL_IP, API_REMOTE_PORT);
+	d_tty->sendSerial(atCmd, &resp);
 
 	// Configuring dynamic IP notifications
 	d_tty->sendSerial("AT$WAKEUP=2,1", &resp);
 	d_tty->sendSerial("AT$ACKTM=5,5,0", &resp);
 	// FIXME use device ID
-	d_tty->sendSerial("AT$MDMID=\"cBox_v0.9_#00001\"", &resp);
+	d_tty->sendSerial("AT$MDMID=\"cBox00001\"", &resp);
+
 
 	// Configure netlink for non-GPRS connection mode
 	d_tty->sendSerial("AT$HOSTIF=3", &resp);
@@ -366,14 +436,16 @@ EnforaAPI::enableAPI() {
 	// Waiting for PPP being up and running
 	// We use busy waiting to avoid blocking on PPP daemon up...
 	while (sec-- && !d_apiEnabled) {
-		LOG4CPP_DEBUG(log, "Waiting for ppp being up [%02d s]...", sec);
+		LOG4CPP_DEBUG(log, "Waiting for ppp being UP [%02d s]...", sec);
 		::sleep(1);
 	}
 
 	if (!d_apiEnabled)
 		return GPRS_PPPD_FAILURE;
 
-	return OK;
+	result = checkAPI();
+
+	return result;
 
 }
 
@@ -381,10 +453,14 @@ exitCode
 EnforaAPI::disableAPI() {
 	int result, pid;
 	std::ostringstream cmdLine("");
+	short sec = 60;		// Seconds to wait for PPP daemon being Donw
 
 	if (!d_apiEnabled) {
+		LOG4CPP_DEBUG(log, "GPRS API already disabled");
 		return OK;
 	}
+
+	LOG4CPP_WARN(log, "Disabling GPRS API...");
 
 	pid = getPppdPid();
 
@@ -403,9 +479,55 @@ EnforaAPI::disableAPI() {
 	LOG4CPP_DEBUG(log, "Closing API local socket");
 	::close(d_modemSocket);
 
-	d_apiEnabled = false;
+	// Waiting for PPP being donw
+	// We use busy waiting to avoid blocking on PPP daemon up...
+	while (sec-- && d_apiEnabled) {
+		LOG4CPP_DEBUG(log, "Waiting for ppp being DOWN [%02d s]...", sec);
+		::sleep(1);
+	}
+
+	if (d_apiEnabled)
+		return GPRS_PPPD_FAILURE;
+
 	LOG4CPP_DEBUG(log, "GPRS API interface disabled");
 
+	return OK;
+
+}
+
+exitCode
+EnforaAPI::resetAPI() {
+	exitCode result;
+	t_stringVector resp;
+
+
+	result = disableAPI();
+
+/*
+	//Software GPRS RESET
+	LOG4CPP_WARN(log, "Doing SW reset...");
+	d_tty->sendSerial("AT$RESET", &resp);
+	::sleep(5);
+
+	//Cheking if modem communication is working correctly
+	LOG4CPP_WARN(log, "Checking AT command mode communication...");
+	result = d_tty->sendSerial("AT", &resp);
+	if ( result == OK ) {
+		LOG4CPP_DEBUG(log, "Modem working in AT command mode");
+		result = enableAPI();
+		return result;
+	}
+*/
+
+	// HW RESET needed
+	LOG4CPP_DEBUG(log, "Doing HW reset...");
+	result = powerOn(true);
+	if ( result != OK ) {
+		return result;
+	}
+
+	result = enableAPI();
+	return result;
 
 }
 
@@ -424,7 +546,7 @@ EnforaAPI::initSocket() {
 	memset(&d_apiLocalAddr, 0, sizeof(d_apiLocalAddr));
 	d_apiLocalAddr.sin_family = AF_INET;
 	d_apiLocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	d_apiLocalAddr.sin_port = htons(d_apiLocalPort);
+	d_apiLocalAddr.sin_port = htons(API_LOCAL_PORT);
 	if ( bind(d_modemSocket, (struct sockaddr*)&d_apiLocalAddr, sizeof(d_apiLocalAddr)) < 0 ) {
 		LOG4CPP_ERROR(log, "Failed binding API socket: %s", strerror(errno));
 		return GPRS_SOCKET_BINDING_FAILED;
@@ -433,7 +555,7 @@ EnforaAPI::initSocket() {
 	LOG4CPP_DEBUG(log, "API local socket binded");
 
 	// Preparing remote address
-	rip = gethostbyname(d_apiRemoteIP.c_str());
+	rip = gethostbyname(API_REMOTE_IP);
 	if ( !rip ) {
 		LOG4CPP_ERROR(log, "Failed resolving remte IP: %s", strerror(errno));
 		::close(d_modemSocket);
@@ -442,7 +564,7 @@ EnforaAPI::initSocket() {
 	memset(&d_apiRemoteAddr, 0, sizeof(d_apiRemoteAddr));
 	d_apiRemoteAddr.sin_family = AF_INET;
 	memcpy(&d_apiRemoteAddr.sin_addr, rip->h_addr, rip->h_length);
-	d_apiRemoteAddr.sin_port = htons(d_apiRemotePort);
+	d_apiRemoteAddr.sin_port = htons(API_REMOTE_PORT);
 
 	LOG4CPP_DEBUG(log, "API remote address prepared");
 
@@ -467,10 +589,12 @@ EnforaAPI::addHeader(t_apiCommand & msg, t_apiType t, bool toString) {
 }
 
 exitCode
-EnforaAPI::sendAT(t_apiCommand & msg, t_apiResponce & resp) {
-	int net_result;
-	exitCode result;
+EnforaAPI::sendAT(t_apiCommand & msg, t_apiResponce & resp, unsigned int timeout) {
+	int net_result = GPRS_RESET_REQUIRED;
+	exitCode result = OK;
 	unsigned short retry;
+// 	char respBuff[64];
+// 	char *lineEnd;
 
 	// Setting message header
 	addHeader(msg, SENDAT);
@@ -482,31 +606,38 @@ EnforaAPI::sendAT(t_apiCommand & msg, t_apiResponce & resp) {
 						(struct sockaddr*)&d_apiRemoteAddr,
 						sizeof(d_apiRemoteAddr));
 		if (net_result < 0) {
-			LOG4CPP_WARN(log, "API failed sending AT command: %s", strerror(errno));
-			LOG4CPP_DEBUG(log, "API communication errors, retrying in 2s");
+			LOG4CPP_WARN(log, "API, Failed sending AT command: %s", strerror(errno));
+			LOG4CPP_DEBUG(log, "API, Retrying sending AT command in 2s...");
 			::sleep(2);
-			break;
+			continue;
 		}
 
-		result = getResponce(resp);
-		if (result==OK)
-			break;
-
-		switch(result) {
-			case GPRS_API_SELECT_FAILED:
-			case GPRS_API_SELECT_TIMEOUT:
-				// Reset
-				LOG4CPP_INFO(log, "API not working, resetting device before retrying");
-				initDeviceGPRS();
-				enableAPI();
-				break;
-			case GPRS_API_ATRECV_FAILED:
-			case GPRS_API_ATRECV_ERRORS:
-				// Retry
-				LOG4CPP_DEBUG(log, "API communication errors, retrying in 5s");
-				::sleep(5);
-				break;
+		result = getResponce(resp, timeout);
+		if ( result==OK ) {
+// 			strncpy(respBuff, resp.field.data, 64);
+// 			lineEnd = strstr(respBuff, "\n");
+// 			(*lineEnd) = 0;
+// 			LOG4CPP_DEBUG(log, "API, SEND[%s]: %s",
+// 					msg.field.data, respBuff);
+			return OK;
 		}
+// 		else {
+// 			LOG4CPP_ERROR(log, "API, SEND[%s] failed",
+// 					msg.field.data);
+// 		}
+
+		if (result == GPRS_API_SELECT_FAILED ||
+			result == GPRS_API_SELECT_TIMEOUT ||
+			result == GPRS_API_ATRECV_FAILED ) {
+			LOG4CPP_DEBUG(log, "API not working, device reset required");
+			return GPRS_RESET_REQUIRED;
+		}
+
+		if ( result == GPRS_API_ATRECV_ERRORS ) {
+			LOG4CPP_DEBUG(log, "API communication errors, retrying in 5s");
+			::sleep(5);
+		}
+
 	}
 
 	return result;
@@ -514,7 +645,7 @@ EnforaAPI::sendAT(t_apiCommand & msg, t_apiResponce & resp) {
 }
 
 exitCode
-EnforaAPI::getResponce(t_apiResponce & resp) {
+EnforaAPI::getResponce(t_apiResponce & resp, unsigned int timeout) {
 	int result;
 	char rx[512];
 	char *buf;
@@ -531,9 +662,11 @@ EnforaAPI::getResponce(t_apiResponce & resp) {
 	// Watch modem (filedescriptor) for input available
 	FD_ZERO(&rfds);
 	FD_SET(d_modemSocket, &rfds);
-	// Wait up to five seconds.
-	tv.tv_sec = 5;
+	// Wait up to timeout seconds.
+	tv.tv_sec = timeout;
 	tv.tv_usec = 0;
+
+	LOG4CPP_DEBUG(log, "API, select timeout [%hu]s", timeout);
 
 	result = select(d_modemSocket+1, &rfds, NULL, NULL, &tv);
 	if (result == -1) {
@@ -565,17 +698,23 @@ EnforaAPI::getResponce(t_apiResponce & resp) {
 		strncpy(buf+totBytes, rx+ENFORAAPI_API_HEADER_SIZE,
 			ENFORAAPI_AT_RESP_MAXLEN-ENFORAAPI_API_HEADER_SIZE-totBytes);
 
-// 		if ( !memcmp(rx+result-7, d_atResults[AT_OK], 6) ||
-// 			!memcmp(rx+result-12, d_atResults[AT_CONNECT], 11) )
-		if ( !memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_OK], 6) ||
-			!memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_CONNECT], 11) )
-			LOG4CPP_DEBUG(log, "API, OK/CONNECT returned by modem");
+		//if ( !memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_OK], 6) ) {
+		if ( strstr(rx+ENFORAAPI_API_HEADER_SIZE, "OK") ) {
+			LOG4CPP_DEBUG(log, "API, OK returned by modem");
 			break;
+		}
 
-// 		if ( !memcmp(rx+result-10, d_atResults[AT_ERROR], 9) ) {
-		if ( !memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_ERROR], 9) ) {
+// 		if ( !memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_CONNECT], 11) ) {
+		if ( strstr(rx+ENFORAAPI_API_HEADER_SIZE, "CONNECT") ) {
+			LOG4CPP_DEBUG(log, "API, CONNECT returned by modem");
+			break;
+		}
+
+// 		if ( !memcmp(rx+ENFORAAPI_API_HEADER_SIZE, d_atResults[AT_ERROR], 9) ) {
+		if ( strstr(rx+ENFORAAPI_API_HEADER_SIZE, "ERROR") ) {
 			LOG4CPP_DEBUG(log, "API, ERROR returned by modem");
-			break; //anyway the communication was successfull
+			// Anyway, even in this case, the communication was successfull
+			break;
 		}
 
 		// Taking away header and leading \0
@@ -624,6 +763,15 @@ EnforaAPI::updateNetworkConfiguration(void) {
 	}
 	netConf.str("");
 	netConf << octet[0] << "." << octet[1] << "." << octet[2] << "." << octet[3];
+
+	// Checking if the IP address is valid
+	if ( octet[0] == 0 ) {
+		LOG4CPP_WARN(log, "Invalid local IP address [%s]",
+			netConf.str().c_str() );
+//FIXME prima di tornare ERRORE (TRY LATER).... riprovare altre 3 volte a leggerlo...
+		return GPRS_API_GPRS_UP_FAILED;
+	}
+
 	if ( d_localIP != netConf.str() ) {
 		d_localIP = netConf.str();
 		LOG4CPP_INFO(log, "LocalIP changed to: %s", d_localIP.c_str());
@@ -695,22 +843,20 @@ EnforaAPI::gprsUP(std::string const & linkname) {
 	result = sendAT(msg, resp);
 	if ( result!=OK ) {
 		LOG4CPP_WARN(log, "API, Failed SEND[%s]: %s", atCmd, resp.field.data);
-		return GPRS_API_GPRS_UP_FAILED;
+		return result;
 	}
 
 	memcpy(msg.field.data, "AT$CONN\0", 8);
-	result = sendAT(msg, resp);
+// 	result = sendAT(msg, resp);
+	result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
 	if ( result!=OK ) {
 		LOG4CPP_WARN(log, "API, Failed SEND[AT$CONN]: %s", resp.field.data);
-		return GPRS_API_GPRS_UP_FAILED;
+		return result;
 	}
 
 	if ( !strstr(resp.field.data, "CONNECT") ) {
-		LOG4CPP_WARN(log, "API, Failed CONNECT");
-		// NOTE we should avoid multiple modem reset points: thus
-		// here we ensure a reset is requested and let the caller perform this
-		// if needed
-		return GPRS_RESET_REQUIRED;
+		LOG4CPP_WARN(log, "API,Connect failed");
+		return GPRS_API_GPRS_UP_FAILED;
 	}
 
 	result = updateNetworkConfiguration();
@@ -733,7 +879,8 @@ EnforaAPI::gprsDOWN() {
 		return OK;
 	}
 
-	memcpy(msg.field.data, "AT$DISC", 8);
+#if 0
+	memcpy(msg.field.data, "AT$DISC\0", 8);
 	result = sendAT(msg, resp);
 	if (result) {
 		LOG4CPP_ERROR(log, "API, SEND[AT$DISC] failed");
@@ -746,6 +893,21 @@ EnforaAPI::gprsDOWN() {
 		LOG4CPP_WARN(log, "API, disconnection failed");
 		return GPRS_API_GPRS_DOWN_FAILED;
 	}
+#else
+	memcpy(msg.field.data, "AT+CGATT=0\0", 11);
+	result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
+	if (result) {
+		LOG4CPP_ERROR(log, "API, SEND[AT+CGATT=0] failed");
+		return GPRS_API_GPRS_DOWN_FAILED;
+	}
+
+	LOG4CPP_DEBUG(log, "API, SEND[AT+CGATT=0]: %s", resp.field.data);
+
+	if ( !strstr(resp.field.data, "OK") ) {
+		LOG4CPP_WARN(log, "API, disconnection failed");
+		return GPRS_API_GPRS_DOWN_FAILED;
+	}
+#endif
 
 	d_netStatus = LINK_DOWN;
 	return OK;
@@ -800,11 +962,8 @@ exitCode EnforaAPI::notifyFriends() {
 exitCode
 EnforaAPI::tryConnect(std::string const & linkname) {
 	t_supportedLinks::iterator it;
-	t_netlink * netlink;
 	exitCode result;
-	pid_t pid;
-	unsigned short status;
-
+// 	pid_t pid;
 
 //--- Here we don't know wich connection is up
 
@@ -834,9 +993,12 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 			return result;
 		}
 
+// FIXME: check the IP address to ensure network attach....
+
 		// Updating GPRS network settings
 		result = updateNetworkConfiguration();
 		if ( result != OK ) {
+			d_netStatus = LINK_DOWN;
 			LOG4CPP_ERROR(log, "Network Configuration FAILED");
 			return result;
 		}
@@ -858,8 +1020,6 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 	}
 	LOG4CPP_DEBUG(log, "Required netlink [%s] supported", linkname.c_str());
 
-	LOG4CPP_DEBUG(log, "Netlink status is [%d]", d_netStatus);
-
 	// If we are already connected... first we should disconnect
 	if ( d_netStatus >= LINK_GOING_UP ) {
 		LOG4CPP_DEBUG(log, "Disconnecting current connection [%s]",
@@ -867,16 +1027,20 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 		result = disconnect();
 		if ( result!=OK ) {
 			LOG4CPP_DEBUG(log, "Failed disconnecting current connection");
-			return GPRS_RESET_REQUIRED;
+			return result;
 		}
 	}
 	LOG4CPP_DEBUG(log, "No active connections");
 
+
+
+
+//TODO qui il modem VA SPENTO e riacceso SOLO dopo lo switching della SIM
 	// Ensuring modem is powered up
 	result = powerOn(false);
-	if (result) {
+	if ( result ) {
 		LOG4CPP_ERROR(log, "GPRS modem powered-on");
-		return GPRS_RESET_REQUIRED;
+		return result;
 	}
 	LOG4CPP_DEBUG(log, "Modem is PoweredUp");
 
@@ -908,28 +1072,27 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 
 	// Checking if the API is already running
 	result = enableAPI();
-	if ( result!=OK ) {
+	if ( result != OK ) {
 		LOG4CPP_ERROR(log, "API, failed enabling non-GPRS connection");
-		return GPRS_RESET_REQUIRED;
+		return result;
 	}
-	d_curLinkname = linkname;
-	LOG4CPP_INFO(log, "API interface configured for GPRS connection [%s]", d_curLinkname.c_str());
 
 	// Checking GPRS Registration Status
 	result = gprsRegistered();
 	if ( result != OK ) {
 		d_netStatus = LINK_DOWN;
-		LOG4CPP_DEBUG(log, "GPRS network not available");
+		LOG4CPP_WARN(log, "GPRS network NOT available");
 		return result;
 	}
 
 	// Enabling GPRS connection
 	result = gprsUP(linkname);
-	if (result!=OK) {
+	if ( result != OK ) {
 		d_netStatus = LINK_DOWN;
 		LOG4CPP_ERROR(log, "API, failed enabling GPRS");
 		return result;
 	}
+	d_curLinkname = linkname;
 
 	d_netStatus = LINK_UP;
 	LOG4CPP_INFO(log, "GPRS Connection [%s] UP", linkname.c_str());
@@ -946,27 +1109,29 @@ EnforaAPI::tryConnect(std::string const & linkname) {
 
 exitCode
 EnforaAPI::connect(std::string const & linkname) {
-	exitCode result;
+	exitCode result = OK;
 
 	LOG4CPP_DEBUG(log, "Trying GPRS connection [%s]...", linkname.c_str());
 	result = tryConnect(linkname);
-	if ( result==OK )
+
+	if ( result == OK ) {
+		LOG4CPP_DEBUG(log, "GPRS connected");
 		return OK;
+	}
 
-	if ( result==GPRS_NETLINK_NOT_SUPPORTED ) {
+	if ( result == GPRS_NETLINK_NOT_SUPPORTED ) {
 		// Noting can be done in this case: reconfiguration needed
-		return result;
+		LOG4CPP_WARN(log, "GPRS connect failed, link not supported");
+		return GPRS_NETLINK_NOT_SUPPORTED;
 	}
 
-//--- IF we get here we should RESET the modem becouse something is not
-//	properly working
-
-	disconnect();
-	if ( result==GPRS_RESET_REQUIRED ||
-		result==GPRS_NETWORK_REGDENIED ) {
-		disableAPI();
-		powerOff();
+	if ( result == GPRS_RESET_REQUIRED ) {
+		LOG4CPP_WARN(log, "Connect failed, RESET required", result);
+		resetAPI();
+		return GPRS_RESET_REQUIRED;
 	}
+
+	LOG4CPP_WARN(log, "Connect failed with code [%d]", result);
 
 	return result;
 
@@ -982,8 +1147,8 @@ EnforaAPI::disconnect() {
 		return OK;
 	}
 
-	LOG4CPP_DEBUG(log, "Disconnecting GPRS...");
 	d_netStatus = LINK_GOING_DOWN;
+	LOG4CPP_DEBUG(log, "Disconnecting GPRS...");
 
 	result = gprsDOWN();
 	if (result) {
@@ -991,7 +1156,6 @@ EnforaAPI::disconnect() {
 		return result;
 	}
 
-	d_netStatus = LINK_DOWN;
 	return OK;
 }
 
@@ -1040,7 +1204,7 @@ EnforaAPI::sendSMS(std::string number, std::string text) {
 
 		LOG4CPP_DEBUG(log, "SEND[%s]", msg.field.data);
 
-		result = sendAT(msg, resp);
+		result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
 		if (result) {
 			LOG4CPP_ERROR(log, "API, SEND[%s] failed", buf.str().c_str());
 			return GPRS_API_GPRS_UP_FAILED;
@@ -1053,7 +1217,7 @@ EnforaAPI::sendSMS(std::string number, std::string text) {
 
 		LOG4CPP_DEBUG(log, "SEND[%s]", msg.field.data);
 
-		result = sendAT(msg, resp);
+		result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
 		if (result) {
 			LOG4CPP_ERROR(log, "API, SEND[%s] failed", text.c_str());
 			return GPRS_API_GPRS_UP_FAILED;
@@ -1107,6 +1271,79 @@ EnforaAPI::sendSMS(std::string number, std::string text) {
 }
 
 exitCode
+EnforaAPI::gsmRegister() {
+	t_apiCommand msg;
+	t_apiResponce resp;
+	t_stringVector vresp;
+	exitCode result;
+	char * l_start, *end;
+
+	if (d_apiEnabled) {
+		LOG4CPP_DEBUG(log, "API, Registering to GSM network...");
+
+		LOG4CPP_DEBUG(log, "Operator selection... ");
+		memcpy(msg.field.data, "AT+COPS\0", 8);
+		result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "API, SEND[AT+COPS] failed");
+			return result;
+		}
+
+		LOG4CPP_DEBUG(log, "API, SEND[AT+COPS]: %s", resp.field.data);
+
+		// Check command result
+		l_start = strstr(resp.field.data, "ERROR");
+		if ( l_start ) {
+			LOG4CPP_WARN(log, "Operator selection failed");
+			LOG4CPP_DEBUG(log, "AT+COPS responce [%s]", resp.field.data);
+			return GPRS_NETWORK_UNREGISTERED;
+		}
+
+// TODO this must be checked?!?!
+// NOTE if previous command not returned ERROR: we should be able to read the
+//	operator we are attached to
+// 		// Check command result
+// 		l_start = strstr(resp.field.data, "OK");
+// 		if ( l_start ) {
+// 			LOG4CPP_INFO(log, "Operator selection success");
+// 			LOG4CPP_DEBUG(log, "AT+COPS responce [%s]", resp.field.data);
+// 			return OK;
+// 		}
+
+		memcpy(msg.field.data, "AT+COPS?\0", 9);
+		result = sendAT(msg, resp);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "API, SEND[AT+COPS?] failed");
+			return result;
+		}
+
+		LOG4CPP_DEBUG(log, "API, SEND[AT+COPS?]: %s", resp.field.data);
+
+		// responce example
+		//	not working network: 	+COPS: 0
+		// 	working network:	"+COPS: 0,0,"I TIM""
+		l_start = strstr(resp.field.data, "\"");
+		if ( !l_start ) {
+			LOG4CPP_WARN(log, "Failed parsing AT+COPS? responce [%s]", resp.field.data);
+			return GPRS_API_PARSE_ERROR;
+		}
+		l_start+=1;
+
+		end = strstr(l_start, "\"");
+		(*end) = 0;
+
+		LOG4CPP_INFO(log, "Using GSM operator [%s]", l_start);
+
+	} else {
+		LOG4CPP_DEBUG(log, "AT, Register to GSM network...");
+		d_tty->sendSerial("AT+COPS", &vresp);
+		d_tty->sendSerial("AT+COPS?", &vresp);
+	}
+
+	return OK;
+}
+
+exitCode
 EnforaAPI::signalLevel(unsigned short & level) {
 	t_apiCommand msg;
 	t_apiResponce resp;
@@ -1121,7 +1358,7 @@ EnforaAPI::signalLevel(unsigned short & level) {
 		result = sendAT(msg, resp);
 		if ( result!=OK ) {
 			LOG4CPP_ERROR(log, "API, SEND[AT+CSQ] failed");
-			return GPRS_API_GPRS_UP_FAILED;
+			return result;
 		}
 
 		LOG4CPP_DEBUG(log, "API, SEND[AT+CSQ]: %s", resp.field.data);
@@ -1129,14 +1366,14 @@ EnforaAPI::signalLevel(unsigned short & level) {
 		// responce example "+CSQ: 22,1"
 		pos = strstr(resp.field.data, ",");
 		if (!pos) {
-			LOG4CPP_DEBUG(log, "Failed parsing AT+CSQ responce [%s]", resp.field.data);
+			LOG4CPP_WARN(log, "Failed parsing AT+CSQ responce [%s]", resp.field.data);
 			level = 0;
-			return GPRS_API_GPRS_UP_FAILED;
+			return GPRS_RESET_REQUIRED;
 		}
 		(*pos) = 0;
 		sscanf(resp.field.data+5, "%hu", &level);
 		//LOG4CPP_DEBUG(log, "Signal level [%s] [%hu]", resp.field.data+5, level);
-		LOG4CPP_DEBUG(log, "Signal level [%hu]", level);
+		LOG4CPP_INFO(log, "Signal level [%hu]", level);
 
 	} else {
 		LOG4CPP_DEBUG(log, "Query signal level using AT interface");
@@ -1147,7 +1384,7 @@ EnforaAPI::signalLevel(unsigned short & level) {
 }
 
 exitCode
-EnforaAPI::gsmStatus(unsigned short & status) {
+EnforaAPI::gsmStatus(unsigned short & p_status) {
 	t_apiCommand msg;
 	t_apiResponce resp;
 	t_stringVector vresp;
@@ -1157,7 +1394,7 @@ EnforaAPI::gsmStatus(unsigned short & status) {
 	if (d_apiEnabled) {
 		LOG4CPP_DEBUG(log, "Query GSM status using API interface");
 
-		memcpy(msg.field.data, "AT+CREG?\0", 10);
+		memcpy(msg.field.data, "AT+CREG?\0", 9);
 		result = sendAT(msg, resp);
 		if ( result != OK ) {
 			LOG4CPP_ERROR(log, "API, SEND[AT+CREG?] failed");
@@ -1169,24 +1406,24 @@ EnforaAPI::gsmStatus(unsigned short & status) {
 		// responce example "+CREG: 0,1"
 		pos = strstr(resp.field.data, ",");
 		if (!pos) {
-			LOG4CPP_DEBUG(log, "Failed parsing AT+CREG? responce [%s]", resp.field.data);
-			status = 0;
-			return GPRS_API_GPRS_UP_FAILED;
+			LOG4CPP_WARN(log, "Failed parsing AT+CREG? responce [%s]", resp.field.data);
+			p_status = 0;
+			return GPRS_API_PARSE_ERROR;
 		}
-		sscanf(pos+1, "%hu", &status);
+		sscanf(pos+1, "%hu", &p_status);
 
 	} else {
 		LOG4CPP_DEBUG(log, "Query GSM status using AT interface");
 		d_tty->sendSerial("AT+CREG?", &vresp);
 		//TODO implement the returning of the value
-		status = 0;
+		p_status = 0;
 	}
 
 	return OK;
 }
 
 exitCode
-EnforaAPI::gprsStatus(unsigned short & status) {
+EnforaAPI::gprsStatus(unsigned short & p_status) {
 	t_apiCommand msg;
 	t_apiResponce resp;
 	t_stringVector vresp;
@@ -1194,6 +1431,11 @@ EnforaAPI::gprsStatus(unsigned short & status) {
 	char * pos;
 
 	if (d_apiEnabled) {
+
+		result = gprsAttach(true);
+		if ( result != OK ) {
+			return result;
+		}
 
 		LOG4CPP_DEBUG(log, "Query GPRS status using API interface");
 
@@ -1209,37 +1451,37 @@ EnforaAPI::gprsStatus(unsigned short & status) {
 		// responce example "+CGREG: 0,1"
 		pos = strstr(resp.field.data, ",");
 		if (!pos) {
-			LOG4CPP_DEBUG(log, "Failed parsing AT+CGREG? responce [%s]", resp.field.data);
-			status = 0;
-			return GPRS_API_GPRS_UP_FAILED;
+			LOG4CPP_WARN(log, "Failed parsing AT+CGREG? responce [%s]", resp.field.data);
+			p_status = 0;
+			return GPRS_API_PARSE_ERROR;
 		}
-		sscanf(pos+1, "%hu", &status);
+		sscanf(pos+1, "%hu", &p_status);
 
 	} else {
 		LOG4CPP_DEBUG(log, "Query GPRS status using AT interface");
 		d_tty->sendSerial("AT+CGREG?", &vresp);
 		//TODO implement the returning of the value
-		status = 0;
+		p_status = 0;
 	}
 
 	return OK;
 }
 
-
 exitCode
 EnforaAPI::gprsRegistered(bool resetOnFailure) {
-	unsigned short status;
+	unsigned short l_status;
+	unsigned short level;
 	exitCode result;
 
 	// Checking GSM registration status
-	result = gsmStatus(status);
+	result = gsmStatus(l_status);
 	if ( result != OK ) {
-		LOG4CPP_ERROR(log, "Failed querying GPRS Network registration status");
-		goto exit_reset;
+		LOG4CPP_ERROR(log, "Failed querying GSM Network registration status");
+		return result;
 	}
 
-	LOG4CPP_DEBUG(log, "GSM registration status [%hu]", status);
-	switch (status) {
+	LOG4CPP_DEBUG(log, "GSM registration status [%hu]", l_status);
+	switch (l_status) {
 	case 0:
 		LOG4CPP_ERROR(log, "GSM not registered (not searching)");
 		result = GPRS_NETWORK_REGDENIED;
@@ -1266,19 +1508,33 @@ EnforaAPI::gprsRegistered(bool resetOnFailure) {
 		break;
 	}
 
-	if (result!=OK) {
-		goto exit_reset;
+	if ( result != OK ) {
+		if ( result == GPRS_NETWORK_UNREGISTERED ){
+			// Try later... we are already searching
+			return GPRS_NETWORK_UNREGISTERED;
+		}
+		result = gsmRegister();
+		if ( result != OK ) {
+			return result;
+		}
+	}
+
+	// Checking Signal Level
+	result = signalLevel(level);
+	if ( result != OK ) {
+		LOG4CPP_ERROR(log, "Failed querying GSM signal level");
+		return result;
 	}
 
 	// Checking GPRS registration status
-	result = gprsStatus(status);
+	result = gprsStatus(l_status);
 	if ( result != OK ) {
 		LOG4CPP_ERROR(log, "Failed querying GPRS Network registration status");
-		goto exit_reset;
+		return result;
 	}
 
-	LOG4CPP_DEBUG(log, "GPRS registration status [%hu]", status);
-	switch (status) {
+	LOG4CPP_DEBUG(log, "GPRS registration status [%hu]", l_status);
+	switch (l_status) {
 	case 0:
 		LOG4CPP_ERROR(log, "GPRS not registered (not searching)");
 		result = GPRS_NETWORK_REGDENIED;
@@ -1305,20 +1561,97 @@ EnforaAPI::gprsRegistered(bool resetOnFailure) {
 		break;
 	}
 
-exit_reset:
-
-	// NOTE we should avoid multiple modem reset points: thus
-	// here we ensure a reset is requested and let the caller perform this
-	// if needed
-	if ( resetOnFailure &&
-		result != OK &&
-		result != GPRS_NETWORK_UNREGISTERED ) {
-		result = GPRS_RESET_REQUIRED;
+	if ( result != OK ) {
+		// Detaching GPRS network
+		gprsAttach(false);
 	}
 
 	return result;
 
 }
+
+exitCode
+EnforaAPI::gprsAttach(bool on) {
+	t_apiCommand msg;
+	t_apiResponce resp;
+	t_stringVector vresp;
+	exitCode result;
+	char * pos;
+	unsigned short l_status;
+
+	if (d_apiEnabled) {
+
+		memcpy(msg.field.data, "AT+CGATT?\0", 10);
+		result = sendAT(msg, resp);
+		if ( result != OK ) {
+			LOG4CPP_ERROR(log, "API, SEND[AT+CGATT?] failed");
+			return result;
+		}
+
+		LOG4CPP_DEBUG(log, "API, SEND[AT+CGATT?]: %s", resp.field.data);
+
+		// responce example "+CGATT: 1"
+		pos = strstr(resp.field.data, ":");
+		if (!pos) {
+			LOG4CPP_WARN(log, "Failed parsing 'AT+CGATT?' responce: %s", resp.field.data);
+			//suppose we are detached and send the attach command
+			l_status = 0;
+		} else {
+			sscanf(pos+2, "%hu", &l_status);
+		}
+
+		if ( on ) {
+
+			if ( l_status!=0 ) {
+				LOG4CPP_DEBUG(log, "GPRS network is attached");
+				return OK;
+			}
+
+			LOG4CPP_INFO(log, "Attaching GPRS network...");
+
+			memcpy(msg.field.data, "AT+CGATT=1\0", 11);
+			result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
+			if ( result != OK ) {
+				LOG4CPP_ERROR(log, "API, SEND[AT+CGATT=1] failed");
+				return result;
+			}
+
+			LOG4CPP_DEBUG(log, "API, SEND[AT+CGATT=1]: %s", resp.field.data);
+
+			LOG4CPP_DEBUG(log, "Waiting 5s second to complete GPRS attach...");
+			::sleep(5);
+
+		} else {
+
+			if ( l_status==0 ) {
+				LOG4CPP_DEBUG(log, "GPRS network deatached");
+				return OK;
+			}
+
+			LOG4CPP_INFO(log, "Detaching GPRS network...");
+
+			memcpy(msg.field.data, "AT+CGATT=0\0", 11);
+			result = sendAT(msg, resp, ENFORAAPI_AT_CMD_TIMEOUT);
+			if ( result != OK ) {
+				LOG4CPP_ERROR(log, "API, SEND[AT+CGATT=0] failed");
+				return result;
+			}
+
+			LOG4CPP_DEBUG(log, "API, SEND[AT+CGATT=0]: %s", resp.field.data);
+
+		}
+
+	} else {
+		LOG4CPP_DEBUG(log, "Query GPRS status using AT interface");
+		d_tty->sendSerial("AT+CGATT?", &vresp);
+		//TODO implement the returning of the value
+		l_status = 0;
+	}
+
+	return OK;
+
+}
+
 
 // FIXME this code MUST start a detached thread and not the RUN method of this class.
 // This class is a CommandGenerator: thus starting the run method will require
@@ -1334,6 +1667,10 @@ EnforaAPI::runParser() {
 
 void
 EnforaAPI::run (void) {
+
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "EnforaAPI thread (%u) started", d_pid);
+
 // 	std::ostringstream tName;
 //
 //

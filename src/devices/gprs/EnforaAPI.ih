@@ -5,10 +5,20 @@
 
 #include <controlbox/devices/DeviceFactory.h>
 
-#define DEFAULT_REMOTE_IP		"192.168.1.101"
-#define DEFAULT_REMOTE_PORT		"1720"
-#define DEFAULT_LOCAL_IP		"192.168.1.100"
-#define DEFAULT_LOCAL_PORT		"1721"
+#define API_REMOTE_IP		"192.168.1.101"
+#define API_REMOTE_PORT		1721
 
-#define DEFAULT_LOCAL_HEAR_PORT		1722
+#define API_LOCAL_IP		"192.168.1.100"
+#define API_LOCAL_PORT		1720
+
+#define API_HEAR_PORT		1722
+
+// The Configuration revision HEX value (0-FFFFFFFF)
+// Format: YMDDHHMM
+//	Y	year 	2008-2015	(8..F)
+//	M	month	1-12		(1..C)
+//	DD	day	1-31		(01..1F)
+//	HH	hour	0-23		(00..17)
+//	MM	minutes	0-59		(00..3B)
+#define API_CONF_VER		"8912171E"
 
