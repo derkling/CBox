@@ -111,10 +111,6 @@ protected:
     /// The Configurator to use for getting configuration params
     Configurator & d_configurator;
 
-    /// Logger
-    /// Use this logger reference, related to the 'log' category, to log your messages
-    log4cpp::Category & log;
-
     /// The EndPoint Name
     std::string d_name;
 
@@ -136,6 +132,10 @@ protected:
 
    /// The bitmask of all enabled EndPoint queues
    static unsigned int d_epEnabledQueueMask;
+
+   /// Logger
+   /// Use this logger reference, related to the 'log' category, to log your messages
+   log4cpp::Category & log;
 
 
 public:
@@ -182,6 +182,12 @@ public:
     /// @note if the EndPoint successfully process 'msg' it must clear the bit
     ///	inot epRequired corresponding to itself
     exitCode process(unsigned int msgCount, std::string const & msg, unsigned int & epEnabledQueues, EndPoint::t_epRespList &respList);
+
+    /// Notify the End Point that the upload thread is going to be suspended
+    virtual exitCode suspending() { return OK; };
+
+    /// Notify the End Point that the upload thread is going to be resumed
+    virtual exitCode resuming() { return OK; };
 
 protected:
 

@@ -38,9 +38,9 @@ EndPoint::EndPoint(unsigned int epId,
 			std::string const & paramBase,
 			std::string const & logName) :
         d_configurator(Configurator::getInstance()),
+        d_paramBase(paramBase),
         d_epId(epId),
         d_qmShiftCount(0),
-        d_paramBase(paramBase),
         log( log4cpp::Category::getInstance(logName) ) {
 
 	std::ostringstream lable("");
