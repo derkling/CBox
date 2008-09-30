@@ -46,12 +46,13 @@ DeviceDigitalSensors * DeviceDigitalSensors::getInstance(std::string const & log
 }
 
 DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
-	CommandGenerator(logName),
+	CommandGenerator(logName, -1),
+	SignalHandler(),
 	Device(Device::DEVICE_DS, 0, logName),
 	d_config(Configurator::getInstance()),
 	d_sysfsbase(""),
 	d_pcaDevices(0),
-	d_sensorNotify(this),
+	d_notifies(0),
 	log(Device::log) {
 	DeviceFactory * df = DeviceFactory::getInstance();
 
@@ -76,10 +77,8 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	initSensors();
 	updateSensors();
 
-	d_intrLine = atoi(d_config.param("DigitalSensor_PA_intrline", DS_DEFAULT_PA_INTRLINE).c_str());
-	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
-
-	d_sensorNotify.start();
+// 	d_intrLine = atoi(d_config.param("DigitalSensor_PA_intrline", DS_DEFAULT_PA_INTRLINE).c_str());
+// 	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
 
 }
 
@@ -89,9 +88,9 @@ DeviceDigitalSensors::~DeviceDigitalSensors() {
 	t_attrMap::iterator anAttr;
 	t_pcaStateList::iterator aDeviceState;
 
-	LOG4CPP_INFO(log, "Stopping DeviceDigitalSensors");
-
-	d_sensorNotify.doExit();
+	// Terminating upload thread
+	d_doExit = true;
+	this->ost::Thread::resume();
 
 	// Destroing digital sensors map
 	aSensor = sensors.begin();
@@ -161,9 +160,10 @@ inline DeviceDigitalSensors::t_digitalSensor *
 DeviceDigitalSensors::parseCfgString(std::string const & dsCfg) {
 	t_digitalSensor * pDs = 0;
 	std::ostringstream cfgTemplate("");
-	int enabled, alarmEnabled;
-	unsigned short prio;
-	float downLimit, upperLimit;
+	int enabled;
+// 	int alarmEnabled;
+// 	unsigned short prio;
+// 	float downLimit, upperLimit;
 	char param[2];
 	char description[DS_DESC_START+1];
 	char * descStart;
@@ -293,7 +293,7 @@ DeviceDigitalSensors::parseCfgString(std::string const & dsCfg) {
 inline DeviceDigitalSensors::t_attribute * DeviceDigitalSensors::confAttribute(DeviceDigitalSensors::t_digitalSensor * pDs) {
 	char attrId[DS_MAX_ATTRIB_LENGTH];
 	t_attribute * pAttr;
-	t_digitalSensor * aDs;
+// 	t_digitalSensor * aDs;
 
 	// Build attribute filename
 	sprintf(attrId, "%1d-%04X/input%1d",
@@ -334,7 +334,7 @@ inline DeviceDigitalSensors::t_attribute * DeviceDigitalSensors::confAttribute(D
 
 inline bool
 DeviceDigitalSensors::validateParams(DeviceDigitalSensors::t_digitalSensor * pDs) {
-	t_dsMap::iterator s;
+// 	t_dsMap::iterator s;
 
 	//TODO params sanity checks!!!
 
@@ -355,7 +355,7 @@ DeviceDigitalSensors::logSensorParams(DeviceDigitalSensors::t_digitalSensor * pD
 
 #ifdef CONTROLBOX_DEBUG
 	std::ostringstream params("");
-	char *trigger[] = { "None", "Going High", "Going Low", "Level Change" };
+	const char *trigger[] = { "None", "Going High", "Going Low", "Level Change" };
 
 	LOG4CPP_DEBUG(log, "ID: %-*s %s", DS_MAX_ID_LENGTH, pDs->id, pDs->description);
 	LOG4CPP_DEBUG(log, "\tChip: %1d-%04X,\tPort: %d,\tBit: %d",
@@ -436,9 +436,9 @@ inline exitCode
 DeviceDigitalSensors::getPortStatus(t_attribute const & anAttr, t_portStatus & value) {
 
 	std::ostringstream path("");
-	int fd;
-	char svalue[4];
-	int i = 2;
+// 	int fd;
+// 	char svalue[4];
+// 	int i = 2;
 
 	exitCode result;
 	DeviceI2CBus::t_i2cCommand regs;
@@ -485,7 +485,7 @@ inline exitCode
 DeviceDigitalSensors::initSensors(void) {
 	t_attrMap::iterator anAttr;
 	t_portStatus value;
-	int loop;
+// 	int loop;
 
 	anAttr = attrbutes.begin();
 	while ( anAttr != attrbutes.end()) {
@@ -499,6 +499,7 @@ DeviceDigitalSensors::initSensors(void) {
 		}
 		anAttr++;
 	}
+	return OK;
 }
 
 inline exitCode
@@ -522,24 +523,16 @@ DeviceDigitalSensors::notifySensorEvent(t_digitalSensor & aSensor) {
 		cSgd->setParam( "param", aSensor.param);
 	}
 
-/*#define CE_TESTS
-#ifdef CE_TESTS
-	if (aSensor.event == 0xFF) {
-		system("/mnt/flash/mmc/bin/reboot.sh");
-	}
-#endif*/
-
-// TODO right here we could implement a "tasklet" for simila events grouping.
-//	We receive singular events notification... but we could optimize network
-//	trasmissions by collecting similar events togheter and deferring trasmission
-//	for a while in order to build a single message for all same type event.
-//	E.G. event 0x12 on DIST protocol 4.3
+	// TODO right here we could implement a "tasklet" for simila events grouping.
+	//	We receive singular events notification... but we could optimize network
+	//	trasmissions by collecting similar events togheter and deferring trasmission
+	//	for a while in order to build a single message for all same type event.
+	//	E.G. event 0x12 on DIST protocol 4.3
 
 	// Formatting value for DIST protocol
 	buf.str("");
 	buf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << (unsigned)aSensor.event;
 	cSgd->setParam( "dist_evtType", buf.str());
-// 	cSgd->setParam( "dist_evtType", (int)aSensor.event );
 
 	buf.str("");
 	switch ( (unsigned)aSensor.event ) {
@@ -553,28 +546,28 @@ DeviceDigitalSensors::notifySensorEvent(t_digitalSensor & aSensor) {
 	}
 	cSgd->setParam( "dist_evtData", buf.str() );
 
-// 	cSgd->setParam( "dist_event", buf.str());
+	// FIXME we should use the sensor timestamp for the notification
 	cSgd->setParam( "timestamp", d_time->time() );
 
 	// Notifying command
 	notify(cSgd);
-
+	return OK;
 }
 
 inline exitCode
-DeviceDigitalSensors::notifySensorChange(t_digitalSensor & aSensor, t_digitalSensorState state) {
+DeviceDigitalSensors::notifySensorChange(t_digitalSensor & aSensor, t_digitalSensorState p_state) {
 	stateDescriptionArray(descr);
 
 	if (!aSensor.enabled) {
 		LOG4CPP_WARN(log, "Change on disabled sensor [%s], current status: %s",
-				aSensor.id, descr[state]);
+				aSensor.id, descr[p_state]);
 		return OK;
 	}
 
 	LOG4CPP_INFO(log, "Changes on sensor [%s], new state [%d=%s]",
-			aSensor.id, state, descr[state]);
+			aSensor.id, p_state, descr[p_state]);
 
-	aSensor.lastState = state;
+	aSensor.lastState = p_state;
 
 	if (aSensor.event == DS_EVENT_NULL) {
 		LOG4CPP_DEBUG(log, "Event reporting disabled");
@@ -583,12 +576,12 @@ DeviceDigitalSensors::notifySensorChange(t_digitalSensor & aSensor, t_digitalSen
 
 	switch (aSensor.trigger) {
 	case DS_SIGNAL_ON_LOW:
-		if (state == DS_STATE_LOW) {
+		if (p_state == DS_STATE_LOW) {
 			notifySensorEvent(aSensor);
 		}
 		break;
 	case DS_SIGNAL_ON_HIGH:
-		if (state == DS_STATE_HIGH) {
+		if (p_state == DS_STATE_HIGH) {
 			notifySensorEvent(aSensor);
 		}
 		break;
@@ -663,30 +656,11 @@ DeviceDigitalSensors::checkPortStatusChange(t_attribute & anAttr) {
 }
 
 
+//-----[ Queuing new digital sensors reads ]------------------------------------
+
 inline exitCode
 DeviceDigitalSensors::updateSensors(void) {
-#if 0
-	t_attrMap::iterator anAttr;
-	t_portStatus value;
-	bool newEvents = false;
-	exitCode result;
-
-	anAttr = attrbutes.begin();
-	while ( anAttr != attrbutes.end()) {
-		result = checkPortStatusChange(*(anAttr->second));
-		if ( result == OK )
-			newEvents = true;
-		anAttr++;
-	}
-
-	if (!newEvents) {
-		return DS_NO_NEW_EVENTS;
-	}
-
-	return OK;
-
-#else
-	t_pcaStateVect state = new t_pca9555[d_pcaDevices];
+	t_pcaStateVect l_state = new t_pca9555[d_pcaDevices];
 	unsigned short i;
 	exitCode result;
 	DeviceI2CBus::t_i2cCommand regs;
@@ -695,13 +669,16 @@ DeviceDigitalSensors::updateSensors(void) {
 
 	for (i=0; i<d_pcaDevices; i++) {
 
+		// TODO we should use this timestamp the notification
+		l_state[i].timestamp = std::time(0);
+
 		regs = 0x00;
 		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
 		if ( result != OK ) {
 			LOG4CPP_ERROR(log, "Failed reading Port0 PCA9555@0x%02X", d_pcaAddrs[i]);
 			return result;
 		}
-		state[i].port0 = val;
+		l_state[i].port0 = val;
 
 		regs = 0x01;
 		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
@@ -709,24 +686,40 @@ DeviceDigitalSensors::updateSensors(void) {
 			LOG4CPP_ERROR(log, "Failed reading Port1 PCA9555@0x%02X", d_pcaAddrs[i]);
 			return result;
 		}
-		state[i].port1 = val;
+		l_state[i].port1 = val;
 
 		LOG4CPP_DEBUG(log, "Updated PCA9555@0x%02X status [0x%02X,0x%02X]",
-				d_pcaAddrs[i], state[i].port0, state[i].port1);
+				d_pcaAddrs[i], l_state[i].port0, l_state[i].port1);
 
 	}
 
-	d_pcaStateList.push_back(state);
-	d_sensorNotify.resume();
-	LOG4CPP_DEBUG(log, "Resuming notify thread");
-#endif
+	// Saving readings
+	d_pcaStateList.push_back(l_state);
+
+	LOG4CPP_DEBUG(log, "Resuming notify thread...");
+	this->ost::Thread::resume();
+
+	return OK;
 
 }
 
-void DeviceDigitalSensors::sensorsNotify (void) {
-	t_pcaStateVect state;
+void DeviceDigitalSensors::signalNotify(void) {
+
+	++d_notifies;
+	LOG4CPP_DEBUG(log, "Interrupt received [%d]", d_notifies);
+
+	updateSensors();
+
+}
+
+//-----[ Processing queued digital sensor reads ]-------------------------------
+
+void
+DeviceDigitalSensors::sensorsNotify (void) {
+// 	t_pcaStateVect l_state;
 	t_attrMap::iterator anAttr;
 
+	LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
 	while ( !d_pcaStateList.empty() ) {
 
 		d_pcaNextState = d_pcaStateList.front();
@@ -739,59 +732,30 @@ void DeviceDigitalSensors::sensorsNotify (void) {
 		}
 
 		d_pcaStateList.pop_front();
+		delete d_pcaNextState;
 	}
 
-	LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
-
-}
-
-DeviceDigitalSensors::SensorNotify::SensorNotify(DeviceDigitalSensors * ds) :
-	d_ds(ds),
-	d_doExit(false) {
-}
-
-void DeviceDigitalSensors::SensorNotify::doExit(void) {
-	d_doExit = true;
-	this->resume();
 }
 
 void
-DeviceDigitalSensors::SensorNotify::run(void) {
+DeviceDigitalSensors::run (void) {
+// 	exitCode result;
 
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "DeviceDS thread (%u) started", d_pid);
+
+	d_signals->registerHandler(DeviceSignals::INT_GPIO, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
+
+	d_doExit = false;
 	do {
-		suspend();
-		if (d_doExit) {
-			break;
+		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
+		ost::Thread::suspend();
+
+		if ( !d_doExit ) {
+			sensorsNotify();
 		}
-		d_ds->sensorsNotify();
-	} while(1);
 
-}
-
-
-
-void   DeviceDigitalSensors::run (void) {
-	pid_t tid;
-	int notifies = 0;
-	exitCode result;
-
-	tid = (long) syscall(SYS_gettid);
-	LOG4CPP_DEBUG(log, "working thread [%lu=>%lu] started", tid, pthread_self());
-
-	// Registering signal
-	sigInstall(SIGCONT);
-	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
-
-	while (true) {
-
-		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
-		waitSignal(SIGCONT);
-
-		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
-		result = updateSensors();
-		d_signals->ackSignal();
-
-	}
+	} while( !d_doExit );
 
 }
 

@@ -36,6 +36,7 @@
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceI2CBus.h>
 #include <controlbox/devices/DeviceTime.h>
+#include <controlbox/devices/SignalHandler.h>
 #include <controlbox/base/comsys/EventGenerator.h>
 #include <controlbox/base/comsys/EventDispatcher.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
@@ -83,6 +84,7 @@ namespace device {
 /// @see CommandHandler
 class DeviceDigitalSensors : public comsys::CommandGenerator,
 				private comsys::EventDispatcher,
+				public SignalHandler,
 				public Device {
 
 //------------------------------------------------------------------------------
@@ -146,7 +148,7 @@ public:
     };
     typedef enum digitalSensorState t_digitalSensorState;
 #define stateDescriptionArray(_name_)					\
-	char *_name_[] = {						\
+	const char *_name_[] = {						\
 		"Low",	\
 		"High",				\
 		"Unknown"		\
@@ -200,6 +202,7 @@ public:
 
 	/// A PCA9555 device input status.
 	struct pca9555 {
+		time_t timestamp;
 		t_port port0;
 		t_port port1;
 	};
@@ -245,15 +248,14 @@ protected:
     /// The sysfs base configuration path
     std::string d_sysfsbase;
 
-    /// The interrupt line to use (on PortA)
-    unsigned short d_intrLine;
+//    /// The interrupt line to use (on PortA)
+//     unsigned short d_intrLine;
 
     /// The map of configured digital sensors
     t_dsMap sensors;
 
     /// The map of confgiured attributes
     t_attrMap attrbutes;
-
 
 	/// Address of PCA devices
 	t_pcaAddr d_pcaAddrs;
@@ -267,23 +269,8 @@ protected:
 	/// The next state to be notified
 	t_pcaStateVect d_pcaNextState;
 
-	/// A thread for sensors notification
-	class SensorNotify : public ost::PosixThread {
-	public:
-		SensorNotify(DeviceDigitalSensors * ds);
-		~SensorNotify() {};
-		void run (void);
-		void doExit(void);
-	protected:
-		DeviceDigitalSensors * d_ds;
-		bool d_doExit;
-	};
-	// Allowing inner class to access DeviceAnalogSensors members
-	friend class SensorNotify;
-
-	/// The thread for sensors events notification
-	SensorNotify d_sensorNotify;
-
+	/// Number of notifies received
+	unsigned int d_notifies;
 
 
     /// The logger to use locally.
@@ -343,13 +330,17 @@ protected:
 
     inline exitCode checkPortStatusChange(t_attribute & anAttr);
 
+
+
     inline exitCode updateSensors(void);
 
-    // EventDispatcher interface to handle EventGenerator events
+    /// Digital sensors reads queuing
+    void signalNotify(void);
+
 
     void sensorsNotify (void);
 
-    /// Upload SOAP message's Thread body.
+    /// Digital sensors reads processing
     void run(void);
 
 
