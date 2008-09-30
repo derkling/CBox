@@ -1,0 +1,9 @@
+
+#include "Isoil.h"
+
+#include "DeviceTE.ih"
+
+#define DEVICE_TE_ISOIL_RX_BUFFER	512
+#define DEVICE_TE_ISOIL_RX_RETRY	3
+
+#include <iomanip>
