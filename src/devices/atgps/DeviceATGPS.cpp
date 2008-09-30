@@ -35,7 +35,7 @@ namespace device {
 DeviceATGPS * DeviceATGPS::d_instance = 0;
 
 // NOTE these values must match t_atgpsCmds enum definition
-char *DeviceATGPS::d_atgpsCmds[] = {
+const char *DeviceATGPS::d_atgpsCmds[] = {
 	// 0
 	"+QER\0",	// reg_event_register
 	"+QCM\0",	// reg_continuous_mode
@@ -47,20 +47,21 @@ char *DeviceATGPS::d_atgpsCmds[] = {
 	"\0",
 	"+ASL\0",	// odo_speed_limit
 	"+AEB\0",	// odo_emergency_break
-	"+GLO\0",	// gps_lon
+	"+APC\0",	// odo_distance_alarm
 	// 10
+	"+GLO\0",	// gps_lon
 	"+GLA\0",	// gps_lat
 	"\0",		// gps_utc
 	"\0",		// gps_val
 	"+GGS\0",	// gps_speed
-	"+GTD\0",	// gps_dir
 	// 15
+	"+GTD\0",	// gps_dir
 	"+GFV\0",	// gps_speed_value
 	"\0",		// gps_pdop
 	"\0",		// gps_hdop
 	"\0",		// gps_vdop
-	"\0",		// gps_date
 	// 20
+	"\0",		// gps_date
 	"\0",		// gps_knots
 	"\0",		// gps_var
 };
@@ -81,6 +82,8 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 	Device(Device::DEVICE_ATGPS, 0, logName),
 	d_config(Configurator::getInstance()),
 	d_tty(0),
+	d_intrMiss(false),
+	d_notifies(0),
 	log(Device::log) {
 
 	DeviceFactory * df = DeviceFactory::getInstance();
@@ -102,8 +105,8 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 		throw new exceptions::SerialDeviceException("Unable to build a SerialDevice");
 	}
 
-	d_intrLine = atoi(d_config.param("device_atgps_intr_PA_pin", ATGPS_DEFAULT_PA_INTRLINE).c_str());
-	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
+// 	d_intrLine = atoi(d_config.param("device_atgps_intr_PA_pin", ATGPS_DEFAULT_PA_INTRLINE).c_str());
+// 	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
 
 	d_ppm = atoi(d_config.param("device_atgps_ppm", ATGPS_DEFAULT_PPM).c_str());
 	LOG4CPP_INFO(log, "PPM [%d]", d_ppm);
@@ -123,6 +126,11 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 		(char **)NULL, 10);
 	LOG4CPP_INFO(log, "EmergencyBreakAlarm [%d m/s^2]", d_emergencyBreakAlarm);
 
+	d_distanceAlarm = strtoul(
+		d_config.param("device_atgps_distanceAlarm", ATGPS_DEFAULT_DISTANCE_ALARM).c_str(),
+		(char **)NULL, 10);
+	LOG4CPP_INFO(log, "DistanceAlarm [%d m]", d_distanceAlarm);
+
 	d_initDistance = strtoul(
 		d_config.param("device_atgps_initDistance", ATGPS_DEFAULT_INIT_DISTANCE).c_str(),
 		(char **)NULL, 10);
@@ -134,10 +142,13 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 
 DeviceATGPS::~DeviceATGPS() {
 
-	d_tty->closeSerial();
-	delete(d_tty);
-
 	LOG4CPP_DEBUG(log, "Stopping DeviceATGPS");
+	d_doExit = true;
+	this->ost::Thread::resume();
+
+	LOG4CPP_DEBUG(log, "Closing serial");
+	d_tty->closeSerial();
+	delete d_tty;
 
 }
 
@@ -145,7 +156,7 @@ inline exitCode
 DeviceATGPS::initDevice(void) {
 	exitCode result;
 	char buf[DEVICE_ATGPS_RXTX_BUFFER];
-	int len;
+// 	int len;
 	unsigned long events;
 
 	// Opening TTY port
@@ -164,20 +175,25 @@ DeviceATGPS::initDevice(void) {
 // 	setDeviceValue(REG_ECHO, "0\0");
 
 	// Configuring initial distance
-	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu\0", d_initDistance*d_ppm);
+	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu", d_initDistance*(unsigned long)d_ppm);
 	setDeviceValue(ODO_PCOUNT, buf);
 
 	// Configuring Alarms triggers
-	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu\0", d_highSpeedAlarm*d_ppm);
+	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu", d_highSpeedAlarm*(unsigned long)d_ppm);
 	setDeviceValue(ODO_SPEEDALARM, buf);
 
-	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu\0", d_emergencyBreakAlarm*d_ppm);
+	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu", d_emergencyBreakAlarm*(unsigned long)d_ppm);
 	setDeviceValue(ODO_BREAKALARM, buf);
+
+	snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%lu", d_distanceAlarm*(unsigned long)d_ppm);
+	setDeviceValue(ODO_DISTALARM, buf);
 
 	// Enabling Odometer
 
 	// Resetting event register
-	checkAlarms(false);
+	if (getDeviceValue(REG_EVENT, events) != OK) {
+		LOG4CPP_ERROR(log, "Reading event register failed");
+	}
 
 	// Recovering TTY detached mode
 	d_tty->detachedMode(true);
@@ -188,38 +204,24 @@ DeviceATGPS::initDevice(void) {
 
 double
 DeviceATGPS::lat() {
-	double lat = 0;
-	long deg;
-	float min;
-#ifdef CONTROLBOX_DEBUG
-	char buf[256];
-#endif
+	double llat = 0;
 
-	if (getDeviceValue(GPS_LAT, lat) != OK) {
+	if (getDeviceValue(GPS_LAT, llat) != OK) {
 		LOG4CPP_DEBUG(log, "Lat Not Available");
 		return 99.9999;
 	}
-
-	return lat;
-
+	return llat;
 }
 
 double
 DeviceATGPS::lon() {
-	double lon = 0;
-	long deg;
-	float min;
-#ifdef CONTROLBOX_DEBUG
-	char buf[256];
-#endif
+	double llon = 0;
 
-	if (getDeviceValue(GPS_LON, lon) != OK) {
+	if (getDeviceValue(GPS_LON, llon) != OK) {
 		LOG4CPP_DEBUG(log, "Lon Not Available");
 		return 999.9999;
 	}
-
-	return lon;
-
+	return llon;
 }
 
 
@@ -243,12 +245,12 @@ DeviceATGPS::odoSpeed(t_speedUnits unit) {
 
 double
 DeviceATGPS::distance(t_distUnits unit) {
-	unsigned long distance = 0;
+	unsigned long dist = 0;
 
-	if (getDeviceValue(ODO_TOTM, distance) != OK)
+	if (getDeviceValue(ODO_TOTM, dist) != OK)
 		return 0;
 
-	return distance;
+	return dist;
 
 }
 
@@ -257,7 +259,7 @@ DeviceATGPS::speedAlarm(t_speedUnits unit) {
 // 	unsigned long speedAlarm;
 //
 // 	if (getDeviceValue(ODO_SPEEDALARM, speedAlarm) != OK)
-// 		return 0;
+		return 0;
 //
 // 	return ((double)speedAlarm)/ATGPS_ROUND_FACTOR;
 }
@@ -273,7 +275,7 @@ DeviceATGPS::emergencyBreakAlarm(t_speedUnits unit) {
 }
 
 exitCode
-DeviceATGPS::setDistance(double distance, t_distUnits unit) {
+DeviceATGPS::setDistance(double dist, t_distUnits unit) {
 	return OK;
 }
 
@@ -302,19 +304,19 @@ DeviceATGPS::fixStatus() {
 
 string
 DeviceATGPS::latitude(bool iso) {
-	double latitude = lat();
+	double llat = lat();
 	char buff[] = "99.9999 E\0";
 
 	if (iso) {
-		sprintf(buff, "%+08.4f", latitude);
+		sprintf(buff, "%+08.4f", llat);
 		LOG4CPP_DEBUG(log, "===> LAT: [%s]", buff);
 		return string(buff);
 	}
 
-	if (latitude>=0) {
-		sprintf(buff, "%7.4f E", latitude);
+	if (llat>=0) {
+		sprintf(buff, "%7.4f E", llat);
 	} else {
-		sprintf(buff, "%7.4f W", -latitude);
+		sprintf(buff, "%7.4f W", -llat);
 	}
 
 	return string(buff);
@@ -322,19 +324,19 @@ DeviceATGPS::latitude(bool iso) {
 
 string
 DeviceATGPS::longitude(bool iso) {
-	double longitude = lon();
+	double llon = lon();
 	char buff[] = "999.9999 N\0";
 
 	if (iso) {
-		sprintf(buff, "%+09.4f", longitude);
+		sprintf(buff, "%+09.4f", llon);
 		LOG4CPP_DEBUG(log, "===> LON: [%s]", buff);
 		return string(buff);
 	}
 
-	if (longitude>=0) {
-		sprintf(buff, "%9.4f N", longitude);
+	if (llon>=0) {
+		sprintf(buff, "%9.4f N", llon);
 	} else {
-		sprintf(buff, "%9.4f S", -longitude);
+		sprintf(buff, "%9.4f S", -llon);
 	}
 
 	return string(buff);
@@ -411,7 +413,7 @@ DeviceATGPS::getDeviceLocalValue(t_atgpsCmds idx, char * buf, int & len) {
 inline exitCode
 DeviceATGPS::getDeviceRemoteValue(t_atgpsCmds idx, char * buf, int & len) {
 	exitCode result = OK;
-	char cmd[8];
+// 	char cmd[8];
 
 	LOG4CPP_DEBUG(log, "===> [%s]", d_atgpsCmds[idx]);
 
@@ -436,7 +438,7 @@ DeviceATGPS::getDeviceRemoteValue(t_atgpsCmds idx, char * buf, int & len) {
 
 exitCode
 DeviceATGPS::getDeviceValue(t_atgpsCmds idx, char * buf, int & len) {
-	exitCode result;
+// 	exitCode result;
 
 	if ( d_atgpsCmds[idx][0] == 0 ) {
 		// Local command
@@ -511,7 +513,7 @@ DeviceATGPS::setDeviceValue(t_atgpsCmds idx, const char * value) {
 	char buf[DEVICE_ATGPS_RXTX_BUFFER];
 	int len;
 	DeviceSerial::t_stringVector resp;
-	exitCode result;
+// 	exitCode result;
 
 	len = snprintf(buf, DEVICE_ATGPS_RXTX_BUFFER, "%s", d_atgpsCmds[idx]);
 	if (len<0 ||
@@ -559,63 +561,67 @@ DeviceATGPS::setDeviceValue(t_atgpsCmds idx, const char * value) {
 
 exitCode
 DeviceATGPS::notifyEvent(unsigned short event) {
-	comsys::Command::t_cmdType cmdType;
-	comsys::Command * cSgd;
+	comsys::Command::t_cmdType cmdt;
+	comsys::Command * cSgd = 0;
 	int eventCode = 0x00;
 	unsigned short prio = 2;
-	unsigned int speed;
+	unsigned int speed = 0;
 	std::ostringstream sbuf("");
 
 	switch (event) {
 	case MOVE:
-		cmdType = ODOMETER_EVENT_MOVE;
-		LOG4CPP_DEBUG(log, "MOVE event");
+		cmdt = ODOMETER_EVENT_MOVE;
+		LOG4CPP_INFO(log, "MOVE event");
 		break;
 	case STOP:
-		cmdType = ODOMETER_EVENT_STOP;
-		LOG4CPP_DEBUG(log, "STOP event");
+		cmdt = ODOMETER_EVENT_STOP;
+		LOG4CPP_INFO(log, "STOP event");
 		break;
 	case OVER_SPEED:
-		cmdType = ODOMETER_EVENT_OVER_SPEED;
+		cmdt = ODOMETER_EVENT_OVER_SPEED;
 		eventCode = 0x17;
 		prio = 1;
-		speed = (unsigned int)odoSpeed();
+		speed = (unsigned int)odoSpeed(DeviceOdometer::KMH);
 		if ( speed > (d_maxSpeed*3.6) ) {
 			speed = (unsigned int)(d_maxSpeed*3.6);
 		}
 		sbuf << std::uppercase << std::setw(2) << std::setfill('0') << std::hex << speed;
-		LOG4CPP_DEBUG(log, "OVER_SPEED Event");
+		LOG4CPP_INFO(log, "OVER_SPEED Event");
 		break;
 	case EMERGENCY_BREAK:
-		cmdType = ODOMETER_EVENT_EMERGENCY_BREAK;
+		cmdt = ODOMETER_EVENT_EMERGENCY_BREAK;
 		eventCode = 0x23;
 		prio = 1;
 		sbuf << "0";
-		LOG4CPP_DEBUG(log, "EMERGENCY_BREAK Event");
+		LOG4CPP_INFO(log, "EMERGENCY_BREAK Event");
 		break;
 	case SAFE_SPEED:
-		cmdType = ODOMETER_EVENT_SAFE_SPEED;
-		LOG4CPP_DEBUG(log, "SAFE_SPEED event");
+		cmdt = ODOMETER_EVENT_SAFE_SPEED;
+		LOG4CPP_INFO(log, "SAFE_SPEED event");
+		break;
+	case DIST_ALARM:
+		cmdt = ODOMETER_EVENT_DIST_ALARM;
+		LOG4CPP_INFO(log, "DIST_ALARM event");
 		break;
 	case FIX_GET:
-		cmdType = GPS_EVENT_FIX_GET;
-		LOG4CPP_DEBUG(log, "FIX_GET event");
+		cmdt = GPS_EVENT_FIX_GET;
+		LOG4CPP_INFO(log, "FIX_GET event");
 		break;
 	case FIX_LOSE:
-		cmdType = GPS_EVENT_FIX_LOSE;
-		LOG4CPP_DEBUG(log, "FIX_LOSE event");
+		cmdt = GPS_EVENT_FIX_LOSE;
+		LOG4CPP_INFO(log, "FIX_LOSE event");
 		break;
 	default:
-		LOG4CPP_DEBUG(log, "Not an ODO event");
+		LOG4CPP_WARN(log, "Not an ODO event");
 		return ATGPS_EVENT_UNDEFINED;
 	}
 
 	if ( event <= EMERGENCY_BREAK) {
-		cSgd = comsys::Command::getCommand(cmdType,
+		cSgd = comsys::Command::getCommand(cmdt,
 				Device::DEVICE_ODO, "DEVICE_ODO",
 				log.getName());
 	} else {
-		cSgd = comsys::Command::getCommand(cmdType,
+		cSgd = comsys::Command::getCommand(cmdt,
 				Device::DEVICE_GPS, "DEVICE_GPS",
 				log.getName());
 	}
@@ -644,67 +650,90 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 }
 
 exitCode
-DeviceATGPS::checkAlarms(bool notify) {
-	unsigned long reg = 0x0;
-	unsigned short eventIdx;
+DeviceATGPS::getLastEvent() {
+	exitCode result;
 
-	if (getDeviceValue(REG_EVENT, reg) != OK) {
+	result = getDeviceValue(REG_EVENT, d_atgpsLastEvent);
+	if ( result!=OK ) {
 		LOG4CPP_ERROR(log, "Reading event register failed");
-		return ATGPS_PORT_READ_ERROR;
+		return result;
 	}
 
-	if (reg==0x0) {
+	if ( d_atgpsLastEvent==0x0 ) {
 		LOG4CPP_DEBUG(log, "No new events for this device");
 		return ATGPS_NO_NEW_EVENTS;
 	}
 
-	LOG4CPP_DEBUG(log, "Event register [0x%04X]", reg);
+	// Saving readings
+	LOG4CPP_DEBUG(log, "Queuing event register [0x%04X]", d_atgpsLastEvent);
 
-	if (!notify) {
-		LOG4CPP_DEBUG(log, "Notification disabled");
-		return OK;
-	}
+	return OK;
 
-	for (eventIdx=0x1; reg; eventIdx<<=1) {
+}
+
+exitCode
+DeviceATGPS::checkAlarms() {
+	unsigned short eventIdx = 0x00;
+	unsigned short count = 0;
+
+	LOG4CPP_DEBUG(log, "Notify ODO/GPS events...");
+	for (count=0, eventIdx=0x1;
+		count<(sizeof(d_atgpsLastEvent)*8) && d_atgpsLastEvent;
+		count++, eventIdx<<=1) {
+
 		LOG4CPP_DEBUG(log, "Checking for event [0x%08X]", eventIdx);
-		if (reg & eventIdx) {
+		if (d_atgpsLastEvent & eventIdx) {
 			notifyEvent(eventIdx);
-			reg &= ~eventIdx;
+			d_atgpsLastEvent &= ~eventIdx;
 		}
+
 	}
 
 	return OK;
 }
 
-void DeviceATGPS::run (void) {
-	pid_t tid;
-	int notifies = 0;
+void DeviceATGPS::signalNotify(void) {
 	exitCode result;
 
-	tid = (long) syscall(SYS_gettid);
-	LOG4CPP_DEBUG(log, "working thread [%lu=>%lu] started", tid, pthread_self());
+	++d_notifies;
+	LOG4CPP_DEBUG(log, "Interrupt received [%d]", d_notifies);
 
-	// Registering signal
-	//setSignal(SIGCONT,true);
-	sigInstall(SIGCONT);
-	d_signals->registerHandler((DeviceSignals::t_interrupt)d_intrLine, this, SIGCONT, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
-
-	while (true) {
-
-		LOG4CPP_DEBUG(log, "Waiting for interrupt...");
-		waitSignal(SIGCONT);
-
-		LOG4CPP_DEBUG(log, "Interrupt received [%d]", ++notifies);
-/*
-		do {*/
-			result = checkAlarms();
-			d_signals->ackSignal();
-/*
-			// This loop is required to handle repeated events...
-			::sleep(1);
-			LOG4CPP_DEBUG(log, "Re-Checking for LOST interrupts...");
-		} while (result!=ATGPS_NO_NEW_EVENTS);*/
+// NOTE this will introduce too much latency in the interrupt responce path
+//	it's better to move this code in the top-halve and mark interrupt missing
+//	to trigger register re-reading
+	result = getLastEvent();
+	if ( result==ATGPS_NO_NEW_EVENTS ) {
+		LOG4CPP_WARN(log, "No new events, spurious interrupt?");
+		return;
 	}
+	if ( result!=OK ) {
+		LOG4CPP_ERROR(log, "Failed reading last event");
+		return;
+	}
+
+	LOG4CPP_DEBUG(log, "Resuming notify thread...");
+	this->ost::Thread::resume();
+
+}
+
+void DeviceATGPS::run (void) {
+
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "DeviceATGPS thread (%u) started", d_pid);
+
+	d_signals->registerHandler(DeviceSignals::INT_ODOGPS, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
+
+	do {
+		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
+		ost::Thread::suspend();
+
+		if ( !d_doExit ) {
+			LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
+			checkAlarms();
+		}
+
+	} while( !d_doExit );
+
 }
 
 }// namespace device

@@ -35,6 +35,7 @@
 #include <controlbox/base/Configurator.h>
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceTime.h>
+#include <controlbox/devices/SignalHandler.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceSerial.h>
 #include <controlbox/base/Device.h>
@@ -56,8 +57,11 @@
 #define ATGPS_DEFAULT_MAXSPEED		"36"
 /// Default minimum speed deceleration that trigger a break alarm in [m/s] (30km/h/s ~= 8m/s^2)
 #define ATGPS_DEFAULT_EMERGENCY_BREAK	"8"
-/// Default initial distance [m/s]
+/// Default initial distance [m]
 #define ATGPS_DEFAULT_INIT_DISTANCE	"0"
+/// Default distance alarm [m]
+#define ATGPS_DEFAULT_DISTANCE_ALARM	"0"
+
 //
 // #define ATGPS_SYSFS_ATTRIB_BUFSIZE	16
 // #define ATGPS_MAX_ID_LENGTH		15
@@ -78,10 +82,11 @@ namespace device {
 ///	</li>
 /// </ul>
 /// @see CommandHandler
-class DeviceATGPS : public Device,
-			public comsys::CommandGenerator,
-			public device::DeviceOdometer,
-			public device::DeviceGPS {
+class DeviceATGPS : public comsys::CommandGenerator,
+			public Device,
+			public DeviceOdometer,
+			public SignalHandler,
+			public DeviceGPS {
 
 //------------------------------------------------------------------------------
 //				Class Members
@@ -102,20 +107,21 @@ protected:
 	ODO_SPEED,		///> RO - Current speed [m/s]*M
 	ODO_SPEEDALARM,		///> RW - Minimum [m/s]*M speed that trigger an OVER-SPEED alarm
 	ODO_BREAKALARM,		///> RW - Minimum [m/s] decelleration that trigger a EMERGENCY-BREAK alarm
-	GPS_LON,
+	ODO_DISTALARM,		///> RW - Odometer pulses count between two DISTANCE alarm [p] (0=disabled)
 	// 10
+	GPS_LON,
 	GPS_LAT,
 	GPS_UTC,
 	GPS_VAL,
 	GPS_KMH,
-	GPS_DIR,
 	// 15
+	GPS_DIR,
 	GPS_FIX,
 	GPS_PDOP,
 	GPS_HDOP,
 	GPS_VDOP,
-	GPS_DATE,
 	// 20
+	GPS_DATE,
 	GPS_KNOTS,
 	GPS_VAR,
     };
@@ -132,7 +138,7 @@ protected:
     /// object (i.e. some values are computed by this class starting from other
     /// device provided values)
     /// @see t_atgpsCmds
-    static char *d_atgpsCmds[];
+    static const char *d_atgpsCmds[];
 
     /// Possible values for the events reported by the REG_EVENT command.
     /// Events are reported as a 32 bitmask composed by the oring of this
@@ -144,11 +150,16 @@ protected:
 	OVER_SPEED	= 0x00000004,
 	EMERGENCY_BREAK	= 0x00000008,
 	SAFE_SPEED	= 0x00000010,
+	DIST_ALARM	= 0x00000020,
 	// GPS Events
 	FIX_GET		= 0x00000100,
 	FIX_LOSE	= 0x00000200,
     };
     typedef enum atgpsEvents t_atgpsEvents;
+
+//	/// A list of readed event registers
+//	typedef list<unsigned long> t_atgpsEventList;
+
 
     /// The DeviceATGPS unique instance
     static DeviceATGPS * d_instance;
@@ -162,8 +173,8 @@ protected:
     /// The Time Device to use
     DeviceTime * d_time;
 
-    /// The interrupt line used by the signal device (on PortA)
-    unsigned short d_intrLine;
+//    /// The interrupt line used by the signal device (on PortA)
+//     unsigned short d_intrLine;
 
     /// The TTY port used
     DeviceSerial * d_tty;
@@ -187,8 +198,18 @@ protected:
     /// The minimum decelleration that trigger an alarm [m/s]
     unsigned d_emergencyBreakAlarm;
 
+    /// The distance alarm [m] (0=disabled)
+    unsigned d_distanceAlarm;
+
     /// The initial distance [m]
     unsigned long d_initDistance;
+
+// 	/// The list of readed events
+// 	t_atgpsEventList d_atgpsEventList;
+	unsigned long d_atgpsLastEvent;
+
+	/// Number of notifies received
+	unsigned int d_notifies;
 
     /// The logger to use locally.
     log4cpp::Category & log;
@@ -307,8 +328,7 @@ public:
     /// @param UTC set true to use UTC time zone designator (Z)
     string time(bool utc = false);
 
-    /// Check for alarms signals and eventually send a notify
-    exitCode checkAlarms(bool notify = true);
+    exitCode checkAlarms();
 
 protected:
 
@@ -352,6 +372,10 @@ protected:
     /// @param idx the t_atgpsCmds command to send
     /// @param buf a pointer to a buffer holding the value to send
     exitCode setDeviceValue(t_atgpsCmds idx, const char * value);
+
+    exitCode getLastEvent();
+
+    void signalNotify(void);
 
     /// Device hearing and command dispatching thread body.
     void run(void);
