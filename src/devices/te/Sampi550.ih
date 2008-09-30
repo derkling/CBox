@@ -1,0 +1,9 @@
+
+#include "Sampi550.h"
+
+#include "DeviceTE.ih"
+
+#define DEVICE_TE_SAMPI550_RX_BUFFER	512
+#define DEVICE_TE_SAMPI550_RX_RETRY	3
+
+#include <iomanip>
