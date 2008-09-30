@@ -34,17 +34,18 @@ namespace device {
 
 DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName) :
 			d_config(Configurator::getInstance()),
-			d_base(base),
 			d_ttyConfig(""),
 			d_ttyMuxPort(0),
 			d_gpio(0),
 			d_detachedMode(false),
+			d_base(base),
 			d_isOpen(false),
 			log(log4cpp::Category::getInstance(logName)) {
 	DeviceFactory * df = DeviceFactory::getInstance();
 	char * muxStart = 0;
 	char * confStart = 0;
 	char newTTYConf[128];
+	std::string l_param;
 
 	LOG4CPP_DEBUG(log, "Loading serial device configuration");
 
@@ -84,17 +85,14 @@ DeviceSerial::DeviceSerial(std::string const & base, std::string const & logName
 	d_initString = d_config.param(paramName("tty_initString"),
 					DEVICESERIAL_DEFAULT_INIT_STRING);
 
-	sscanf(d_config.param(paramName("tty_flowCtrl"),
-		DEVICESERIAL_DEFAULT_FLOW_CTRL).c_str(),
-		"%i", &d_flowCtrl);
+	l_param = d_config.param(paramName("tty_flowCtrl"), DEVICESERIAL_DEFAULT_FLOW_CTRL);
+	sscanf(l_param.c_str(), "%u", &d_flowCtrl);
 
-	sscanf(d_config.param(paramName("tty_respDelay"),
-		DEVICESERIAL_DEFAULT_RESPONCE_DELAY).c_str(),
-		"%i", &d_respDelay);
+	l_param = d_config.param(paramName("tty_respDelay"), DEVICESERIAL_DEFAULT_RESPONCE_DELAY);
+	sscanf(l_param.c_str(), "%u", &d_respDelay);
 
-	sscanf(d_config.param(paramName("tty_respTimeout"),
-		DEVICESERIAL_DEFAULT_RESPONCE_TIMEOUT).c_str(),
-		"%i", &d_respTimeout);
+	l_param = d_config.param(paramName("tty_respTimeout"), DEVICESERIAL_DEFAULT_RESPONCE_TIMEOUT);
+	sscanf(l_param.c_str(), "%u", &d_respTimeout);
 
 }
 
@@ -114,10 +112,11 @@ DeviceSerial::detachedMode(bool enable) {
 		LOG4CPP_INFO(log, "Transaction end");
 	}
 	d_detachedMode = enable;
+	return OK;
 }
 
 exitCode
-DeviceSerial::openSerial(bool init, t_stringVector * resp) {
+DeviceSerial::openSerial(bool p_init, t_stringVector * resp) {
 
 	// Return if we are already open
 	if ( d_isOpen ) {
@@ -168,7 +167,7 @@ DeviceSerial::openSerial(bool init, t_stringVector * resp) {
 
 	d_isOpen = true;
 
-	if (init) {
+	if (p_init) {
 		LOG4CPP_INFO(log, "Sending initialization string [%s]...", d_initString.c_str());
 		sendSerial(d_initString, resp);
 	}
@@ -182,13 +181,13 @@ DeviceSerial::isOpen() {
 }
 
 exitCode
-DeviceSerial::closeSerial(bool sync) {
+DeviceSerial::closeSerial(bool p_sync) {
 
 	if ( !d_isOpen )
 		return OK;
 
-	if (sync)
-		this->sync();
+	if (p_sync)
+		sync();
 
 	this->close();
 	d_isOpen = false;
@@ -333,7 +332,7 @@ exitCode
 DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 	int count = 0;
 #ifdef CONTROLBOX_DEBUG
-	char str[512];
+	char str[4096];
 #endif
 
 // 	if (d_detachedMode && d_gpio) {
@@ -367,9 +366,9 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 
 
 #ifdef CONTROLBOX_DEBUG
-	printHexBuf(resp, count, str, 512);
+	printHexBuf(resp, count, str, 4096);
 	LOG4CPP_DEBUG(log, "TTY_READ_HEX   [%d bytes]: %s", count, str);
-	printBuf(resp, count, str, 515);
+	printBuf(resp, count, str, 4096);
 	LOG4CPP_DEBUG(log, "TTY_READ_ASCII [%d bytes]: %s", count, str);
 #endif
 
@@ -386,7 +385,7 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 
 void
 DeviceSerial::printHexBuf(const char * buf, unsigned len, char * str, unsigned size) {
-	int i;
+	unsigned i;
 
 	for (i=0; i<len && ((i+1)*3)<size; i++)
 		sprintf(str+(i*3), " %02X", buf[i]);

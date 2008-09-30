@@ -124,7 +124,7 @@ class DeviceSerial : public ost::ttystream {
 	std::string d_initString;
 
 	/// The flow control to use
-	ost::Serial::Flow d_flowCtrl;
+	unsigned int d_flowCtrl;
 
 	/// The minimum responce delay.
 	unsigned int d_respDelay;

@@ -29,9 +29,9 @@
 
 #include "DeviceGPIO.ih"
 
+#ifdef CONTROLBOX_CRIS
 
 // Axis implementation of the DeviceGPIO interface
-#ifdef CONTROLBOX_CRIS
 # define PORT_GPRS1_PWR 		PORTG
 # define PIN_GPRS1_PWR 			PG2
 # define PORT_GPRS1_STATE 		PORTG
@@ -49,6 +49,27 @@
 # define PORT_MUX1			PORTG
 # define PIN_MUX1_BIT1 			PG28
 # define PIN_MUX1_BIT2			PG29
+
+#else
+
+// DUMMY implementation of the DeviceGPIO interface
+# define PORT_GPRS1_PWR 		0
+# define PIN_GPRS1_PWR 			0
+# define PORT_GPRS1_STATE 		0
+# define PIN_GPRS1_STATE 		0
+# define PORT_GPRS1_RST 		0
+# define PIN_GPRS1_RST 			0
+
+# define PORT_GPRS2_PWR 		0
+# define PIN_GPRS2_PWR 			0
+# define PORT_GPRS2_STATE 		0
+# define PIN_GPRS2_STATE 		0
+# define PORT_GPRS2_RST 		0
+# define PIN_GPRS2_RST 			0
+
+# define PORT_MUX1			0
+# define PIN_MUX1_BIT1 			0
+# define PIN_MUX1_BIT2			0
 #endif
 
 
@@ -72,7 +93,7 @@ DeviceGPIO::DeviceGPIO(std::string const & logName) :
 	Device(Device::DEVICE_GPIO, 0, logName),
 	d_config(Configurator::getInstance()),
 	log(Device::log) {
-	DeviceFactory * df = DeviceFactory::getInstance();
+// 	DeviceFactory * df = DeviceFactory::getInstance();
 
 	LOG4CPP_DEBUG(log, "DeviceGPIO(const std::string &, bool)");
 
@@ -108,7 +129,7 @@ DeviceGPIO::~DeviceGPIO() {
 }
 
 exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
-	bool gprsSwitch = false;
+	bool gprsSwitch;
 	unsigned char pinPowerPort;
 	t_gpioLine pinState, pinPower;
 	t_gpioState curState;
@@ -118,12 +139,12 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 		pinState = GPIO_GPRS1_STATE;
 		pinPower = GPIO_GPRS1_PWR;
 		pinPowerPort = PORT_GPRS1_PWR;
-	break;
+		break;
 	case GPRS2:
 		pinState = GPIO_GPRS2_STATE;
 		pinPower = GPIO_GPRS2_PWR;
 		pinPowerPort = PORT_GPRS2_PWR;
-	break;
+		break;
 	default:
 		return GENERIC_ERROR;
 	}
@@ -135,6 +156,7 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 				  (curState==GPIO_ON) ? "ON" : "OFF",
 				  curState);
 
+	gprsSwitch = false;
 	switch(state) {
 		case GPIO_OFF:
 			if (curState == GPIO_ON) {
@@ -152,7 +174,7 @@ exitCode DeviceGPIO::gprsPower(unsigned short gprs, t_gpioState state) {
 
 	if (gprsSwitch) {
 
-		LOG4CPP_DEBUG(log, "Switching %s GPRS-%s",
+		LOG4CPP_INFO(log, "Switching %s GPRS-%s",
 				  (state==GPIO_ON) ? "ON" : "OFF",
 				  (gprs==GPRS1) ? "1" : "2");
 
@@ -213,10 +235,12 @@ exitCode DeviceGPIO::gprsReset(unsigned short gprs) {
 				(gprs==GPRS1) ? "1" : "2",
 				port, pin-1);
 
+#ifdef CONTROLBOX_CRIS
 		gpioclearbits(port, pin);
 		gpiosetdir(port, DIROUT, pin);
 		::sleep(2);
 		gpiosetdir(port, DIRIN, pin);
+#endif
 
 	}
 
@@ -272,7 +296,7 @@ exitCode DeviceGPIO::ttyUnLock(unsigned short port) {
 }
 
 exitCode DeviceGPIO::ttySelect(unsigned short port) {
-	t_gpioLine s0, s1;
+// 	t_gpioLine s0, s1;
 
 	if (port==TTY_SINGLE)
 		return OK;
@@ -338,17 +362,23 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 		case GPIO_SET:
 			LOG4CPP_DEBUG(log, "Setting P%c%u",
 						  port, pin-1);
+#ifdef CONTROLBOX_CRIS
 			gpiosetbits(port, pin);
+#endif
 			break;
 		case GPIO_CLEAR:
 			LOG4CPP_DEBUG(log, "Resetting P%c%u",
 						  port, pin-1);
+#ifdef CONTROLBOX_CRIS
 			gpioclearbits(port, pin);
+#endif
 			break;
 		case GPIO_TOGGLE:
 			LOG4CPP_DEBUG(log, "Toggling P%c%u",
 						  port, pin-1);
+#ifdef CONTROLBOX_CRIS
 			gpiotogglebit(port, pin);
+#endif
 			break;
 		default:
 			return GENERIC_ERROR;
@@ -361,7 +391,7 @@ exitCode DeviceGPIO::gpioWrite(t_gpioOperation op, t_gpioLine gpio) {
 DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
 	unsigned char port;
 	unsigned int pin;
-	unsigned short level;
+	unsigned short level = 0;
 
  	switch(gpio) {
 		case GPIO_GPRS1_STATE:
@@ -389,7 +419,9 @@ DeviceGPIO::t_gpioState DeviceGPIO::gpioRead(t_gpioLine gpio) {
 			return GPIO_UNDEF;
 	}
 
+#ifdef CONTROLBOX_CRIS
 	level = gpiogetbits(port, pin);
+#endif
 	LOG4CPP_INFO(log, "Reading P%c%u [%hu]", port, pin-1, level);
 
 	if (level) {

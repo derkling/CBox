@@ -53,10 +53,10 @@ DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 	alarmEnables(false),
 	log(Device::log) {
 
-	short sensor;
+// 	short sensor;
 	std::ostringstream asCfgLable("");
 	std::string asCfg;
-	t_analogSensor * curSensor;
+// 	t_analogSensor * curSensor;
 
 	DeviceFactory * df = DeviceFactory::getInstance();
 
@@ -155,7 +155,8 @@ inline
 DeviceAnalogSensors::t_analogSensor * DeviceAnalogSensors::parseCfgString(std::string const & asCfg) {
 	t_analogSensor * pAs = 0;
 	std::ostringstream cfgTemplate("");
-	int enabled, alarmEnabled;
+	int enabled;
+// 	int alarmEnabled;
 	float downLimit, upperLimit;
 	char param[2];
 	char description[AS_DESC_START+1];
@@ -352,8 +353,11 @@ DeviceAnalogSensors::logSensorParams(DeviceAnalogSensors::t_analogSensor * pAs) 
 	case AS_PROTO_I2C:
 		break;
 	case AS_PROTO_SYSFS:
+		//FIXME Don't use the SYSFS implementation for the GPIO based one
+	case AS_PROTO_GPIO:
 		LOG4CPP_DEBUG(log, "\tDevice:\t%s", pAs->sysfsPath);
 		break;
+
 	}
 #endif
 
@@ -377,7 +381,7 @@ DeviceAnalogSensors::refresSensors() {
 	}
 
 	LOG4CPP_DEBUG(log, "%s", values.str().c_str());
-
+	return OK;
 }
 
 exitCode
@@ -500,14 +504,14 @@ DeviceAnalogSensors::readSysfs(DeviceAnalogSensors::t_analogSensor * pAs, t_chan
 
 inline float
 DeviceAnalogSensors::sampleToValue(DeviceAnalogSensors::t_analogSensor * pAs, int theSample) {
-	unsigned sample = (theSample < 0) ? pAs->lastSample : theSample;
+	unsigned p_sample = (theSample < 0) ? pAs->lastSample : theSample;
 	float valueRange;
 	unsigned sampleRange;
 	unsigned curSampleRange;
 
 	valueRange = pAs->maxValue - pAs->minValue;
 	sampleRange = pAs->maxSample - pAs->minSample;
-	curSampleRange = sample - pAs->minSample;
+	curSampleRange = p_sample - pAs->minSample;
 
 	return ((valueRange*curSampleRange)/sampleRange)+pAs->minValue;
 }
@@ -527,7 +531,7 @@ DeviceAnalogSensors::valueToSample(DeviceAnalogSensors::t_analogSensor * pAs, fl
 
 }
 
-short unsigned
+exitCode
 DeviceAnalogSensors::startMonitors() {
 	t_asMap::iterator aSensor;
 	DeviceAnalogSensors::t_analogSensor * pAs;
@@ -547,13 +551,13 @@ DeviceAnalogSensors::startMonitors() {
 		}
 		aSensor++;
 	}
-
+	return OK;
 }
 
-DeviceAnalogSensors::Monitor::Monitor(DeviceAnalogSensors * device, DeviceAnalogSensors::t_analogSensor * pAs, timeout_t d_pollTime) :
+DeviceAnalogSensors::Monitor::Monitor(DeviceAnalogSensors * device, DeviceAnalogSensors::t_analogSensor * pAs, timeout_t pollTime) :
 	d_device(device),
-	d_pAs(pAs),
-	d_pollTime(d_pollTime) {
+	d_pollTime(pollTime),
+	d_pAs(pAs) {
 
 }
 
@@ -584,12 +588,12 @@ DeviceAnalogSensors::checkSafety(std::string asId) {
 }
 
 bool
-DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool notify) {
+DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool p_notify) {
 	unsigned lastSample;
 	bool alarm = false;
 	bool sendNotify = false;
 
-	LOG4CPP_DEBUG(log, "DeviceAnalogSensors::checkSafety(pAs=%p, notify=%s)", pAs, notify ? "YES" : "NO");
+	LOG4CPP_DEBUG(log, "DeviceAnalogSensors::checkSafety(pAs=%p, notify=%s)", pAs, p_notify ? "YES" : "NO");
 
 	lastSample = updateSensor(pAs);
 
@@ -616,7 +620,7 @@ DeviceAnalogSensors::checkSafety(DeviceAnalogSensors::t_analogSensor * pAs, bool
 		}
 	}
 
-	if ( notify && sendNotify ) {
+	if ( p_notify && sendNotify ) {
 		notifyAlarm(pAs);
 		return alarm;
 	}
@@ -667,6 +671,7 @@ DeviceAnalogSensors::notifySensorEvent(t_analogSensor & aSensor) {
 	// Notifying command
 	notify(cSgd);
 
+	return OK;
 }
 
 inline std::string
@@ -791,7 +796,8 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 
 void DeviceAnalogSensors::run(void) {
 
-	LOG4CPP_DEBUG(log, "AnalogSensors Monitor Thread Started");
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "DeviceAS thread (%u) started", d_pid);
 
 	// Eventually start the monitor threads (that could generat events)
 	startMonitors();

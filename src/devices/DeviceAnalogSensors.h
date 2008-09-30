@@ -283,7 +283,7 @@ protected:
 
     inline t_channelValue updateSensor(t_analogSensor * pAs);
 
-    inline short unsigned startMonitors();
+    inline exitCode startMonitors();
 
     inline exitCode refresSensors();
 
