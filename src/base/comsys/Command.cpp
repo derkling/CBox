@@ -49,13 +49,34 @@ Command::Command (t_cmdType const & cmdType, std::string const & logName) :
 
 Command::Command (t_cmdType const & cmdType, Device::t_deviceType devType,
                   Device::t_deviceId devId, std::string const & logName) :
-        log(log4cpp::Category::getInstance(std::string("controlbox.comlibs.command."+logName))),
         d_cmdType(cmdType),
         d_devType(devType),
         d_devId(devId),
-        d_prio(10) {
+        d_prio(10),
+        log(log4cpp::Category::getInstance(std::string("controlbox.comlibs.command."+logName))) {
 
-    LOG4CPP_DEBUG(log, "Command::Command (type=%u, device=%u, deviceId=%s, logName=%s)", d_cmdType, d_devType, d_devId.c_str(), logName.c_str());
+	LOG4CPP_WARN(log, "NEW@%p (type=%u, device=%u, deviceId=%s, logName=%s)",
+			this,
+			d_cmdType, d_devType, d_devId.c_str(), logName.c_str());
+
+}
+
+Command::~Command () {
+	t_mapValue::iterator it;
+
+	LOG4CPP_WARN(log, "DEL@%p (type=%u, device=%u, deviceId=%s)",
+			this,
+			d_cmdType, d_devType, d_devId.c_str());
+
+	// Walking the multimap to delete dynamic allocated params (string)
+	it = d_params.begin();
+	while ( it != d_params.end() ) {
+		if ( (it->second).type ==  PT_STRING) {
+			delete (it->second).value.s;
+		}
+		it++;
+	}
+	d_params.clear();
 
 }
 
@@ -86,22 +107,20 @@ inline
 exitCode Command::eraseParam(std::string const & lable) {
     t_mapValue::iterator first;
     t_mapValue::iterator it;
-    t_cmdParam cmdParam;
-
 
     // Walking the multimap to delete dynamic allocated params (string)
     it = first = d_params.find(lable);
     if ( it != d_params.end() ) {
         do {
-            cmdParam = it->second;
-            if ( cmdParam.type ==  PT_STRING) {
-                delete cmdParam.value.s;
+            if ( (it->second).type ==  PT_STRING) {
+                delete (it->second).value.s;
             }
             it++;
         } while ( it->first != first->first );
     }
     d_params.erase(lable);
 
+    return OK;
 }
 
 void Command::setPrio(unsigned short prio) {
@@ -114,53 +133,52 @@ unsigned short Command::getPrio(void) const {
 }
 
 inline
-exitCode Command::setTheParam(std::string const & lable, t_cmdParam const & param, bool override) {
-    t_mapValue::iterator it;
+exitCode Command::setTheParam(std::string const & lable, t_cmdParam const & p, bool override) {
 
-    LOG4CPP_DEBUG(log, "Command::setTheParam(lable=%s, type=%d, override=%s)", lable.c_str(), param.type, override ? "YES" : "NO" );
+    LOG4CPP_DEBUG(log, "Command::setTheParam(lable=%s, type=%d, override=%s)", lable.c_str(), p.type, override ? "YES" : "NO" );
 
     // TODO: delete strings params!!!
     if ( override ) {
         eraseParam(lable);
     }
 
-    d_params.insert ( pair<std::string, t_cmdParam>(lable,param) );
+    d_params.insert ( pair<std::string, t_cmdParam>(lable,p) );
 
     return OK;
 }
 
 exitCode Command::setParam(std::string const & lable, int value, bool override ) {
-    t_cmdParam param;
+    t_cmdParam p;
 
     LOG4CPP_DEBUG(log, "Command::setParam(lable=%s, value=%d, override=%s)", lable.c_str(), value, override ? "YES" : "NO" );
 
-    param.type = PT_INT;
-    param.value.i = value;
+    p.type = PT_INT;
+    p.value.i = value;
 
-    return setTheParam(lable, param, override);
+    return setTheParam(lable, p, override);
 }
 
 
 exitCode Command::setParam(std::string const & lable, double value, bool override ) {
-    t_cmdParam param;
+    t_cmdParam p;
 
     LOG4CPP_DEBUG(log, "Command::setParam(lable=%s, value=%f, override=%s)", lable.c_str(), value, override ? "YES" : "NO" );
 
-    param.type = PT_FLOAT;
-    param.value.d = value;
+    p.type = PT_FLOAT;
+    p.value.d = value;
 
-    return setTheParam(lable, param, override);
+    return setTheParam(lable, p, override);
 }
 
 exitCode Command::setParam(std::string const & lable, std::string const & value, bool override) {
-    t_cmdParam param;
+    t_cmdParam p;
 
     LOG4CPP_DEBUG(log, "Command::setParam(lable=%s, value=%s, override=%s)", lable.c_str(), value.c_str(), override ? "YES" : "NO" );
 
-    param.type = PT_STRING;
-    param.value.s = new std::string(value);
+    p.type = PT_STRING;
+    p.value.s = new std::string(value);
 
-    return setTheParam(lable, param, override);
+    return setTheParam(lable, p, override);
 }
 
 
@@ -192,9 +210,9 @@ throw (exceptions::UnknowedParamException) {
     // Trying to optimize a bit multiple access for multi-value params retrivial
 
     static std::string lastSearchLable;	// the last searched pos used to optimize multi-value param retrivial
-    static unsigned int lastPos;		// the last searched pos used to optimeze forward search
-    static unsigned int lableCount;		// the elements count for lastSearchLable
-    unsigned int delta;			// used to optimize forward search
+    static unsigned int lastPos = 0;		// the last searched pos used to optimeze forward search
+    static unsigned int lableCount = 0;		// the elements count for lastSearchLable
+    unsigned int delta = 0;			// used to optimize forward search
     static t_mapValue::iterator it;		// the iterator used to optimize forward search of multi-value params
 
     LOG4CPP_DEBUG(log, "Command::param(lable=%s, pos=%u)", lable.c_str(), pos);
@@ -252,48 +270,50 @@ throw (exceptions::UnknowedParamException) {
 
 long Command::getIParam(std::string const & lable, unsigned int pos)
 throw (exceptions::UnknowedParamException) {
-    t_cmdParam param;
+    t_cmdParam p;
 
-    param = find(lable, pos);
+    p = find(lable, pos);
 
-    return param.value.i;
+    return p.value.i;
 
 }
 
 
 double Command::getFParam(std::string const & lable, unsigned int pos)
 throw (exceptions::UnknowedParamException) {
-    t_cmdParam param;
+    t_cmdParam p;
 
-    param = find(lable, pos);
+    p = find(lable, pos);
 
-    return param.value.d;
+    return p.value.d;
 
 }
 
 std::string Command::param(std::string const & lable, unsigned int pos)
 throw (exceptions::UnknowedParamException) {
-    t_cmdParam param;
+    t_cmdParam p;
     std::ostringstream s_param("");
 
     LOG4CPP_DEBUG(log, "Command::param(std::string const & lable, unsigned int pos)");
 
-    param = find(lable, pos);
+    p = find(lable, pos);
 
-    LOG4CPP_DEBUG(log, "Type: %d", param.type);
+    LOG4CPP_DEBUG(log, "Type: %d", p.type);
 
     // Halding string conversion for non string params
-    switch (param.type) {
+    switch (p.type) {
     case PT_INT:
-        s_param << param.value.i;
+        s_param << p.value.i;
         return s_param.str();
     case PT_FLOAT:
-        s_param << param.value.d;
+        s_param << p.value.d;
         return s_param.str();
+    default:
+    	break;
     }
 
 
-    return (*param.value.s);
+    return (*p.value.s);
 
 }
 

@@ -125,7 +125,7 @@ public:
     /// @see Handler
     static Command * getCommand(t_cmdType const & cmdType, Device::t_deviceType devType, Device::t_deviceId devId, std::string const & logName = "Generic");
 
-    ~Command() {};
+    ~Command();
 
     /// Set the device type identifier.
     /// @param devType the device type identifier

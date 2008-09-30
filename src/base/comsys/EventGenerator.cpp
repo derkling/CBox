@@ -33,98 +33,100 @@ namespace controlbox {
 namespace comsys {
 
 
-EventGenerator::EventGenerator(std::string const & logName) :
+EventGenerator::EventGenerator(std::string const & logName, int pri) :
         Object("comlibs."+logName),
-        Generator(),
-        dispatcher(0),
-        enabled(false),
-        running(false) {
+        Generator(pri),
+        d_dispatcher(0),
+        d_enabled(false),
+        d_running(false),
+        d_doExit(false),
+        d_pid(0) {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::EventGenerator(std::string const & logName)");
+	LOG4CPP_DEBUG(log, "EventGenerator::EventGenerator(std::string const & logName)");
 
-    LOG4CPP_WARN(log, "EventGenerator created without an associated Dispatcher");
+	LOG4CPP_WARN(log, "EventGenerator created without an associated Dispatcher");
 
 }
 
 
-EventGenerator::EventGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName) :
+EventGenerator::EventGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName, int pri) :
         Object("comlibs."+logName),
-        Generator(),
-        dispatcher(dispatcher),
-        enabled(false), // The enabled state MUST be changed only within the enable method
-        running(false) {
+        Generator(pri),
+        d_dispatcher(dispatcher),
+        d_enabled(false),
+        d_running(false) {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::EventGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName)");
+	LOG4CPP_DEBUG(log, "EventGenerator::EventGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName)");
 
-    if (enabled) {
-        enable();
-    }
+	// The enabled state MUST be changed only within the enable method
+	if ( enabled ) {
+		enable();
+	}
 
 }
 
 
 exitCode EventGenerator::setDispatcher(Dispatcher * dispatcher, bool enabled) {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::setDispatcher(Dispatcher * dispatcher, bool enabled)");
+	LOG4CPP_DEBUG(log, "EventGenerator::setDispatcher(Dispatcher * dispatcher, bool enabled)");
 
-    this->dispatcher = dispatcher;
+	d_dispatcher = dispatcher;
 
-    if (enabled) {
-        enable();
-    }
+	if (enabled) {
+		enable();
+	}
 
-    return OK;
+	return OK;
 
 }
 
 
-exitCode EventGenerator::enable()
-throw(exceptions::InitializationException) {
+exitCode EventGenerator::enable() {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::enable()");
+	LOG4CPP_DEBUG(log, "EventGenerator::enable()");
 
-    if ( !dispatcher ) {
-        LOG4CPP_ERROR(log, "Trying to enable a generator without a linked Dispatcher");
-        throw new exceptions::InitializationException();
-    }
+	if ( !d_dispatcher ) {
+		LOG4CPP_ERROR(log, "Trying to enable a generator without a linked Dispatcher");
+		return CS_DISPATCH_FAILURE;
+	}
 
-    if (!enabled ) {
-        enabled = true;
-        //checking if the thread is already running
-        if ( !running ) {
-            // otherwise start the execution
-            LOG4CPP_INFO(log, "Starting the Generator Thread execution");
-            start();
-            running = true;
-            return GEN_THREAD_STARTED;
-        }
-    }
+	if (!d_enabled ) {
+		d_enabled = true;
+		//checking if the thread is already running
+		if ( !d_running ) {
+		// otherwise start the execution
+		LOG4CPP_INFO(log, "Starting the Generator Thread execution");
+		start();
+		d_running = true;
+		return OK;
+		}
+	}
 
-    return OK;
+	return OK;
 }
 
 exitCode EventGenerator::disable() {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::disable()");
+	LOG4CPP_DEBUG(log, "EventGenerator::disable()");
 
-    enabled = false;
-    return OK;
+	d_enabled = false;
+	return OK;
 
 }
 
 
-exitCode EventGenerator::notify() {
+exitCode EventGenerator::notify(bool clean) {
 
-    LOG4CPP_DEBUG(log, "EventGenerator::notify()");
+	LOG4CPP_DEBUG(log, "EventGenerator::notify()");
 
-    if (enabled) {
-        LOG4CPP_INFO(log, "Event dispatching");
-        dispatcher->dispatch();
-        return OK;
-    } else {
-        LOG4CPP_WARN(log, "Lost event because the Generator is disabled");
-        return GEN_NOT_ENABLED;
-    }
+	if (d_enabled) {
+		LOG4CPP_INFO(log, "Event dispatching");
+		d_dispatcher->dispatch(clean);
+		return OK;
+	}
+
+	LOG4CPP_WARN(log, "Lost event because the Generator is disabled");
+	return GEN_NOT_ENABLED;
 
 }
 

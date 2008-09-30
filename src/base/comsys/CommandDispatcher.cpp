@@ -35,7 +35,7 @@ namespace comsys {
 
 CommandDispatcher::CommandDispatcher(Handler * handler, bool suspended):
         EventDispatcher(handler, suspended, "cd"),
-        command(0) {
+        d_command(0) {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::CommandDispatcher(Handler * handler, bool suspended)");
 
@@ -44,13 +44,14 @@ CommandDispatcher::CommandDispatcher(Handler * handler, bool suspended):
 
 CommandDispatcher::~CommandDispatcher() {
 
-    LOG4CPP_DEBUG(log, "~CommandDispatcher()");
+	LOG4CPP_DEBUG(log, "~CommandDispatcher()");
 
-    // ATTENZIONE: impedire l'accodamento durante lo shutdown...
-    suspended = true;
-    flushQueue(true);
-    if (command)
-        delete command;
+	// ATTENZIONE: impedire l'accodamento durante lo shutdown...
+	d_suspended = true;
+	flushQueue(true);
+	if (d_command) {
+		delete d_command;
+	}
 
 }
 
@@ -58,10 +59,10 @@ exitCode CommandDispatcher::setDefaultCommand(Command * command) {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::setDefaultCommand(Command * command)");
 
-    if ( command != this->command ) {
+    if ( d_command != command ) {
         LOG4CPP_WARN(log, "Associated default command updated");
         LOG4CPP_DEBUG(log, "Previous command overwritten but NOT released: ensure to release any provious command's memory!");
-        this->command = command;
+        d_command = command;
     }
 
     return OK;
@@ -71,7 +72,7 @@ exitCode CommandDispatcher::setDefaultCommand(Command * command) {
 exitCode CommandDispatcher::resume(bool discard) {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::resume(bool discard=%d)", discard);
-    suspended = false;
+    d_suspended = false;
 
     return flushQueue();
 
@@ -85,36 +86,37 @@ exitCode CommandDispatcher::resume(bool discard) {
 exitCode CommandDispatcher::suspend() {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::suspend()");
-    suspended = true;
+    d_suspended = true;
 
     return OK;
 }
 
 
-exitCode CommandDispatcher::dispatch()
+exitCode CommandDispatcher::dispatch(bool clean)
 throw (exceptions::InitializationException,
        exceptions::OutOfMemoryException) {
 
-    LOG4CPP_DEBUG(log, "CommandDispatcher::dispatch()");
+	LOG4CPP_DEBUG(log, "CommandDispatcher::dispatch()");
 
-    if ( !command ) {
-        LOG4CPP_ERROR(log, "Unable to dispatch Default command: NOT yet defined!");
-        throw new exceptions::InitializationException("Default command not defined");
-    }
+	if ( !d_command ) {
+		LOG4CPP_ERROR(log, "Unable to dispatch Default command: NOT yet defined!");
+		return CS_DISPATCH_FAILURE;
+	}
 
-    LOG4CPP_INFO(log, "Default command disaptching");
-    return dispatch(command);
+	LOG4CPP_INFO(log, "Default command disaptching");
+	dispatch(d_command, clean);
 
+	return OK;
 }
 
 
-exitCode CommandDispatcher::dispatch(Command * command)
+exitCode CommandDispatcher::dispatch(Command * command, bool clean)
 throw (exceptions::OutOfMemoryException) {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::dispatch(Command * command)");
 
     // If disabled...
-    if ( suspended ) {
+    if ( d_suspended ) {
         // Queuing command for handler notify
         LOG4CPP_INFO(log, "Disaptcher suspended; queuing new Command for delayed dispatching");
         queueCommand(command);
@@ -122,7 +124,12 @@ throw (exceptions::OutOfMemoryException) {
     }
 
     // Dispatching command immediatly
-    return handler->notify(command);
+    d_handler->notify(command);
+    if ( clean ) {
+    	delete command;
+    }
+
+    return OK;
 
 }
 
@@ -133,7 +140,7 @@ throw (exceptions::OutOfMemoryException) {
     LOG4CPP_DEBUG(log, "CommandDispatcher::queueCommand(Command * command)");
 
     // Queuing command for handler notify
-    queuedCommands.push(command);
+    d_queuedCommands.push(command);
 
     // ATTENZIONE: come ci si accorge di problemi di
     // allocazione, tipo memoria esaurita?!?
@@ -145,29 +152,29 @@ throw (exceptions::OutOfMemoryException) {
 
 exitCode CommandDispatcher::flushQueue(bool discard) {
 
-    LOG4CPP_DEBUG(log, "CommandDispatcher::flushQueue(bool discard=%d)", discard);
+	LOG4CPP_DEBUG(log, "CommandDispatcher::flushQueue(bool discard=%d)", discard);
 
 
-    if ( discard ) {
+	if ( discard ) {
 
-        LOG4CPP_WARN(log, "Flushing Command Queue: Discarding all commands");
+		LOG4CPP_WARN(log, "Flushing Command Queue: Discarding all commands");
 
-        while ( !suspended && !queuedCommands.empty() ) {
-            queuedCommands.pop(); // needed to effectively REMOVE the element from the queue
-        }
+		while ( !d_queuedCommands.empty() && !d_suspended ) {
+			d_queuedCommands.pop();
 
-    } else {
+		}
 
-        LOG4CPP_INFO(log, "Flushing Command Queue: Notifying all commands");
+	} else {
 
-        while ( !suspended && !queuedCommands.empty() ) {
-            handler->notify( (Command *)queuedCommands.front() );
-            queuedCommands.pop(); // needed to effectively REMOVE the element from the queue
-        }
+		LOG4CPP_INFO(log, "Flushing Command Queue: Notifying all commands");
 
-    }
+		while ( !d_queuedCommands.empty() && !d_suspended ) {
+			d_handler->notify( d_queuedCommands.front() );
+			d_queuedCommands.pop();
+		}
+	}
 
-    return OK;
+	return OK;
 
 } //namespace comsys
 } //namespace controlbox

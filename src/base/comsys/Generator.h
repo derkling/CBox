@@ -46,6 +46,8 @@ class Generator : protected ost::PosixThread {
 
 public:
 
+    Generator(int pri = 0) : ost::PosixThread(pri) {};
+
     virtual ~Generator() {};
 
     /// Define the dispatcher to witch notify new events.
@@ -61,8 +63,7 @@ public:
     ///		enabled and the corresponding thread has benn started
     /// @throw exceptions::InitializationException if the Generator couldn't be enabled because
     ///		it's not yet been defined a Dispatcher
-    virtual exitCode enable()
-    throw(exceptions::InitializationException) = 0;
+    virtual exitCode enable() = 0;
 
     /// Disable the notification of generated events
     /// Events generated while disabled are definitively lost
@@ -74,7 +75,7 @@ protected:
     /// Notify the associated event dispatcher about a new event
     /// This is usually done with a call to
     /// Dispatcher::dispatch() or Dispatcher::dispatch(Command)
-    virtual exitCode notify() = 0;
+    virtual exitCode notify(bool clean = true) = 0;
 
 };
 

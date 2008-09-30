@@ -39,15 +39,24 @@ MultipleDispatcher::~MultipleDispatcher() {
 }
 
 exitCode MultipleDispatcher::addDispatcher(Dispatcher const & dispatcher) {
+	return OK;
 }
 
-exitCode MultipleDispatcher::removeDispatcher(Dispatcher const & dispatcher) {}
+exitCode MultipleDispatcher::removeDispatcher(Dispatcher const & dispatcher) {
+	return OK;
+}
 
-int MultipleDispatcher::handlersCount() {}
+int MultipleDispatcher::handlersCount() {
+	return 0;
+}
 
-exitCode dispatch() {}
+exitCode dispatch() {
+	return OK;
+}
 
-exitCode dispatch(Command * command) {}
+exitCode dispatch(Command * command) {
+	return OK;
+}
 
 
 } //namespace comsys

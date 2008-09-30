@@ -47,13 +47,13 @@ class EventDispatcher : public Object, public Dispatcher {
 protected:
 
     /// Set to TRUE to suspend events dispatching
-    bool suspended;
+    bool d_suspended;
 
     /// While in suspended state, the number of events waiting to be notified.
-    unsigned int waiting;
+    unsigned int d_waiting;
 
     /// The linked handler
-    Handler * handler;
+    Handler * d_handler;
 
 
 public:
@@ -84,13 +84,13 @@ public:
 
     /// If not suspended, dispatch an event to the associated EventHandler.
     /// Otherwise the event is counted for future dispatching.
-    exitCode dispatch();
+    exitCode dispatch(bool clean = true);
 
 protected:
 
     /// In this implementation of Dispatcher this method is simply
     /// an empty one doing noting
-    inline exitCode dispatch(Command * command) {
+    inline exitCode dispatch(Command * command, bool clean = true) {
         return OK;
     }
 

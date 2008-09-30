@@ -34,33 +34,33 @@ namespace controlbox {
 namespace comsys {
 
 
-CommandGenerator::CommandGenerator(std::string const & logName) :
-        EventGenerator(0, false, logName) {
+CommandGenerator::CommandGenerator(std::string const & logName, int pri) :
+        EventGenerator(0, false, logName, pri) {
 
-    LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(std::string const & logName)");
-
-}
-
-
-CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName) :
-        EventGenerator(dispatcher, enabled, logName) {
-
-    LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName)");
+	LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(std::string const & logName)");
 
 }
 
-exitCode CommandGenerator::notify(Command * command) {
 
-    LOG4CPP_DEBUG(log, "CommandGenerator::notify()");
+CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName, int pri) :
+        EventGenerator(dispatcher, enabled, logName, pri) {
 
-    if (enabled) {
-        LOG4CPP_INFO(log, "Command dispatching");
-        dispatcher->dispatch(command);
-        return OK;
-    } else {
-        LOG4CPP_WARN(log, "Command not dispatched because the Generator is disabled");
-        return GEN_NOT_ENABLED;
-    }
+	LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName)");
+
+}
+
+exitCode CommandGenerator::notify(Command * command, bool clean) {
+
+	LOG4CPP_DEBUG(log, "CommandGenerator::notify()");
+
+	if (d_enabled) {
+		LOG4CPP_INFO(log, "Command dispatching");
+		d_dispatcher->dispatch(command, clean);
+		return OK;
+	}
+
+	LOG4CPP_WARN(log, "Command not dispatched because the Generator is disabled");
+	return GEN_NOT_ENABLED;
 
 }
 

@@ -48,10 +48,10 @@ class CommandDispatcher : public EventDispatcher {
 protected:
 
     /// The default command to send
-    Command * command;
+    Command * d_command;
 
     /// The queue of commands waiting to be dispatched while in suspended state
-    queue<Command *> queuedCommands;
+    queue<Command *> d_queuedCommands;
 
 public:
 
@@ -89,10 +89,11 @@ public:
     /// Disaptch the default command to Handler.
     /// If not suspended, dispatch the default commands to the associated Handler.
     /// Otherwise the command is queued for future dispatching.
+    /// @param clean when true the command is cleaned by this dispatcher before retunring
     /// @throw exceptions::InitializationException if ther's not a default command to disaptch
     /// @throw exceptions::OutOfMemoryException while in suspended state, if ther's not
     ///		enought memory to queue the command for delayed dispatching
-    exitCode dispatch()
+    exitCode dispatch(bool clean = true)
     throw (exceptions::InitializationException,
            exceptions::OutOfMemoryException);
 
@@ -101,10 +102,13 @@ public:
     /// Otherwise the command is queued for future dispatching.
     /// The default command, if needed, must be built by the subclasses's constructors.
     /// @param the Command to dispatch, if NULL the default command will be dispatched (default NULL)
+    /// @param clean when true the command is cleaned by this dispatcher before retunring
     /// @return helpers:OK on success, Core::DIS_SUSPENDED if the Command has been queued.
     /// @throw exceptions::OutOfMemoryException while in suspended state, if ther's not
     ///		enought memory to queue the command for delayed dispatching
-    exitCode dispatch(Command * command)
+    /// @note commands queued while the disaptcher is suspended are alwais cleaned
+    ///		once have been notified after resume.
+    exitCode dispatch(Command * command, bool clean = true)
     throw (exceptions::OutOfMemoryException);
 
 protected:
