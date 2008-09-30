@@ -19,6 +19,7 @@ SOURCES+= Querible.h Querible.ih Querible.cpp
 SOURCES+= QueryRegistry.h QueryRegistry.ih QueryRegistry.cpp
 SOURCES+= Utility.h Utility.ih Utility.cpp
 SOURCES+= Exception.h Exception.ih Exception.cpp
+SOURCES+= base64.h base64.c
 
 noinst_LTLIBRARIES	= libbase.la
 libbase_la_SOURCES	= $(SOURCES)
