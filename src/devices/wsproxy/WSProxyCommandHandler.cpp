@@ -52,13 +52,20 @@ WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
         d_name(logName),
         d_msgCount(0),
         d_configurator(Configurator::getInstance()),
+        d_devTime(0),
+        d_devGPS(0),
+        d_devODO(0),
+        d_devAS(0),
+        d_devPoll(0),
+        d_pollCd(0),
+        d_pollCmd(0),
+        d_pollState(NOT_MOVING),
+        d_nextPollTime(0),
+        d_lastStopTime(0),
         d_gpsFixStatus(DeviceGPS::DEVICEGPS_FIX_NA),
         d_netStatus(DeviceGPRS::LINK_DOWN),
-        d_wsAccess("wsAccessMtx"),
-        d_devPoll(0),
-        d_lastStopTime(0),
-        d_pollState(NOT_MOVING),
         d_queuesUpdated(false),
+        d_wsAccess("wsAccessMtx"),
         d_doExit(false),
         d_okToExit(false) {
 
@@ -73,16 +80,9 @@ WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
     // Setup upload queues
     initUploadQueues();
 
-#if 0
-    // Linking required devices
-    linkDependencies();
+    // Initialize the poller uploader
+    initPoller();
 
-    // Initializing Query interface
-    exportQuery();
-
-    // Starting the upload thread
-    start();
-#endif
 
 }
 
@@ -107,6 +107,12 @@ exitCode WSProxyCommandHandler::preloadParams() {
     d_configurator.param("idMotrice", WSPROXY_DEFAULT_IDM, true);
     d_configurator.param("idSemirimorchio", WSPROXY_DEFAULT_IDS, true);
     d_configurator.param("CIM", WSPROXY_DEFAULT_CIM, true);
+
+    d_configurator.param("WSProxy_polltime_stopped", WSPROXY_POLLTIME_NOT_MOVING, true);
+    d_configurator.param("WSProxy_polltime_moving", WSPROXY_POLLTIME_MOVE_NO_GPS, true);
+    d_configurator.param("WSProxy_polltime_movingwgps", WSPROXY_POLLTIME_MOVE, true);
+
+    d_configurator.param("WSProxy_polltime_min", WSPROXY_POLLTIME_MIN, true);
 
     dumpQueueFilePath = d_configurator.param("dumpQueueFilePath", DEFAULT_DUMP_QUEUE_FILEPATH);
 
@@ -168,6 +174,7 @@ exitCode WSProxyCommandHandler::startUpload() {
     // Starting the upload thread
     start();
 
+    return OK;
 }
 
 
@@ -195,7 +202,7 @@ exitCode WSProxyCommandHandler::loadEndPoints() {
 	short epId;
 	std::ostringstream epCfgLable("");
 	std::string epCfg;
-	unsigned short epType;
+	int epType;
 	EndPoint * ep;
 
 	// Load EndPoint Configuration
@@ -228,19 +235,12 @@ exitCode WSProxyCommandHandler::loadEndPoints() {
 }
 
 inline
-exitCode WSProxyCommandHandler::linkDependencies() {
-	DeviceFactory * d_devFactory = DeviceFactory::getInstance();
-	EndPoint * ep;
-	unsigned int pollTime;
+exitCode WSProxyCommandHandler::initPoller() {
+// 	DeviceFactory * d_devFactory = DeviceFactory::getInstance();
+// 	EndPoint * ep;
+// 	unsigned int pollTime;
 
-	LOG4CPP_DEBUG(log, "Finding dependendant services... ");
-
-	//FIXME check for correct initialization!!!
-
-	d_devTime = d_devFactory->getDeviceTime();
-	d_devGPS  = d_devFactory->getDeviceGPS();
-	d_devODO  = d_devFactory->getDeviceODO();
-
+	LOG4CPP_DEBUG(log, "Initialize poller uploader... ");
 
 	// Building the polling device
 	d_pollCmd = controlbox::comsys::Command::getCommand(
@@ -263,21 +263,27 @@ exitCode WSProxyCommandHandler::linkDependencies() {
 	d_lastStopTime = 0;
 	updatePoller(false, true);
 
-	//TODO load configured endpoints's GPRS
-	//d_devGPRS = df->getDeviceGPRS(DeviceGPRS::DEVICEGPRS_MODEL_ENFORA, 0);
+	return OK;
+}
 
-	d_devAS = d_devFactory->getDeviceAS();
+inline
+exitCode WSProxyCommandHandler::linkDependencies() {
+	DeviceFactory * d_devFactory = DeviceFactory::getInstance();
+// 	EndPoint * ep;
+// 	unsigned int pollTime;
+
+	LOG4CPP_DEBUG(log, "Finding dependendant services... ");
 
 	LOG4CPP_DEBUG(log, "Loading required EndPoints... ");
+	//NOTE the EndPoint loader will initialize required GPRSs too
 	loadEndPoints();
-	//     LOG4CPP_DEBUG(log, "Loading all supported EndPoints... ");
-	//     //--- Load FileEndPoint
-	//     ep = new FileEndPoint(log.getName());
-	//     d_endPoints.push_back(ep);
-	//     //--- Load DistEndPoint
-	//     ep = new DistEndPoint(log.getName());
-	//     d_endPoints.push_back(ep);
 	LOG4CPP_INFO(log, "%d EndPoints loadeds: %s", d_endPoints.size(), listEndPoint().c_str());
+
+	//FIXME check for correct initialization!!!
+	d_devTime = d_devFactory->getDeviceTime();
+	d_devAS = d_devFactory->getDeviceAS();
+	d_devGPS  = d_devFactory->getDeviceGPS();
+	d_devODO  = d_devFactory->getDeviceODO();
 
 	return OK;
 }
@@ -305,7 +311,7 @@ WSProxyCommandHandler::~WSProxyCommandHandler() {
     // Safely terminate the upload thread...
     d_doExit = true;
     if ( isRunning() ) {
-        resume();
+        this->resume();
     }
 
     // Wait for upload thread to terminate
@@ -334,7 +340,7 @@ exitCode WSProxyCommandHandler::notify() {
 exitCode WSProxyCommandHandler::notify(comsys::Command * cmd)
 throw (exceptions::IllegalCommandException) {
     t_cmdParser::iterator it;
-    t_wsData * wsData = 0;
+    t_wsData * l_wsData = 0;
     exitCode result;
 
     LOG4CPP_DEBUG(log, "%s:%d WSProxyCommandHandler::notify(Command * cmd)", __FILE__, __LINE__);
@@ -350,11 +356,11 @@ throw (exceptions::IllegalCommandException) {
 
     //Dispatching to the associated command parser for command specific
     // actions been taken.
-    result = (this->*(it->second))(&wsData, *cmd);
+    result = (this->*(it->second))(&l_wsData, *cmd);
 
     // Checking whatever the command is local adressed
     if ( result == WS_LOCAL_COMMAND ||
-    		wsData == 0 ) {
+    		l_wsData == 0 ) {
         // no more elaboration needed
         LOG4CPP_DEBUG(log, "Completed processing LOCAL command");
         return OK;
@@ -362,18 +368,18 @@ throw (exceptions::IllegalCommandException) {
 
 
     // Otherwise, we should fill-in the command common section
-    if ( fillCommonSection(wsData, *cmd) != OK ) {
+    if ( fillCommonSection(l_wsData, *cmd) != OK ) {
         //TODO: handle memory allocation error...
         LOG4CPP_ERROR(log, "Failed collecting common section data");
-        wsDataRelease(wsData);
+        wsDataRelease(l_wsData);
         return WS_MEM_FAILURE;
     }
 
 	// Setting message priority
-	wsData->prio = cmd->getPrio();
-	LOG4CPP_DEBUG(log, "Message prio [%hu]", wsData->prio);
+	l_wsData->prio = cmd->getPrio();
+	LOG4CPP_DEBUG(log, "Message prio [%hu]", l_wsData->prio);
 
-	result = queueMsg(*wsData);
+	result = queueMsg(*l_wsData);
 	if (result!=OK) {
 		LOG4CPP_WARN(log, "Failed queuing message");
 		return result;
@@ -416,19 +422,23 @@ unsigned int WSProxyCommandHandler::updatePollTime(void) {
 }
 
 exitCode WSProxyCommandHandler::updatePoller(bool notifyChange, bool force) {
-	unsigned state;
+	t_pollState state = MOVING_NO_GPS;
 	unsigned long stopTime;
 	unsigned minStopTime;
-	unsigned fix;
+	unsigned fix = 0;
 	DeviceFactory * d_devFactory;
-	double odoSpeed, gpsSpeed;
+	double odoSpeed = 0.0, gpsSpeed = 0.0;
 
-	// Collecting needed data
-	fix = d_devGPS->fixStatus();
-	odoSpeed = d_devODO->odoSpeed();
-	gpsSpeed = d_devGPS->gpsSpeed();
+	if (d_devGPS && d_devODO) {
+		// Collecting needed data
+		fix = d_devGPS->fixStatus();
+		odoSpeed = d_devODO->odoSpeed();
+		gpsSpeed = d_devGPS->gpsSpeed();
+	} else {
+		LOG4CPP_WARN(log, "GPS and ODO devices not availables");
+	}
+
 	LOG4CPP_DEBUG(log, "gpsFix [%u], odoSpeed [%f], gpsSpeed [%f]", fix, odoSpeed, gpsSpeed);
-
 
 	// Updating current device state
 	if (fix) {
@@ -457,7 +467,7 @@ exitCode WSProxyCommandHandler::updatePoller(bool notifyChange, bool force) {
 			(d_pollState==MOVING_WITH_GPS) ? "MOVING_WITH_GPS" :
 				( (d_pollState==MOVING_NO_GPS) ? "MOVING_NO_GPS" : "NOT_MOVING" )
 		);
-		return OK;
+		return WS_POLLER_UPDATE_NOT_NEEDED;
 	}
 
 	LOG4CPP_DEBUG(log, "Updating poll time (%s => %s)",
@@ -466,14 +476,15 @@ exitCode WSProxyCommandHandler::updatePoller(bool notifyChange, bool force) {
 		(state==MOVING_WITH_GPS) ? "MOVING_WITH_GPS" :
 			( (state==MOVING_NO_GPS) ? "MOVING_NO_GPS" : "NOT_MOVING" ) );
 
-	d_pollState = (t_pollState)state;
+	d_pollState = state;
 	LOG4CPP_DEBUG(log, "Poll state changed to %d", d_pollState);
 
 	updatePollTime();
 
 	// Delete any previous used poller
-	if (d_devPoll)
+	if (d_devPoll) {
 		delete d_devPoll;
+	}
 
 	// Build a new poller using corrent defined poll time
 	d_devFactory = DeviceFactory::getInstance();
@@ -506,40 +517,40 @@ std::string WSProxyCommandHandler::getMTC(void) {
 
 
 inline
-exitCode WSProxyCommandHandler::fillCommonSection(t_wsData * wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::fillCommonSection(t_wsData * p_wsData, comsys::Command & cmd) {
 
-    if ( !wsData ) {
+    if ( !p_wsData ) {
         LOG4CPP_DEBUG(log, "The wsData param has not been initialized");
         return WS_MEM_FAILURE;
     }
 
     // Initializing common data
-    strncpy(wsData->tx_date, (d_devTime->time()).c_str(), 25);
-    wsData->cmm.str("");
-    wsData->cmm << d_configurator.param("idAutista", WSPROXY_DEFAULT_IDA) << ";";
-    wsData->cmm << d_configurator.param("idMotrice", WSPROXY_DEFAULT_IDM) << ";";
-    wsData->cmm << d_configurator.param("idSemirimorchio", WSPROXY_DEFAULT_IDS) << ";";
-    wsData->cmm << getCIM();
-    strncpy(wsData->rx_lat, d_devGPS->latitude().c_str(), 8);
-    strncpy(wsData->rx_lon, d_devGPS->longitude().c_str(), 9);
+    strncpy(p_wsData->tx_date, (d_devTime->time()).c_str(), 25);
+    p_wsData->cmm.str("");
+    p_wsData->cmm << d_configurator.param("idAutista", WSPROXY_DEFAULT_IDA) << ";";
+    p_wsData->cmm << d_configurator.param("idMotrice", WSPROXY_DEFAULT_IDM) << ";";
+    p_wsData->cmm << d_configurator.param("idSemirimorchio", WSPROXY_DEFAULT_IDS) << ";";
+    p_wsData->cmm << getCIM();
+    strncpy(p_wsData->rx_lat, d_devGPS->latitude().c_str(), 8);
+    strncpy(p_wsData->rx_lon, d_devGPS->longitude().c_str(), 9);
     // Ensuring null termination of GPS coords
-    wsData->rx_lat[8] = 0;
-    wsData->rx_lon[9] = 0;
+    p_wsData->rx_lat[8] = 0;
+    p_wsData->rx_lon[9] = 0;
 
     return OK;
 
 }
 
 inline
-exitCode WSProxyCommandHandler::wsDataRelease(t_wsData * wsData) {
+exitCode WSProxyCommandHandler::wsDataRelease(t_wsData * p_wsData) {
 
     LOG4CPP_DEBUG(log, "purgeMsg(t_wsData * wsData)");
 
     //NO MORE NEEDED because endPoint are bitfileds and not a list! ;-)
     //(wsData->endPoint).clear();
 
-    delete wsData;
-    wsData = 0;
+    delete p_wsData;
+    p_wsData = 0;
 
     return OK;
 
@@ -563,24 +574,25 @@ void WSProxyCommandHandler::printQueuesStatus(void) {
 
 }
 
-exitCode WSProxyCommandHandler::queueMsg(t_wsData & wsData) {
+exitCode WSProxyCommandHandler::queueMsg(t_wsData & p_wsData) {
 	std::ostringstream queueStatus("");
-	unsigned short i;
+// 	unsigned short i;
 
-	if ( wsData.prio >= WSPROXY_UPLOAD_QUEUES )
-		wsData.prio = (WSPROXY_UPLOAD_QUEUES-1);
+	if ( p_wsData.prio >= WSPROXY_UPLOAD_QUEUES )
+		p_wsData.prio = (WSPROXY_UPLOAD_QUEUES-1);
 
-	LOG4CPP_DEBUG(log, "Queuing message with prio [%d]", wsData.prio);
+	LOG4CPP_DEBUG(log, "Queuing message with prio [%d]", p_wsData.prio);
 
-	d_uploadQueues[wsData.prio].push_front(&wsData);
+	d_uploadQueues[p_wsData.prio].push_front(&p_wsData);
 	d_queuesUpdated = true;
 
-	LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
+	LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
 
 	printQueuesStatus();
 
 	// Trigger upload thread only if this is not a queuing-only message
-	if ( wsData.prio < WSPROXY_QUEUING_ONLY_PRI ) {
+	if ( p_wsData.prio < WSPROXY_QUEUING_ONLY_PRI ) {
+		LOG4CPP_DEBUG(log, "Polling upload thread...");
 		onPolling();
 	}
 
@@ -624,6 +636,8 @@ exitCode WSProxyCommandHandler::checkEpCommands(EndPoint::t_epRespList &respList
 		delete epResp;
 		respList.pop_front();
 	}
+
+	return OK;
 }
 
 std::string WSProxyCommandHandler::getQueueMask(unsigned int queues) {
@@ -644,12 +658,12 @@ std::string WSProxyCommandHandler::getQueueMask(unsigned int queues) {
 	return buf;
 }
 
-exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
+exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData) {
     std::ostringstream msg("");
     t_EndPoints::iterator it;
     exitCode result = WS_UPLOAD_FAULT;
 
-    LOG4CPP_DEBUG(log, "WSProxyCommandHandler::callEndPoints(t_wsData & wsData)");
+    LOG4CPP_DEBUG(log, "WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData)");
 
     // NOTE: This code MUST acquire a MUTEX!!!
     d_wsAccess.enterMutex();
@@ -668,48 +682,51 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
     LOG4CPP_DEBUG(log, "Mutex acquired");
 
     // Formatting the data for EndPoint processing
-    msg << wsData.idSrc << ";";
+    msg << p_wsData.idSrc << ";";
     msg << d_devTime->time() << ";";
-    msg << wsData.rx_date << ";";
-    msg << wsData.cx_date << ";";
-    msg << wsData.cmm.str() << ";";
+    msg << p_wsData.rx_date << ";";
+    msg << p_wsData.cx_date << ";";
+    msg << p_wsData.cmm.str() << ";";
     msg << getMTC() << ";";
-    msg << wsData.rx_lat << ";";
-    msg << wsData.rx_lon << ";";
-    msg << wsData.msg.str();
+    msg << p_wsData.rx_lat << ";";
+    msg << p_wsData.rx_lon << ";";
+    msg << p_wsData.msg.str();
 
-    LOG4CPP_INFO(log, "Q%u [%05d:%s] ==>", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
+    LOG4CPP_INFO(log, "Q%u [%05d:%s] ==>", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
 
     // Sending message to all EndPoints
     it = d_endPoints.begin();
     while ( it != d_endPoints.end() ) {
 	LOG4CPP_DEBUG(log, "UPLOAD THREAD: Prosessing msg with EndPoint [%s]", ((*it)->name()).c_str() );
 
-	result = (*it)->process(wsData.msgCount, msg.str(), wsData.endPoint, wsData.respList);
-	if ( result == OK ) {
-		checkEpCommands(wsData.respList);
-	}
-
+	result = (*it)->process(p_wsData.msgCount, msg.str(), p_wsData.endPoint, p_wsData.respList);
 	switch (result) {
+	case OK:
+		checkEpCommands(p_wsData.respList);
+		break;
 	case WS_FORMAT_ERROR:
 		LOG4CPP_WARN(log, "Discarding message due to format error");
-		wsData.endPoint = 0x0;
+		p_wsData.endPoint = 0x0;
+		break;
 //FIXME if we do that, we risk to denay the upload to other endpoint that
 //	have an alive GPRS network
 // 	case GPRS_NETWORK_UNREGISTERED:
 // 		LOG4CPP_WARN(log, "GPRS network not available, retrying later");
 // 		return result;
+	default:
+		LOG4CPP_WARN(log, "UPLOAD THREAD: Unandeled return code");
 	}
 
         it++;
+
     }
 
     LOG4CPP_DEBUG(log, "UPLOAD THREAD: all EndPoint have been processed");
 
     // Remove data ONLY if all endPoints have successfully completed
     // their processing
-    if ( wsData.endPoint ) {
-        LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", wsData.prio, wsData.msgCount, getQueueMask(wsData.endPoint).c_str());
+    if ( p_wsData.endPoint ) {
+        LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
         result = WS_UPLOAD_FAULT;
     } else {
         LOG4CPP_DEBUG(log, "UPLOAD THREAD: data processing completed by all EndPoint");
@@ -718,6 +735,31 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & wsData) {
 
     // Releasing the Mutex;
     d_wsAccess.leaveMutex();
+    return result;
+
+}
+
+exitCode WSProxyCommandHandler::notifyEndPoints(bool p_suspend) {
+    std::ostringstream msg("");
+    t_EndPoints::iterator it;
+    exitCode result = WS_UPLOAD_FAULT;
+
+    // Sending message to all EndPoints
+    it = d_endPoints.begin();
+    while ( it != d_endPoints.end() ) {
+	LOG4CPP_DEBUG(log, "UPLOAD THREAD: Notifying EndPoint [%s]", ((*it)->name()).c_str() );
+
+	if ( p_suspend ) {
+		LOG4CPP_DEBUG(log, "Notifying SUSPEND to EndPoints... ");
+		(*it)->suspending();
+	} else {
+		LOG4CPP_DEBUG(log, "Notifying RESUME to EndPoints... ");
+		(*it)->resuming();
+	}
+
+        it++;
+    }
+
     return result;
 
 }
@@ -739,22 +781,35 @@ exitCode WSProxyCommandHandler::loadUploadQueueFromFile(std::string const & file
 
 
 void WSProxyCommandHandler::run(void) {
-    // A pointer to a gSOAP message to upload
+	// A pointer to a gSOAP message to upload
 	t_uploadList::iterator it;
 	unsigned int qIndex;
-	t_wsData * wsData;
+// 	t_wsData * p_wsData;
 	exitCode result;
-	unsigned int queueCount;
+// 	unsigned int queueCount;
+	unsigned short d_pid;
 
-	LOG4CPP_INFO(log, "Upload thread started");
+	d_pid = getpid();
+	LOG4CPP_INFO(log, "Upload thread (%u) started", d_pid);
 
 	do { // While system is running...
 
 		// Updating poll time (if needed)
-		updatePoller(false);
+		result = updatePoller(false);
+		if ( result == WS_POLLER_UPDATE_NOT_NEEDED ) {
+			// If the poller has been update we don't suspend
+			// EndPoints because there could be a new message to
+			// be uploaded...
+			if ( d_pollState == NOT_MOVING ) {
+				notifyEndPoints(true);
+			}
+		}
 
 		LOG4CPP_WARN(log, "UPLOAD THREAD: SUSPENDING");
-		suspend();
+		this->suspend();
+
+		// Notify EndPoints about resume...
+		notifyEndPoints(false);
 
 		do { // While new messages have been queued during upload...
 
@@ -785,21 +840,20 @@ void WSProxyCommandHandler::run(void) {
 					if (result == OK) {
 						// Removing the SOAP message from the upload queue;
 						LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
+						delete (*it);
 						it = d_uploadQueues[qIndex].erase(it);
 					} else {
 						// NOTE the erase already update the iterator to the
 						// next entry! ;-)
 						it++;
 					}
-
 					printQueuesStatus();
 				}
-
 			}
-
 		} while (d_queuesUpdated && !d_doExit);
-
 	} while ( !d_doExit );
+
+	LOG4CPP_WARN(log, "Terminating upload thread...");
 
 	// Terminating the Poll Event Generator
 	delete d_devPoll;
@@ -829,7 +883,7 @@ void WSProxyCommandHandler::onShutdown(void) {
 
 	LOG4CPP_WARN(log, "Terminating the upload thread...");
 	if ( isRunning() ) {
-		resume();
+		this->resume();
 	}
 
 	// Wait for upload thread stopping
@@ -847,47 +901,47 @@ void WSProxyCommandHandler::onShutdown(void) {
 void WSProxyCommandHandler::onPolling(void) {
 	LOG4CPP_DEBUG(log, "Resuming ready data messages's upload thread");
 	if ( isRunning() ) {
-		resume();
+		this->resume();
 	}
 }
 
-void WSProxyCommandHandler::onHangup(void) {
-	LOG4CPP_INFO(log, "SIGHUP recevied by ready SOAP messages's upload thread");
-	d_doExit = true;
-	if ( isRunning() ) {
-		resume();
-	}
-}
-
-void WSProxyCommandHandler::onException(void) {
-	LOG4CPP_INFO(log, "SIGABRT recevied by ready SOAP messages's upload thread");
-	d_doExit = true;
-	if ( isRunning() ) {
-		resume();
-	}
-}
+// void WSProxyCommandHandler::onHangup(void) {
+// 	LOG4CPP_WARN(log, "SIGHUP recevied");
+// 	d_doExit = true;
+// 	if ( isRunning() ) {
+// 		resume();
+// 	}
+// }
+//
+// void WSProxyCommandHandler::onException(void) {
+// 	LOG4CPP_WARN(log, "SIGABRT recevied");
+// 	d_doExit = true;
+// 	if ( isRunning() ) {
+// 		resume();
+// 	}
+// }
 
 inline
 WSProxyCommandHandler::t_wsData * WSProxyCommandHandler::newWsData(t_idSource src) {
-    t_wsData * wsData;
+    t_wsData * l_wsData;
 
     LOG4CPP_DEBUG(log, "WSProxyCommandHandler::newWsData(t_idSource src)");
 
-    wsData = new t_wsData();
+    l_wsData = new t_wsData();
 
     // DEFAULT initialization
-    wsData->msgCount = ++d_msgCount;
-    wsData->endPoint = EndPoint::getEndPointQueuesMask();
-    wsData->prio = WSPROXY_DEFAULT_QUEUE;
-    wsData->idSrc = src;
-    strncpy(wsData->rx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
-    (wsData->rx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
-    (wsData->cmm).str("");
-    (wsData->msg).str("");
+    l_wsData->msgCount = ++d_msgCount;
+    l_wsData->endPoint = EndPoint::getEndPointQueuesMask();
+    l_wsData->prio = WSPROXY_DEFAULT_QUEUE;
+    l_wsData->idSrc = src;
+    strncpy(l_wsData->rx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
+    (l_wsData->rx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
+    (l_wsData->cmm).str("");
+    (l_wsData->msg).str("");
 
-    LOG4CPP_DEBUG(log, "Created new wsData struct at %p", wsData);
+    LOG4CPP_DEBUG(log, "Created new wsData struct at %p", l_wsData);
 
-    return wsData;
+    return l_wsData;
 
 }
 
@@ -903,12 +957,12 @@ WSProxyCommandHandler::t_wsData * WSProxyCommandHandler::newWsData(t_idSource sr
 /// <ul>
 ///	<li>[int] fix: the fix status [NA=0, 2D=1, 3D=2]</li>
 /// </ul>
-exitCode WSProxyCommandHandler::cp_gpsEvent(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_gpsEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
 	exitCode result = WS_LOCAL_COMMAND;
 
 	LOG4CPP_DEBUG(log, "Parsing command GPS_EVENT");
 
-	(*wsData) = 0; // NO wsData: local command
+	(*p_wsData) = 0; // NO wsData: local command
 
 	switch (cmd.type()) {
 	case DeviceGPS::GPS_EVENT_FIX_GET:
@@ -931,15 +985,15 @@ exitCode WSProxyCommandHandler::cp_gpsEvent(t_wsData ** wsData, comsys::Command 
 /// <ul>
 ///	<li>[int] status: the link status [DOWN=0, GOING_DOWN=1, GOING_UP=2, UP=3]</li>
 /// </ul>
-exitCode WSProxyCommandHandler::cp_gprsStatusUpdate(t_wsData ** wsData, comsys::Command & cmd) {
-    exitCode result = WS_LOCAL_COMMAND;
+exitCode WSProxyCommandHandler::cp_gprsStatusUpdate(t_wsData ** p_wsData, comsys::Command & cmd) {
+	exitCode result = WS_LOCAL_COMMAND;
 
+	LOG4CPP_DEBUG(log, "Parsing command GPRS_STATUS_UPDATE");
 
-    LOG4CPP_DEBUG(log, "Parsing command GPRS_STATUS_UPDATE");
+	// NO wsData: local command
+	(*p_wsData) = 0;
 
-    // NO wsData: local command
-    (*wsData) = 0;
-
+/*
     try {
         d_netStatus = (DeviceGPRS::t_netStatus)cmd.getIParam("state");
     } catch (exceptions::UnknowedParamException upe) {
@@ -953,6 +1007,9 @@ exitCode WSProxyCommandHandler::cp_gprsStatusUpdate(t_wsData ** wsData, comsys::
     }
 
     return result;
+*/
+
+	return result;
 
 }
 
@@ -962,7 +1019,7 @@ exitCode WSProxyCommandHandler::cp_gprsStatusUpdate(t_wsData ** wsData, comsys::
 
 exitCode WSProxyCommandHandler::exportQuery() {
     QueryRegistry * registry;
-    Querible::t_queryDescription * descr;
+//     Querible::t_queryDescription * descr;
 
     registry = QueryRegistry::getInstance();
     if ( !registry ) {
@@ -970,17 +1027,18 @@ exitCode WSProxyCommandHandler::exportQuery() {
         return WS_REGISTRY_NOT_FOUND;
     }
 
+    return OK;
 }
 
 
-exitCode  WSProxyCommandHandler::query(Querible::t_query & query) {
-    comsys::Command * cmd;
+exitCode  WSProxyCommandHandler::query(Querible::t_query & p_query) {
+//     comsys::Command * cmd;
 
-    LOG4CPP_DEBUG(log, "Received new query [name: %s], [type: %d], [value: %s]", query.descr->name.c_str(), query.type, query.value.c_str());
+    LOG4CPP_DEBUG(log, "Received new query [name: %s], [type: %d], [value: %s]", p_query.descr->name.c_str(), p_query.type, p_query.value.c_str());
 
-    if ( query.descr->name == "SGD" ) {
+    if ( p_query.descr->name == "SGD" ) {
 
-        LOG4CPP_DEBUG(log, "SET[%s] = %s", query.descr->name.c_str(), query.value.c_str());
+        LOG4CPP_DEBUG(log, "SET[%s] = %s", p_query.descr->name.c_str(), p_query.value.c_str());
         /*
         		cmd = new comsys::Command(1,Device::WSPROXY, 0, "AT+SGD");
         		cmd->setParam("timestamp", "");
@@ -988,7 +1046,8 @@ exitCode  WSProxyCommandHandler::query(Querible::t_query & query) {
         */
     }
 
-    LOG4CPP_WARN(log, "Query received [%s] not supported", query.descr->name.c_str());
+    LOG4CPP_WARN(log, "Query received [%s] not supported", p_query.descr->name.c_str());
+    return OK;
 }
 
 
@@ -1008,20 +1067,20 @@ exitCode  WSProxyCommandHandler::query(Querible::t_query & query) {
 // TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 
 
-exitCode WSProxyCommandHandler::formatDistEvent(t_wsData ** wsData, comsys::Command & cmd, t_idSource src) {
+exitCode WSProxyCommandHandler::formatDistEvent(t_wsData ** p_wsData, comsys::Command & cmd, t_idSource src) {
 
 
    LOG4CPP_DEBUG(log, "Building new DIST event");
 
     // Building the new wsData element
-    (*wsData) = newWsData(src);
+    (*p_wsData) = newWsData(src);
 
-    strncpy((*wsData)->cx_date, cmd.param("timestamp").c_str(), WSPROXY_TIMESTAMP_SIZE);
-    ((*wsData)->cx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
+    strncpy((*p_wsData)->cx_date, cmd.param("timestamp").c_str(), WSPROXY_TIMESTAMP_SIZE);
+    ((*p_wsData)->cx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
 
     // Appending event data
-    (*wsData)->msg << setw(2) << setfill('0') << hex << cmd.param("dist_evtType");
-    (*wsData)->msg << ";" << cmd.param("dist_evtData");
+    (*p_wsData)->msg << setw(2) << setfill('0') << hex << cmd.param("dist_evtType");
+    (*p_wsData)->msg << ";" << cmd.param("dist_evtData");
 
     return OK;
 }
@@ -1031,7 +1090,7 @@ exitCode WSProxyCommandHandler::formatDistEvent(t_wsData ** wsData, comsys::Comm
 /// Command type: PollEventGenerator::SEND_POLL_DATA<br>
 /// Variable Part Code: 01<br>
 /// Command params: NONE
-exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** p_wsData, comsys::Command & cmd) {
     short count = 0;
     std::ostringstream strId("");
     std::ostringstream strData("");
@@ -1041,11 +1100,16 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
 
     LOG4CPP_DEBUG(log, "Parsing command [01] SEND_POLL_DATA");
 
-    (*wsData) = newWsData(WS_SRC_CONC);
+
+//     d_configurator.param("WSProxy_polltime_min", WSPROXY_POLLTIME_MIN, true);
+
+
+
+    (*p_wsData) = newWsData(WS_SRC_CONC);
     //FIXME we should consider OUT_OF_MEMORY problems!!!
 
-    strncpy((*wsData)->cx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
-    ((*wsData)->cx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
+    strncpy((*p_wsData)->cx_date, (d_devTime->time()).c_str(), WSPROXY_TIMESTAMP_SIZE);
+    ((*p_wsData)->cx_date)[WSPROXY_TIMESTAMP_SIZE] = 0;
 
 
     // Setting string FLAGS
@@ -1080,7 +1144,7 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
 
     // Odo velocity
     strId << "05";
-    strData << setw(2) << setfill('0') << hex << (unsigned)(d_devODO->odoSpeed()*3.6);
+    strData << setw(2) << setfill('0') << hex << (unsigned)(d_devODO->odoSpeed(DeviceOdometer::KMH));
     count++;
 
     // Longitudinal inclination
@@ -1151,9 +1215,9 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
     // TODO:
     LOG4CPP_DEBUG(log, "TODO: [16] Odo distance (raw data)");
 
-    (*wsData)->msg << "01;" << setw(2) << setfill('0') << hex << count;
-    (*wsData)->msg << strId.str();
-    (*wsData)->msg << strData.str();
+    (*p_wsData)->msg << "01;" << setw(2) << setfill('0') << hex << count;
+    (*p_wsData)->msg << strId.str();
+    (*p_wsData)->msg << strData.str();
 
     return OK;
 
@@ -1168,11 +1232,11 @@ exitCode WSProxyCommandHandler::cp_sendPollData(t_wsData ** wsData, comsys::Comm
 ///	<li>timestamp: message creation data</li>
 ///	<li>msg: </li>
 /// </ul>
-exitCode WSProxyCommandHandler::cp_sendGenericData(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendGenericData(t_wsData ** p_wsData, comsys::Command & cmd) {
 
 	LOG4CPP_DEBUG(log, "Parsing command [09] SEND_GENERIC_DATA");
 
-	return formatDistEvent(wsData, cmd, WS_SRC_ICD);
+	return formatDistEvent(p_wsData, cmd, WS_SRC_ICD);
 
 }
 
@@ -1183,35 +1247,35 @@ exitCode WSProxyCommandHandler::cp_sendGenericData(t_wsData ** wsData, comsys::C
 /// <ul>
 ///	<li>event: event code, 2 hex digit</li>
 /// </ul>
-exitCode WSProxyCommandHandler::cp_sendCodedEvent(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendCodedEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
 
 	LOG4CPP_DEBUG(log, "Parsing command [0A] SEND_CODED_EVENT");
 
-	return formatDistEvent(wsData, cmd, WS_SRC_ICD);
+	return formatDistEvent(p_wsData, cmd, WS_SRC_ICD);
 
 }
 
 /// Eventi provenienti dai sensori digitali.
-exitCode WSProxyCommandHandler::cp_sendDSEvent(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendDSEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
 
 	LOG4CPP_DEBUG(log, "Parsing DS Event");
 
-	return formatDistEvent(wsData, cmd, WS_SRC_CONC);
+	return formatDistEvent(p_wsData, cmd, WS_SRC_CONC);
 
 }
 
 /// Eventi provenienti dalla Testata Elettronica.
-exitCode WSProxyCommandHandler::cp_sendTEEvent(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendTEEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
 
 	LOG4CPP_DEBUG(log, "Parsing TE Events");
 
-	return formatDistEvent(wsData, cmd, WS_SRC_CONC);
+	return formatDistEvent(p_wsData, cmd, WS_SRC_CONC);
 
 }
 
 /// Eventi provenienti dall'odometro.
-exitCode WSProxyCommandHandler::cp_sendOdoEvent(t_wsData ** wsData, comsys::Command & cmd) {
-	int event;
+exitCode WSProxyCommandHandler::cp_sendOdoEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
+// 	int event;
 	// NOTE if not otherwise specified the command is LOCALLY ADDRESSED
 	exitCode result = WS_LOCAL_COMMAND;
 
@@ -1220,29 +1284,36 @@ exitCode WSProxyCommandHandler::cp_sendOdoEvent(t_wsData ** wsData, comsys::Comm
 
 	switch (cmd.type()) {
 	case DeviceOdometer::ODOMETER_EVENT_MOVE:
-		LOG4CPP_INFO(log, "MOVE event");
-		*wsData = 0; // NO wsData: local command
+		LOG4CPP_DEBUG(log, "MOVE event");
+		*p_wsData = 0; // NO wsData: local command
 		updatePoller();
 		break;
 	case DeviceOdometer::ODOMETER_EVENT_STOP:
-		LOG4CPP_INFO(log, "STOP event");
-		*wsData = 0; // NO wsData: local command
+		LOG4CPP_DEBUG(log, "STOP event");
+		*p_wsData = 0; // NO wsData: local command
 		d_lastStopTime = std::time(0);
 		updatePoller();
 		break;
 	case DeviceOdometer::ODOMETER_EVENT_OVER_SPEED:
-		LOG4CPP_INFO(log, "OVER_SPEED event");
+		LOG4CPP_DEBUG(log, "OVER_SPEED event");
 		// This events should be notified
-		result = formatDistEvent(wsData, cmd, WS_SRC_CONC);
+		result = formatDistEvent(p_wsData, cmd, WS_SRC_CONC);
 		break;
 	case DeviceOdometer::ODOMETER_EVENT_EMERGENCY_BREAK:
-		LOG4CPP_INFO(log, "EMERGENCY_BREAK event");
+		LOG4CPP_DEBUG(log, "EMERGENCY_BREAK event");
 		// This events should be notified
-		result = formatDistEvent(wsData, cmd, WS_SRC_CONC);
+		result = formatDistEvent(p_wsData, cmd, WS_SRC_CONC);
 		break;
 	case DeviceOdometer::ODOMETER_EVENT_SAFE_SPEED:
-		*wsData = 0; // NO wsData: local command
+		*p_wsData = 0; // NO wsData: local command
 		LOG4CPP_DEBUG(log, "SAFE SPEED event (ignored)");
+		break;
+	case DeviceOdometer::ODOMETER_EVENT_DIST_ALARM:
+		*p_wsData = 0; // NO wsData: local command
+		LOG4CPP_DEBUG(log, "DIST ALARM event");
+		if ( d_devPoll ) {
+			d_devPoll->trigger();
+		}
 		break;
 	}
 
@@ -1251,11 +1322,11 @@ exitCode WSProxyCommandHandler::cp_sendOdoEvent(t_wsData ** wsData, comsys::Comm
 }
 
 /// Eventi provenienti dall'odometro.
-exitCode WSProxyCommandHandler::cp_sendSignalEvent(t_wsData ** wsData, comsys::Command & cmd) {
+exitCode WSProxyCommandHandler::cp_sendSignalEvent(t_wsData ** p_wsData, comsys::Command & cmd) {
 
 	LOG4CPP_DEBUG(log, "Parsing Signal Event");
 
-	return formatDistEvent(wsData, cmd, WS_SRC_CONC);
+	return formatDistEvent(p_wsData, cmd, WS_SRC_CONC);
 
 }
 

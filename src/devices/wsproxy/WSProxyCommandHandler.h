@@ -74,6 +74,8 @@
 /// The maximun number of configurables EndPoints
 #define WSPROXY_EP_MAXNUM	3
 
+/// Minimum time between successive poll messages [s]
+#define WSPROXY_POLLTIME_MIN				"20"
 /// Poll delay [s] when device is not moving
 #define WSPROXY_POLLTIME_NOT_MOVING			"120"
 /// Poll delay [s] when device is moving
@@ -272,6 +274,12 @@ protected:
 
     unsigned d_pollTime;
 
+    /// Minimum time between successive poll messages
+    unsigned d_minPollTime;
+
+    /// Next valid poll message time
+    unsigned d_nextPollTime;
+
     unsigned long d_lastStopTime;
 
 //---------------------------------------------------[ STATE ]------------------
@@ -393,6 +401,9 @@ protected:
     /// Load the configured EndPoints
     inline exitCode loadEndPoints();
 
+    /// Initialize the poll event generator
+    inline exitCode initPoller();
+
     /// Link dependant devices.
     /// This method provide to get referencies to required device.
     /// @return OK on success.
@@ -458,11 +469,11 @@ protected:
     /// while network link is down, network link coming.
     void onPolling(void);
 
-    /// A derived method to handle Hangup signals delivered to the specified thread.
-    void onHangup(void);
+//    /// A derived method to handle Hangup signals delivered to the specified thread.
+//     void onHangup(void);
 
-    /// A derived method to handle Abort delivered to the specified thread.
-    void onException(void);
+//    /// A derived method to handle Abort delivered to the specified thread.
+//     void onException(void);
 
     void printQueuesStatus(void);
 
@@ -492,6 +503,11 @@ protected:
     /// @note This class leave message untouched.
     exitCode callEndPoints(t_wsData & msg);
 
+    /// Notify EndPoint about upload thread resuming or suspending
+    /// @param suspend set true to notify the EndPoint we are suspending
+    ///		the upload thread
+    exitCode notifyEndPoints(bool suspend = true);
+
     inline WSProxyCommandHandler::t_wsData * newWsData(t_idSource src = WS_SRC_CONC);
 
     /// Securely release memory on wsData delete.
@@ -504,13 +520,13 @@ protected:
     /// Flush the upload queue entry into the specified file.
     /// @param filepath the path of the file into witch data must be saved
     /// @return OK on success
-    exitCode flushUploadQueueToFile() {};
+    exitCode flushUploadQueueToFile() { return OK; };
 
     /// Load upload queue from file.
     /// Load the upload queue entry from the specified file.
     /// @param filepath the path of the file from witch data must be loaded
     /// @return OK on success
-    exitCode loadUploadQueueFromFile() {};
+    exitCode loadUploadQueueFromFile() { return OK; };
 
 //-----[ Query interface ]------------------------------------------------------
 
