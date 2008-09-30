@@ -155,7 +155,9 @@ int cBoxMain(std::string const & conf,
 		std::string const & cmdlog) {
 	sigset_t mask;
 	struct sigaction act;
-	int status;
+
+	// Ensuring there are not running PPPD deamons that lock modems TTY's ports
+	system("killall pppd");
 
 	// Preloading the configuration options
 	controlbox::Configurator::getInstance(conf);
@@ -207,7 +209,6 @@ int cBoxMain(std::string const & conf,
 	// FIXME this should be a blocking call?!?
 	uploader->onShutdown();
 
-shutdown:
 	delete devGPRS;
 
 // FIXME the following devices have some problems on deleting them
@@ -253,7 +254,7 @@ int main (int argc, char *argv[]) {
 			{"nocolors", no_argument, 0, 'y'},
 			{0, 0, 0, 0}
 		};
-	static char * optstring = "c:d:hl:vy";
+	static const char * optstring = "c:d:hl:vy";
 	int c;
 	bool silent = true;
 
