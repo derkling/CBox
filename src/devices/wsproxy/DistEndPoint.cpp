@@ -108,9 +108,26 @@ d_csoap.soap->imode &= ~SOAP_IO_KEEPALIVE;
 d_csoap.soap->omode &= ~SOAP_IO_KEEPALIVE;
 
 // Configuring TIMEOUTS
-LOG4CPP_WARN(log, "gSOAP send/recv Timeouts: 5/15 [s]");
-d_csoap.soap->send_timeout = 5; // [s]
-d_csoap.soap->recv_timeout = 15; // [s]
+// NOTE A positive value measures the timeout in seconds. A negative timeout
+//	value measures the timeout in microseconds (10-6 sec).
+//	A value of zero disables timeout.
+//	When a timeout occurs in send/receive operations, a SOAP_EOF exception
+//	will be raised ("end of file or no input").
+// 	The soap.connect_timeout specifies the timeout value for soap_call_ns__method calls.
+//	The soap.accept_timeout specifies the timeout value for soap_accept(&soap) calls.
+//	The soap.send_timeout and soap.recv_timeout specify the timeout values for
+//	non-blocking socket I/O operations.
+// NOTE Caution: Many Linux versions do not support non-blocking connect().
+//	Therefore, setting soap.connect_timeout for non-blocking soap_call_ns__method
+//	calls may not work under Linux.
+#define Sec *1
+#define uSec *-1
+#define mSec *-1000
+LOG4CPP_WARN(log, "gSOAP connect/send/recv Timeouts: 5/5/30 [s]");
+d_csoap.soap->connect_timeout = 5 Sec;
+// d_csoap.soap->accept_timeout = 5;
+d_csoap.soap->send_timeout = 5 Sec;
+d_csoap.soap->recv_timeout = 30 Sec;
 
 #if 0
    // Configuring the WebService endpoint
@@ -138,6 +155,12 @@ DistEndPoint::~DistEndPoint() {
 
 }
 
+exitCode DistEndPoint::suspending() {
+// 	LOG4CPP_DEBUG(log, "Disconnecting GPRS due to upload thread suspension");
+// 	d_devGPRS->disconnect();
+	return OK;
+}
+
 exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const & msg, EndPoint::t_epRespList &respList) {
 	_ns1__uploadData soapMsg;
 	_ns1__uploadDataResponse wsResp;
@@ -147,7 +170,7 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 	std::ostringstream error("Data upload to DIST server ERROR: ");
 	int wsresult;
 	exitCode result = OK;
-	int retry = 3;
+// 	int retry = 3;
 
 	if (!d_devGPRS) {
 		LOG4CPP_WARN(log, "Unable to upload data, devGPRS not present");
@@ -228,6 +251,9 @@ exitCode DistEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 				LOG4CPP_WARN(log, "Format error, discarding message");
 				goto exit_error;
 				break;
+			default:
+				LOG4CPP_WARN(log, "EP-DIST: unexpected result code (%d) from checkResponce", result);
+				break;
 			}
 
 		}
@@ -247,8 +273,8 @@ exit_error:
 
 bool
 DistEndPoint::srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumber) {
-	unsigned int bit;
-	unsigned int shift;
+	unsigned int bit = 0;
+	unsigned int shift = 0;
 
 	shift = d_qmShiftCount+srvNumber-1;
 	LOG4CPP_DEBUG(log, "EP-DIST: bit: %d, shiftCount: %d, SrvNum: %d, shift: %d",
@@ -268,8 +294,8 @@ DistEndPoint::srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumbe
 
 unsigned int
 DistEndPoint::getQueueMask(unsigned int & epEnabledQueues, unsigned short srvNumber) {
-	unsigned int bit;
-	unsigned int shift;
+	unsigned int bit = 0;
+	unsigned int shift = 0;
 
 	shift = d_qmShiftCount+srvNumber-1;
 	LOG4CPP_DEBUG(log, "EP-DIST: bit: %d, shiftCount: %d, SrvNum: %d, shift: %d",
@@ -301,7 +327,7 @@ DistEndPoint::checkResponce(unsigned short srvNumber, char * xml, EndPoint::t_ep
 	unsigned short code;
 	exitCode result = OK;
 	t_epResp * resp;
-	t_epCmd * epCmd;
+	t_epCmd * p_epCmd;
 
 	LOG4CPP_DEBUG(log, "Checking DIST server responce [%s]", xml);
 
@@ -345,10 +371,14 @@ DistEndPoint::checkResponce(unsigned short srvNumber, char * xml, EndPoint::t_ep
 		(*pend) = 0; // Terminating value string
 		pend++;
 
-		code = sscanf(pcode, "%i", &code);
+		if ( sscanf(pcode, "%hu", &code) == EOF ) {
+			LOG4CPP_WARN(log, "EP-DIST: parse error on server recponce");
+			break;
+		}
+
 		LOG4CPP_DEBUG(log, "Processing server command [%u: %s]", code, pvalue);
 
-		epCmd = new t_epCmd;
+		p_epCmd = new t_epCmd;
 		switch (code) {
 		case 1:		//01 CIM
 		case 2:		//02 messaggio per l’autista
@@ -357,8 +387,8 @@ DistEndPoint::checkResponce(unsigned short srvNumber, char * xml, EndPoint::t_ep
 		case 5:		//05 costante odometrica
 		case 6:		//06 impostazione odometro
 		case 8:		//08 attivazione/disattivazione telemetria
-			epCmd->code = code;
-			epCmd->value = std::string(pvalue);
+			p_epCmd->code = code;
+			p_epCmd->value = std::string(pvalue);
 			break;
 		case 7:		//07 indirizzo web service
 			LOG4CPP_INFO(log, "Updating DIST servers IP addresses...");
@@ -370,7 +400,7 @@ DistEndPoint::checkResponce(unsigned short srvNumber, char * xml, EndPoint::t_ep
 		};
 
 		// Appending command to responce
-		(resp->cmds).push_back(epCmd);
+		(resp->cmds).push_back(p_epCmd);
 
 		// Looking for next command
 		pcode = strcasestr(pend, "<ans>");

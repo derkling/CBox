@@ -103,6 +103,10 @@ public:
 
 	exitCode upload(unsigned int & epEnabledQueues, std::string const & msg, EndPoint::t_epRespList &respList);
 
+	exitCode suspending();
+//
+// 	virtual exitCode resuming() { return OK; };
+
 protected:
 
 	/// Check server responce for errors or piggibacked commands
