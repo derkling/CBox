@@ -32,15 +32,17 @@
 namespace controlbox {
 
 Object::Object(std::string const & logName) :
+	log( log4cpp::Category::getInstance("controlbox."+logName) )
 #if CONTROLBOX_DEBUG > 1
-	ct( log4cpp::Category::getInstance("controlbox.calltrace")),
+	, ct( log4cpp::Category::getInstance("controlbox.calltrace"))
 #endif
-        log( log4cpp::Category::getInstance("controlbox."+logName) ) {
+	{
 
 }
 
 exitCode Object::preloadParams() {
-    LOG4CPP_DEBUG(log, "TODO: Params configuration NOT implemented by this class");
+	LOG4CPP_DEBUG(log, "TODO: Params configuration NOT implemented by this class");
+	return OK;
 }
 
 }

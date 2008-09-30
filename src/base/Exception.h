@@ -43,17 +43,17 @@ namespace exceptions{
 class Exception {
 protected:
     /// A descriptive string for the exception
-    string message;
+    string d_message;
 
 public:
 
     /// Create a new Exception.
     Exception(const string & message) :
-            message(message) {}
+            d_message(message) {}
 
     /// Return a descriptive string for the current Exception object
     inline const string & getMessage() {
-        return message;
+        return d_message;
     }
 
 };

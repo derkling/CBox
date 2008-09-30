@@ -57,9 +57,9 @@ const char *Device::d_deviceTypeName[] = {
 
 Device::Device(t_deviceType type, short int id, std::string const & logName) :
         Object("device."+logName),
-        d_name(logName),
         d_type(type),
-        d_id("") {
+        d_id(""),
+        d_name(logName) {
 
     LOG4CPP_DEBUG(log, "Device::Device(%s)", d_name.c_str());
 
@@ -72,9 +72,9 @@ Device::Device(t_deviceType type, short int id, std::string const & logName) :
 
 Device::Device(t_deviceType type, std::string const & id, std::string const & logName) :
         Object("device."+logName),
-        d_name(logName),
         d_type(type),
-        d_id(id) {
+        d_id(id),
+        d_name(logName) {
 
     LOG4CPP_DEBUG(log, "Device::Device(id=%s, %s)", d_id.c_str(), d_name.c_str());
 

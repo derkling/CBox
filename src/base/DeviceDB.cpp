@@ -118,9 +118,7 @@ exitCode DeviceDB::unregisterDevice(Device * device, Device::t_deviceType const 
 
 inline
 DeviceDB::t_dbEntry::iterator DeviceDB::find(Device::t_deviceType const & type) {
-    t_dbEntry::iterator first;
     t_dbEntry::iterator it;
-    t_deviceEntry entry;
 
     LOG4CPP_DEBUG(log, "DeviceDB::find(type=%d)", type);
 

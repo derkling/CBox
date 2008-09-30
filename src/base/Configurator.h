@@ -87,11 +87,11 @@ protected:
 
     static Configurator * d_instance;
 
-    /// The configuration file path.
-    std::string d_confFile;
-
     /// The logger to use.
     log4cpp::Category & log;
+
+    /// The configuration file path.
+    std::string d_confFile;
 
     /// The memory loaded configuration params.
     /// This map define the set of required params that shuld be kept on
@@ -121,11 +121,11 @@ public:
 
     /// Test if a param has a specified value.
     /// @param keep set to true to optimize multiple value test for the same param.
-    inline bool testParam(std::string const & param, std::string const & expectedValue, bool keep = false) {
+    inline bool testParam(std::string const & p, std::string const & expectedValue, bool keep = false) {
         std::string confParam;
         bool isEqual;
 
-        confParam = d_instance->param(param, "", keep);
+        confParam = d_instance->param(p, "", keep);
         isEqual = (expectedValue == confParam );
 
         LOG4CPP_DEBUG(log, "Is [%s]==[%s]? %s", expectedValue.c_str(), confParam.c_str(), isEqual ? "YES" : "NO");

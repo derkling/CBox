@@ -35,11 +35,11 @@ namespace controlbox {
 
 
 exitCode Querible::registerQuery(t_queryID id,
-				t_queryName name,
+				t_queryName n,
 				std::string const & description,
 				std::string const & values,
 				t_querySupportedType flags) {
-	
+
 	Querible::t_queryDescription * descr;
 	static QueryRegistry * registry = QueryRegistry::getInstance();
 
@@ -49,13 +49,15 @@ exitCode Querible::registerQuery(t_queryID id,
 
 	descr = new Querible::t_queryDescription();
 	descr->id = id;
-	descr->name = name;
+	descr->name = n;
 	descr->flags = flags;
 	descr->description = description;
 	descr->supportedValues = values;
 
 	registry->registerQuery(this, descr);
-	
+
+	return OK;
+
 }
 
 }

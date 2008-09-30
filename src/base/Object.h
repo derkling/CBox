@@ -49,6 +49,8 @@ class Object {
 
 public:
 
+    /// Class destructor
+    virtual ~Object() {};
 
 protected:
 
@@ -76,9 +78,6 @@ protected:
     /// @param logName the log category, this name is prepended by the
     ///		class namespace "controlbox."
     Object(std::string const & logName = "Object");
-
-    /// Class destructor
-    ~Object() {};
 
     /// Check for configuration params.
     /// This method should be used in Object contructors in order to

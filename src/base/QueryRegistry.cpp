@@ -59,7 +59,6 @@ QueryRegistry::~QueryRegistry() {
 
 exitCode QueryRegistry::registerQuery(Querible * querible, t_pQdesc queryDescriptor) {
     t_queryRegistry::iterator queryIt;
-    t_queribleRegistry::iterator queribleIt;
     std::string const & query = (queryDescriptor->name);
 
     LOG4CPP_DEBUG(log, "QueryRegistry::registerQuery(query=%s, querible=%p)", query.c_str(), querible);

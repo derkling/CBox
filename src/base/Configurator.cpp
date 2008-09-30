@@ -68,28 +68,28 @@ Configurator::~Configurator() {
 }
 
 
-std::string Configurator::param(std::string const & param, std::string const & defaultValue, bool keep)
+std::string Configurator::param(std::string const & p, std::string const & defaultValue, bool keep)
 throw (exceptions::IOException) {
     t_mapProperty::iterator it;
     string		line;
     char		c_line[MAX_CONFFILE_LINE];
-    short		c_lineLableLength;
+    unsigned short	c_lineLableLength;
     char *		c_lineValue;
     char *		c_param;
     size_t		c_paramLen;
-    int 		pos;
-    ifstream 	c_file;
+//     int 		pos;
+    ifstream 		c_file;
     short 		i;
     short		lineLength;
-    std::string	fileParam;
+    std::string		fileParam;
     bool		found;
 
-    LOG4CPP_DEBUG(log, "Configurator::param(param = [%s], defaultValue = [%s])", param.c_str(), defaultValue.c_str());
+    LOG4CPP_DEBUG(log, "Configurator::param(param = [%s], defaultValue = [%s])", p.c_str(), defaultValue.c_str());
 
     // FIRST: Looking for (modified/new) param on memory
-    it = d_property.find(param);
+    it = d_property.find(p);
     if ( it != d_property.end() ) {
-        LOG4CPP_DEBUG(log, "Loading attribute [%s] from memory: [%s]", param.c_str(), (it->second).value.c_str());
+        LOG4CPP_DEBUG(log, "Loading attribute [%s] from memory: [%s]", p.c_str(), (it->second).value.c_str());
         return (it->second).value;
     }
 
@@ -100,7 +100,7 @@ throw (exceptions::IOException) {
         throw exceptions::IOException();
     }
 
-    c_param = (char *)param.c_str();
+    c_param = (char *)p.c_str();
     c_paramLen = strlen(c_param);
     while ( ! c_file.eof() ) {
 
@@ -142,57 +142,59 @@ throw (exceptions::IOException) {
 
         if ( ! strncmp(c_line, c_param, c_lineLableLength) ) {
             c_file.close();
-            LOG4CPP_DEBUG(log, "Loading attribute [%s] from file: [%s]", param.c_str(), c_lineValue);
+            LOG4CPP_DEBUG(log, "Loading attribute [%s] from file: [%s]", p.c_str(), c_lineValue);
             fileParam = string(c_lineValue);
             if ( keep ) {
-                addParam(param, fileParam);
+                addParam(p, fileParam);
             }
             return fileParam;
         }
     }
 
     c_file.close();
-    LOG4CPP_DEBUG(log, "Loading attribute [%s] from default value: [%s]", param.c_str(), defaultValue.c_str());
+    LOG4CPP_DEBUG(log, "Loading attribute [%s] from default value: [%s]", p.c_str(), defaultValue.c_str());
     if ( keep ) {
-        addParam(param, defaultValue);
+        addParam(p, defaultValue);
     }
     return defaultValue;
 }
 
 inline
-exitCode Configurator::addParam (std::string const & param, std::string const & value, bool sync) {
+exitCode Configurator::addParam (std::string const & p, std::string const & value, bool sync) {
     t_param entry;
 
     entry.toSync = sync;
     entry.value = value;
 
-    d_property.insert(pair<std::string, t_param>(param, entry));
+    d_property.insert(pair<std::string, t_param>(p, entry));
 
-    LOG4CPP_INFO(log, "Added param [%s] on memory", param.c_str());
+    LOG4CPP_INFO(log, "Added param [%s] on memory", p.c_str());
+
+   return OK;
 
 }
 
 
 
-exitCode Configurator::setParam(std::string const & param, std::string const & value, bool sync)
+exitCode Configurator::setParam(std::string const & p, std::string const & value, bool sync)
 throw (exceptions::IOException) {
     t_mapProperty::iterator it;
 
-    LOG4CPP_DEBUG(log, "setParam(param=%s, value=%s, sync=%s)", param.c_str(), value.c_str(), sync ? "YES" : "NO" );
+    LOG4CPP_DEBUG(log, "setParam(param=%s, value=%s, sync=%s)", p.c_str(), value.c_str(), sync ? "YES" : "NO" );
 
-    it = d_property.find(param);
+    it = d_property.find(p);
     if ( it == d_property.end() ) {
         // The param is not yet on memory
-        LOG4CPP_DEBUG(log, "Setting param [%s] value on memory", param.c_str());
-        addParam(param, value, sync);
+        LOG4CPP_DEBUG(log, "Setting param [%s] value on memory", p.c_str());
+        addParam(p, value, sync);
     } else {
         // The param is already on memory: updating value
-        LOG4CPP_DEBUG(log, "Updating param [%s] value on memory ([%s] => [%s])", param.c_str(), (it->second).value.c_str(), value.c_str());
+        LOG4CPP_DEBUG(log, "Updating param [%s] value on memory ([%s] => [%s])", p.c_str(), (it->second).value.c_str(), value.c_str());
         (it->second).toSync = sync;
         (it->second).value = value;
     }
 
-    LOG4CPP_DEBUG(log, "Updated param [%s] value on memory", param.c_str());
+    LOG4CPP_DEBUG(log, "Updated param [%s] value on memory", p.c_str());
 
     return OK;
 
