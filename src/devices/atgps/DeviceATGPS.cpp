@@ -82,7 +82,6 @@ DeviceATGPS::DeviceATGPS(std::string const & logName) :
 	Device(Device::DEVICE_ATGPS, 0, logName),
 	d_config(Configurator::getInstance()),
 	d_tty(0),
-	d_intrMiss(false),
 	d_notifies(0),
 	log(Device::log) {
 
@@ -665,7 +664,7 @@ DeviceATGPS::getLastEvent() {
 	}
 
 	// Saving readings
-	LOG4CPP_DEBUG(log, "Queuing event register [0x%04X]", d_atgpsLastEvent);
+	LOG4CPP_DEBUG(log, "Last event register [0x%04X]", d_atgpsLastEvent);
 
 	return OK;
 
@@ -717,13 +716,24 @@ void DeviceATGPS::signalNotify(void) {
 }
 
 void DeviceATGPS::run (void) {
+	exitCode result;
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "DeviceATGPS thread (%u) started", d_pid);
+// 	d_pid = getpid();
+// 	LOG4CPP_INFO(log, "DeviceATGPS thread (%u) started", d_pid);
+	threadStartNotify("OCG");
 
+	LOG4CPP_DEBUG(log, "Resetting event register");
+	result = getLastEvent();
+	if ( result!=OK && result!=ATGPS_NO_NEW_EVENTS ) {
+		LOG4CPP_ERROR(log, "Failed reading last event");
+	}
+
+	LOG4CPP_DEBUG(log, "Register interrupt handler");
 	d_signals->registerHandler(DeviceSignals::INT_ODOGPS, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
 
-	do {
+	d_doExit = false;
+	while( !d_doExit ) {
+
 		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
 		ost::Thread::suspend();
 
@@ -732,7 +742,9 @@ void DeviceATGPS::run (void) {
 			checkAlarms();
 		}
 
-	} while( !d_doExit );
+	};
+
+	threadStopNotify();
 
 }
 

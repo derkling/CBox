@@ -637,9 +637,10 @@ int test_utils(log4cpp::Category & logger) {
 	char out_buf[512];
 	char str_buf[4096];
 	unsigned pos = 0;
-	unsigned int i, j;
+	unsigned int i;
+// 	unsigned int j;
 	unsigned len;
-	bool makeSpace = false;
+// 	bool makeSpace = false;
 
 
 // write(2, in_buf[7].c, in_buf[7].l);

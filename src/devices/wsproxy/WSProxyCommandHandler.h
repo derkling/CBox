@@ -163,6 +163,12 @@ public:
     };
     typedef struct product t_product;
 
+    enum msgType {
+	WS_MSG_NEW = 0,
+	WS_MSG_QUEUED
+    };
+    typedef enum msgType t_mgsType;
+
 protected:
 
     typedef list<EndPoint *> t_EndPoints;
@@ -319,11 +325,21 @@ protected:
     /// queues from high priority ones.
     bool d_queuesUpdated;
 
+
+    /// Set true when queued messages must be uploaded.
+    /// If this value is false only new messages will be uploaded.
+    bool d_uploadOldMessages;
+
+    /// The number of the queue with the most recent message
+    short d_lastLoadedQueue;
+
     /// The filepath for the file to use for uploadQueue dump and persistence
     std::string dumpQueueFilePath;
 
-    /// Control Access to sensible data structures
-    ost::Mutex d_wsAccess;
+//    /// Control Access to sensible data structures
+//     ost::Mutex d_wsAccess;
+    /// Mutex Access to upload queues
+    ost::Mutex d_uqMutex;
 
     /// Set to true once we want to terminate the SOAP messages upload thread.
     bool d_doExit;
@@ -501,7 +517,7 @@ protected:
     ///			format or SOAP message wrong format
     ///		WS_LINK_DOWN the network link is down: unable to upload SOAP message
     /// @note This class leave message untouched.
-    exitCode callEndPoints(t_wsData & msg);
+    exitCode callEndPoints(t_wsData & p_wsData, t_mgsType p_type = WS_MSG_QUEUED);
 
     /// Notify EndPoint about upload thread resuming or suspending
     /// @param suspend set true to notify the EndPoint we are suspending

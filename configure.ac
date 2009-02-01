@@ -201,6 +201,6 @@ AC_MSG_NOTICE([Using commoncpp2 configuration: CFLAGS="${CCGNU2_CFLAGS}", LIBS="
 #AC_MSG_NOTICE([Using gSOAP compiler located on: $SOAPCPP_COMPILER]/bin)
 if test $cris = "true"; then
 	AC_MSG_NOTICE([System configured for cross-compilation with target: $host])
-	AC_MSG_NOTICE([Running 'make cris-axis-linux-gnu' to enable cross-compilation... ])
-	make cris-axis-linux-gnu
+	AC_MSG_NOTICE([Running 'make cris-axis-linux-gnu nodebug' to enable cross-compilation... ])
+	make cris-axis-linux-gnu nodebug
 fi

@@ -741,13 +741,15 @@ void
 DeviceDigitalSensors::run (void) {
 // 	exitCode result;
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "DeviceDS thread (%u) started", d_pid);
+// 	d_pid = getpid();
+// 	LOG4CPP_INFO(log, "DeviceDS thread (%u) started", d_pid);
+	threadStartNotify("DS");
 
 	d_signals->registerHandler(DeviceSignals::INT_GPIO, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
 
 	d_doExit = false;
-	do {
+	while( !d_doExit ) {
+
 		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
 		ost::Thread::suspend();
 
@@ -755,7 +757,9 @@ DeviceDigitalSensors::run (void) {
 			sensorsNotify();
 		}
 
-	} while( !d_doExit );
+	};
+
+	threadStopNotify();
 
 }
 

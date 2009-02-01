@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <controlbox/base/ThreadDB.h>
+
 // The signal used to kill (terminate) a PPP daemon
 #define PPPD_SIGKILL		15
 

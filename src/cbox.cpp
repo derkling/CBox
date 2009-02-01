@@ -50,6 +50,7 @@
 
 #include "controlbox/base/Utility.h"
 #include "controlbox/base/QueryRegistry.h"
+#include "controlbox/base/ThreadDB.h"
 #include "controlbox/devices/DeviceFactory.h"
 
 #include "controlbox/devices/DeviceTime.h"
@@ -71,10 +72,12 @@
 
 log4cpp::Category & logger = log4cpp::Category::getInstance("controlbox");
 
-// Devices
-controlbox::device::DeviceFactory * df = 0;
+controlbox::ThreadDB * dbThread = 0;
 controlbox::QueryRegistry * qr = 0;
 
+controlbox::device::DeviceFactory * df = 0;
+
+// Devices
 controlbox::device::DeviceTime * devTime = 0;
 controlbox::device::DeviceSignals * devSig = 0;
 controlbox::device::DeviceGPRS * devGPRS = 0;
@@ -164,6 +167,7 @@ int cBoxMain(std::string const & conf,
 
 	qr = controlbox::QueryRegistry::getInstance();
 	df = controlbox::device::DeviceFactory::getInstance();
+	dbThread = controlbox::ThreadDB::getInstance();
 
 	setupQueues();
 
@@ -189,6 +193,9 @@ int cBoxMain(std::string const & conf,
 	if (devSig) {
 		devSig->powerOn();
 	}
+
+	// Starting thread monitor
+	dbThread->start();
 
 	// Suspending and waiting for system suthdown...
 	sigsuspend(&mask);

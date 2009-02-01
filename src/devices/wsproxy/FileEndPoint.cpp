@@ -33,15 +33,11 @@ namespace controlbox {
 namespace device {
 
 FileEndPoint::FileEndPoint(std::string const & paramBase, std::string const & logName) :
-        EndPoint(EndPoint::WS_EP_FILE, paramBase, logName+".FileEndPoint"),
+        EndPoint(WS_EP_FILE, EPTYPE_MMC, paramBase, logName+".FileEndPoint"),
         d_fepCategory(0) {
 	std::ostringstream lable("");
 	std::string layout;
 	bool append;
-
-
-	// Setting the EndPoint Name
-	d_name = "FileEndPoint";
 
 	lable.str("");
 	lable << paramBase.c_str() << "_layout";
@@ -93,6 +89,16 @@ FileEndPoint::~FileEndPoint() {
 }
 
 exitCode FileEndPoint::upload(unsigned int & epEnabledQueues, std::string const & msg, EndPoint::t_epRespList &respList) {
+	unsigned int l_isEnabled = 0x0;
+
+	// Checking if this File EndPoint queue is enabled
+	l_isEnabled = epEnabledQueues && d_epQueueMask;
+	if ( l_isEnabled == 0x0 ) {
+		LOG4CPP_DEBUG(log, "    [%c(%hu) - %s] is DISABLED",
+			getQueueLable(d_epQueueMask),
+			d_failures, d_name.c_str() );
+	}
+
 
 	if (d_fepCategory) {
 		LOG4CPP_DEBUG(log, "Dumping message to journal [%s]", msg.c_str());
@@ -100,7 +106,9 @@ exitCode FileEndPoint::upload(unsigned int & epEnabledQueues, std::string const 
 		d_fepCategory->log(::log4cpp::Priority::INFO, "%s", msg.c_str());
 	}
 
-	LOG4CPP_INFO(log, "    [%c - %s]", getQueueLable(d_epQueueMask), d_filename.c_str());
+	LOG4CPP_INFO(log, "    [%c(%hu) - %s]",
+		getQueueLable(d_epQueueMask),
+		d_failures, d_name.c_str() );
 
 	// Resetting this File EndPoint queue
 	epEnabledQueues ^= d_epQueueMask;

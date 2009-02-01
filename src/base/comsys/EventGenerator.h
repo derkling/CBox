@@ -112,6 +112,16 @@ protected:
     /// Dispatcher::dispatch() or Dispatcher::dispatch(Command)
     exitCode notify(bool clean = true);
 
+    /// Processing start notifier
+    /// This method must be called by subclasses at the beginning of their
+    /// execution thread
+    /// @param name the thread name (it should noe exceed 5 chars
+    exitCode threadStartNotify(const char * name);
+
+    /// Processing end notifier
+    /// This method must be called by subclasses at the end of their
+    /// execution thread
+    exitCode threadStopNotify();
 
 };
 

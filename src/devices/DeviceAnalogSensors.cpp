@@ -563,11 +563,25 @@ DeviceAnalogSensors::Monitor::Monitor(DeviceAnalogSensors * device, DeviceAnalog
 
 void
 DeviceAnalogSensors::Monitor::run (void) {
+	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
+	unsigned short l_pid;
+	char name[16];
+
+	l_pid = getpid();
+	snprintf(name, 16, "AS-%s", d_pAs->id);
+
+	LOG4CPP_INFO(d_device->log, "Thread [%s (%u)] started", name, l_pid);
+
+	this->setName(name);
+	l_tdb->registerThread(this, l_pid);
 
 	while (true) {
 		sleep(d_pollTime);
 		d_device->checkSafety(d_pAs, true);
 	}
+
+	LOG4CPP_WARN(d_device->log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	l_tdb->unregisterThread(this);
 
 }
 
@@ -796,12 +810,14 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 
 void DeviceAnalogSensors::run(void) {
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "DeviceAS thread (%u) started", d_pid);
+// 	d_pid = getpid();
+// 	LOG4CPP_INFO(log, "DeviceAS thread (%u) started", d_pid);
+	threadStartNotify("AS-L");
 
 	// Eventually start the monitor threads (that could generat events)
 	startMonitors();
 
+	threadStopNotify();
 }
 
 

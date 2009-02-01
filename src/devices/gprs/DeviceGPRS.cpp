@@ -190,7 +190,8 @@ DeviceGPRS::getInstance(std::string const & linkname, std::string const &logName
 	// Check within the DevDB for a modem supporting the required netlink
 	it = d_mapLink2DeviceGPRS.find(linkname);
 	if (it != d_mapLink2DeviceGPRS.end() ) {
-		LOG4CPP_DEBUG(log, "Found a DeviceGPRS supporting the required APN [%s]");
+		LOG4CPP_DEBUG(log, "Found a DeviceGPRS supporting the required APN [%s]",
+				linkname.c_str());
 		//FIXME what if there is more than a DeviceGPRS supporting this linkname?!?
 		return (DeviceGPRS *)it->second;
 	}
@@ -929,10 +930,6 @@ DeviceGPRS::pppdMonitor() {
 	struct pollfd plog;
 	int strl;
 
-
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "PPPD Monitor thread (%u) started", d_pid);
-
 	LOG4CPP_DEBUG(log, "monitoring pppd logfile [%s]", logFile.c_str());
 
 	//FIXME We should check that logFile is a pipe: otherwise we have issues on
@@ -1012,6 +1009,7 @@ OPENFIFO:
 
 	d_parserRunning = false;
 	return OK;
+
 }
 
 
@@ -1022,19 +1020,25 @@ DeviceGPRS::MonitorPppd::MonitorPppd(DeviceGPRS * gprs) :
 
 void
 DeviceGPRS::MonitorPppd::run(void) {
-// 	std::ostringstream tName;
-//
-// 	tName << "run_" << d_name << "-" << d_module;
-// 	PosixThread::setName(tName.str().c_str());
-// 	d_monitorPppd = this;
 
-// 	LOG4CPP_INFO(log, "Starting thread [%s]", PosixThread::getName());
-// 	LOG4CPP_INFO(log, "Starting PPPD monitor thread...");
-// 	LOG4CPP_DEBUG(log, "Run thread [%s] is @ [%p]",
-// 			PosixThread::getName(),
-// 			d_runThread);
+//----- Thread registration
+	ThreadDB *l_tdb = ThreadDB::getInstance();
+	unsigned short l_pid;
+	exitCode result;
+
+	l_pid = getpid();
+	LOG4CPP_INFO(d_gprs->log, "Thread [%s (%u)] started", "PPPD", l_pid);
+
+	this->setName("PPPD");
+	result = l_tdb->registerThread(this, l_pid);
+//-------------------------
 
 	d_gprs->pppdMonitor();
+
+//----- Thread un-registration
+	LOG4CPP_WARN(d_gprs->log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	result = l_tdb->unregisterThread(this);
+//----------------------------
 
 }
 

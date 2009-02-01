@@ -130,6 +130,37 @@ exitCode EventGenerator::notify(bool clean) {
 
 }
 
+exitCode EventGenerator::threadStartNotify(const char * name) {
+	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
+	unsigned short l_pid;
+	exitCode result;
+
+	l_pid = getpid();
+
+	LOG4CPP_INFO(log, "Thread [%s (%u)] started", name, l_pid);
+
+	this->setName(name);
+	result = l_tdb->registerThread(this, l_pid);
+
+	return result;
+
+}
+
+exitCode EventGenerator::threadStopNotify() {
+	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
+	unsigned short l_pid;
+	exitCode result;
+
+	l_pid = getpid();
+
+	LOG4CPP_WARN(log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+
+	result = l_tdb->unregisterThread(this);
+
+	return result;
+
+}
+
 
 } //namespace comsys
 } //namespace controlbox

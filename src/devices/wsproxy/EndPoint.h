@@ -33,6 +33,10 @@
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
 
+/// The status of an EndPoint
+#define EP_MIN_FAILS		0
+#define EP_MAX_FAILS		4
+
 namespace controlbox {
 namespace device {
 
@@ -83,6 +87,18 @@ public:
 	};
 	typedef enum epCmdCode t_epCmdCode;
 
+	/// EndPoint type
+	enum epType {
+	//----- Local endpoints
+		EPTYPE_LOCAL = 0x00,	// Generic local
+		EPTYPE_MMC,		// MMC memory
+	//----- Remote endpoints
+		EPTYPE_REMOTE,		// Generic remote endpoint
+		EPTYPE_DIST,		// DIST server protocol
+		EPTYPE_ODMTP,		// OpenDMTP server protocol
+	};
+	typedef enum epType t_epType;
+
 	/// A command from server
 	struct epCmd {
 		int code;		///> the command code, should match one of t_epCmdCode values
@@ -122,6 +138,14 @@ protected:
     /// to the actual EndPoint.
     unsigned int d_epId;
 
+    /// The EndPoint type
+    t_epType d_epType;
+
+    /// The EndPoint processing fails
+    /// This number is increased each time a process call fails for the
+    /// endpoint, and decreased for each successfull call.
+    unsigned short d_failures;
+
    /// The bitmask for the current EndPoint's queue
    /// Each endPoint could have one or more queue: this bitmask define the set of
    /// queue enabled for this EndPoint
@@ -133,6 +157,7 @@ protected:
    /// The bitmask of all enabled EndPoint queues
    static unsigned int d_epEnabledQueueMask;
 
+
    /// Logger
    /// Use this logger reference, related to the 'log' category, to log your messages
    log4cpp::Category & log;
@@ -141,10 +166,11 @@ protected:
 public:
 
     /// @param epId
+    /// @param epType the EndPoint type
     /// @param paramBase the base for this EndPoint configuration params lables
     /// @param logName the base logname: each subclass will append its own
     ///			endPoint identifier
-    EndPoint(unsigned int epId, std::string const & paramBase, std::string const & logName);
+    EndPoint(unsigned int p_epId, t_epType p_epType, std::string const & p_paramBase, std::string const & p_logName);
 
     virtual ~EndPoint();
 
@@ -160,6 +186,24 @@ public:
     /// Return the name of the current EndPoint
     inline std::string name() {
         return d_name;
+    };
+
+    inline t_epType type() {
+	return d_epType;
+    };
+
+    inline unsigned short failures() {
+    	return d_failures;
+    };
+
+    inline void setFailures(short p_value) {
+    	if ( p_value <= EP_MIN_FAILS ) {
+    		p_value = EP_MIN_FAILS;
+    	}
+    	if ( p_value >= EP_MAX_FAILS ) {
+    		p_value = EP_MAX_FAILS;
+    	}
+    	d_failures = p_value;
     };
 
 //     inline unsigned int mask() {

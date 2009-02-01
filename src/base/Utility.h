@@ -283,6 +283,13 @@ public:
 @{
 */
 
+#if 1
+#define MARKLINE if (1) {						\
+	cout << "MARK: " << __FILE__ << ":" << __LINE__ << endl;	\
+}
+#else
+#define LOGLINE if (0) {};
+#endif
 
 #if !defined(LOG4CPP_UNLIKELY)
 #if __GNUC__ >= 3
@@ -339,6 +346,7 @@ NOTE: This macro will generata code only if compiling with debug simbol
 @param category the category to be used.
 @param message the message string to log.
 */
+/*
 #undef LOG4CPP_DEBUG
 #ifdef CONTROLBOX_DEBUG
 	#define LOG4CPP_DEBUG(category, format, ...) { \
@@ -350,6 +358,17 @@ NOTE: This macro will generata code only if compiling with debug simbol
 #else
 	#define LOG4CPP_DEBUG(category, format, ...)
 #endif
+*/
+#undef LOG4CPP_DEBUG
+#ifdef CONTROLBOX_DEBUG
+	#define LOG4CPP_DEBUG(category, format, ...) \
+			if (category.isDebugEnabled()) {\
+				std::ostringstream formatter("%s:%d - "); \
+				category.log(::log4cpp::Priority::DEBUG, "%25s:%05d - " format, __FILE__, __LINE__, ## __VA_ARGS__); \
+			}
+#else
+	#define LOG4CPP_DEBUG(category, format, ...)
+#endif
 
 /**
 Logs a message to a specified category with the INFO level.
@@ -358,14 +377,13 @@ Logs a message to a specified category with the INFO level.
 @param message the message string to log.
 */
 #undef LOG4CPP_INFO
-#define LOG4CPP_INFO(category, format, ...) { \
+#define LOG4CPP_INFO(category, format, ...) \
 			if (category.isInfoEnabled()) {\
 				if (useColors) \
 					category.log(::log4cpp::Priority::INFO, "\033[32m" format "\033[0m", ## __VA_ARGS__); \
 				else \
 					category.log(::log4cpp::Priority::INFO, format, ## __VA_ARGS__); \
-			}\
-		}
+			}
 
 /**
 Logs a message to a specified category with the WARN level.
@@ -374,14 +392,13 @@ Logs a message to a specified category with the WARN level.
 @param message the message string to log.
 */
 #undef LOG4CPP_WARN
-#define LOG4CPP_WARN(category, format, ...) { \
+#define LOG4CPP_WARN(category, format, ...) \
 			if (category.isWarnEnabled()) {\
 				if (useColors) \
 					category.log(::log4cpp::Priority::WARN, "\033[33m" format "\033[0m", ## __VA_ARGS__); \
 				else \
 					category.log(::log4cpp::Priority::WARN, format, ## __VA_ARGS__); \
-			}\
-		}
+			}
 
 /**
 Logs a message to a specified category with the ERROR level.
@@ -390,14 +407,13 @@ Logs a message to a specified category with the ERROR level.
 @param message the message string to log.
 */
 #undef LOG4CPP_ERROR
-#define LOG4CPP_ERROR(category, format, ...) { \
+#define LOG4CPP_ERROR(category, format, ...) \
 			if (category.isErrorEnabled()) {\
 				if (useColors) \
 					category.log(::log4cpp::Priority::ERROR, "\033[31m" format "\033[0m", ## __VA_ARGS__); \
 				else \
 					category.log(::log4cpp::Priority::ERROR, format, ## __VA_ARGS__); \
-			}\
-		}
+			}
 
 /**
 Logs a message to a specified category with the CRIT level.
@@ -406,14 +422,13 @@ Logs a message to a specified category with the CRIT level.
 @param message the message string to log.
 */
 #undef LOG4CPP_CRIT
-#define LOG4CPP_CRIT(category, format, ...) { \
+#define LOG4CPP_CRIT(category, format, ...) \
 			if (category.isCritEnabled()) {\
 				if (useColors) \
 					category.log(::log4cpp::Priority::CRIT, "\033[1;31m" format "\033[0m", ## __VA_ARGS__); \
 				else \
 					category.log(::log4cpp::Priority::CRIT, format, ## __VA_ARGS__); \
-			}\
-		}
+			}
 
 
 /**
@@ -423,14 +438,13 @@ Logs a message to a specified category with the FATAL level.
 @param message the message string to log.
 */
 #undef LOG4CPP_FATAL
-#define LOG4CPP_FATAL(category, format, ...) { \
+#define LOG4CPP_FATAL(category, format, ...) \
 			if (category.isFatalEnabled()) {\
 				if (useColors) \
 					category.log(::log4cpp::Priority::FATAL, "\033[1;31m" format "\033[0m", ## __VA_ARGS__); \
 				else \
 					category.log(::log4cpp::Priority::FATAL, format, ## __VA_ARGS__); \
-			}\
-		}
+			}
 
 /**
 Disabled debug statements

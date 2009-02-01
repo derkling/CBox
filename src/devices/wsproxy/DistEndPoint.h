@@ -72,24 +72,15 @@ namespace device {
 class DistEndPoint : public EndPoint {
 
 protected:
-	typedef list<std::string> t_serverIpAddrList;
 
-protected:
-    /// The gSOAP WebService Proxy
-#ifdef DIST_DATAFORMAT_42
-	ConcentratoreSoap d_csoap;
-#endif
-#ifdef DIST_DATAFORMAT_43
+	/// The gSOAP WebService Proxy
 	Concentratore43Soap12 d_csoap;
-#endif
 
 	/// The GPRS device to use.
 	DeviceGPRS * d_devGPRS;
 
 	/// The netlink to use
 	std::string d_netlink;
-
-	t_serverIpAddrList srvIpAddrList;
 
 	/// The WebService endpoint
 	std::string d_endpoint;
@@ -104,22 +95,16 @@ public:
 	exitCode upload(unsigned int & epEnabledQueues, std::string const & msg, EndPoint::t_epRespList &respList);
 
 	exitCode suspending();
-//
-// 	virtual exitCode resuming() { return OK; };
 
 protected:
 
 	/// Check server responce for errors or piggibacked commands
 	/// @param xml the XML server responce
 	/// @return OK if no errors on server upload
-	exitCode checkResponce(unsigned short srvNumber, char * xml, EndPoint::t_epRespList &respList);
+	exitCode checkResponce(char * xml, EndPoint::t_epRespList &respList);
 
 	/// Log WebService Error Responces
 	void logSOAPFault(struct soap * csoap);
-
-	bool srvEnabled(unsigned int & epEnabledQueues, unsigned short srvNumber);
-	unsigned int getQueueMask(unsigned int & epEnabledQueues, unsigned short srvNumber);
-	void resetQueueBit(unsigned int & epEnabledQueues, unsigned short srvNumber);
 
 };
 

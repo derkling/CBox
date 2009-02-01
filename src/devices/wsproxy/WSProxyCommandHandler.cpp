@@ -65,7 +65,9 @@ WSProxyCommandHandler::WSProxyCommandHandler(std::string const & logName) :
         d_gpsFixStatus(DeviceGPS::DEVICEGPS_FIX_NA),
         d_netStatus(DeviceGPRS::LINK_DOWN),
         d_queuesUpdated(false),
-        d_wsAccess("wsAccessMtx"),
+        d_uploadOldMessages(true),
+//         d_wsAccess("wsAccessMtx"),
+        d_uqMutex("uploadQueueMtx"),
         d_doExit(false),
         d_okToExit(false) {
 
@@ -583,8 +585,16 @@ exitCode WSProxyCommandHandler::queueMsg(t_wsData & p_wsData) {
 
 	LOG4CPP_DEBUG(log, "Queuing message with prio [%d]", p_wsData.prio);
 
+LOG4CPP_WARN(log, "MUTEX, QN, W...");
+	d_uqMutex.enterMutex();
+LOG4CPP_WARN(log, "MUTEX, QN, A");
+
 	d_uploadQueues[p_wsData.prio].push_front(&p_wsData);
 	d_queuesUpdated = true;
+	d_lastLoadedQueue = p_wsData.prio;
+
+	d_uqMutex.leaveMutex();
+LOG4CPP_WARN(log, "MUTEX, QN, R");
 
 	LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
 
@@ -658,15 +668,19 @@ std::string WSProxyCommandHandler::getQueueMask(unsigned int queues) {
 	return buf;
 }
 
-exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData) {
+exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData, t_mgsType p_type) {
     std::ostringstream msg("");
     t_EndPoints::iterator it;
     exitCode result = WS_UPLOAD_FAULT;
+    bool l_okToProcess = false;
+    bool l_allRemoteFailed = true;
+    bool l_disconnectNetwork = false;
+    unsigned short l_failures = EP_WORKING;
 
     LOG4CPP_DEBUG(log, "WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData)");
 
-    // NOTE: This code MUST acquire a MUTEX!!!
-    d_wsAccess.enterMutex();
+//     // NOTE: This code MUST acquire a MUTEX!!!
+//     d_wsAccess.enterMutex();
 
 // #ifdef CONTROLBOX_USELAN
 //     if ( 0 ) {
@@ -678,8 +692,6 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData) {
 //         d_wsAccess.leaveMutex();
 //         return WS_LINK_DOWN;
 //     }
-
-    LOG4CPP_DEBUG(log, "Mutex acquired");
 
     // Formatting the data for EndPoint processing
     msg << p_wsData.idSrc << ";";
@@ -699,22 +711,48 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData) {
     while ( it != d_endPoints.end() ) {
 	LOG4CPP_DEBUG(log, "UPLOAD THREAD: Prosessing msg with EndPoint [%s]", ((*it)->name()).c_str() );
 
-	result = (*it)->process(p_wsData.msgCount, msg.str(), p_wsData.endPoint, p_wsData.respList);
-	switch (result) {
-	case OK:
-		checkEpCommands(p_wsData.respList);
-		break;
-	case WS_FORMAT_ERROR:
-		LOG4CPP_WARN(log, "Discarding message due to format error");
-		p_wsData.endPoint = 0x0;
-		break;
-//FIXME if we do that, we risk to denay the upload to other endpoint that
-//	have an alive GPRS network
-// 	case GPRS_NETWORK_UNREGISTERED:
-// 		LOG4CPP_WARN(log, "GPRS network not available, retrying later");
-// 		return result;
-	default:
-		LOG4CPP_WARN(log, "UPLOAD THREAD: Unandeled return code");
+
+//----- Verifying upload policy
+
+	if ( (*it)->type() < EndPoint::EPTYPE_REMOTE ) {
+		LOG4CPP_DEBUG(log, "Processing LOCAL EndPoint");
+		l_okToProcess = true;
+	} else {
+		l_failures = (*it)->failures();
+		if ( l_failures <= EP_WORKING ) {
+			LOG4CPP_DEBUG(log, "Processing REMOTE-WORKING EndPoint");
+			l_okToProcess = true;
+		} else {
+			if ( l_failures <= EP_TRYING ) {
+				LOG4CPP_DEBUG(log, "Processing REMOTE-TRYING EndPoint");
+				l_okToProcess = ( p_type == WS_MSG_NEW );
+			}
+		}
+	}
+
+//----- Uploading messages
+	if ( l_okToProcess ) {
+		LOG4CPP_DEBUG(log, "Porcessing ENABLED for EndPoint [%s]", (*it)->name().c_str());
+		result = (*it)->process(p_wsData.msgCount, msg.str(), p_wsData.endPoint, p_wsData.respList);
+		switch (result) {
+		case OK:
+			checkEpCommands(p_wsData.respList);
+//----- Decreasing failures
+			(*it)->setFailures(l_failures-1);
+			l_allRemoteFailed = false;
+			break;
+		case WS_FORMAT_ERROR:
+			LOG4CPP_WARN(log, "Discarding message due to format error");
+			p_wsData.endPoint = 0x0;
+			l_allRemoteFailed = false;
+			break;
+		default:
+//----- Increasing failures
+			(*it)->setFailures(l_failures+1);
+			LOG4CPP_WARN(log, "UPLOAD THREAD: Unandeled return code");
+		}
+	} else {
+		LOG4CPP_DEBUG(log, "Porcessing DISABLED for EndPoint [%s]", (*it)->name().c_str());
 	}
 
         it++;
@@ -723,18 +761,61 @@ exitCode WSProxyCommandHandler::callEndPoints(t_wsData & p_wsData) {
 
     LOG4CPP_DEBUG(log, "UPLOAD THREAD: all EndPoint have been processed");
 
+	if ( l_allRemoteFailed ) {
+		LOG4CPP_WARN(log, "Remote endpoints NOT reachables");
+
+		// Suppose all endpoint has MORE than EP_TRYING failures
+		// and then the network connection should be recovered
+		l_disconnectNetwork = true;
+
+		// Suppose all endpoint has MORE than EP_WORKING failures
+		// and then only new messages should be uploaded
+		d_uploadOldMessages = false;
+
+		// Checking if at least one endpoint has less than EP_TRYING
+		// failures to disable network recovery
+		// Checking if at least one endpoint has less than EP_WORKING
+		// failures to enable queued messages upload
+		it = d_endPoints.begin();
+		while ( it != d_endPoints.end() ) {
+			if ( (*it)->type() >= EndPoint::EPTYPE_REMOTE ) {
+				l_failures = (*it)->failures();
+				if ( l_failures <= EP_WORKING ) {
+					d_uploadOldMessages = true;
+				}
+				if ( l_failures <= EP_TRYING ) {
+					l_disconnectNetwork = false;
+				}
+			}
+			it++;
+		}
+	}
+
+	if ( l_disconnectNetwork ) {
+		LOG4CPP_WARN(log, "Resetting network connections");
+
+		it = d_endPoints.begin();
+		while ( it != d_endPoints.end() ) {
+			if ( (*it)->type() >= EndPoint::EPTYPE_REMOTE ) {
+				(*it)->suspending();
+			}
+		}
+
+	}
+
+
     // Remove data ONLY if all endPoints have successfully completed
     // their processing
     if ( p_wsData.endPoint ) {
-        LOG4CPP_INFO(log, "==> Q%u [%05d:%s]", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
+        LOG4CPP_DEBUG(log, "==> Q%u [%05d:%s]", p_wsData.prio, p_wsData.msgCount, getQueueMask(p_wsData.endPoint).c_str());
         result = WS_UPLOAD_FAULT;
     } else {
         LOG4CPP_DEBUG(log, "UPLOAD THREAD: data processing completed by all EndPoint");
         result = OK;
     }
 
-    // Releasing the Mutex;
-    d_wsAccess.leaveMutex();
+//     // Releasing the Mutex;
+//     d_wsAccess.leaveMutex();
     return result;
 
 }
@@ -784,13 +865,16 @@ void WSProxyCommandHandler::run(void) {
 	// A pointer to a gSOAP message to upload
 	t_uploadList::iterator it;
 	unsigned int qIndex;
-// 	t_wsData * p_wsData;
+	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
+	unsigned short l_pid;
 	exitCode result;
-// 	unsigned int queueCount;
-	unsigned short d_pid;
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "Upload thread (%u) started", d_pid);
+	l_pid = getpid();
+
+	LOG4CPP_INFO(log, "Thread [%s (%u)] started", "UQ", l_pid);
+
+	this->setName("UQ");
+	result = l_tdb->registerThread(this, l_pid);
 
 	do { // While system is running...
 
@@ -817,6 +901,31 @@ void WSProxyCommandHandler::run(void) {
 			d_queuesUpdated = false;
 			LOG4CPP_WARN(log, "Queue update flag reset");
 
+			// Upload the most recent message
+			do {
+				it = d_uploadQueues[d_lastLoadedQueue].begin();
+				if ( it != d_uploadQueues[d_lastLoadedQueue].end() ) {
+					result = callEndPoints( *(*it), WS_MSG_NEW );
+					if (result == OK) {
+LOG4CPP_WARN(log, "MUTEX, UN, W...");
+	d_uqMutex.enterMutex();
+LOG4CPP_WARN(log, "MUTEX, UN, A");
+						// Removing the SOAP message from the upload queue;
+						LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing MOST RECENT message from queue");
+						delete (*it);
+						it = d_uploadQueues[qIndex].erase(it);
+	d_uqMutex.leaveMutex();
+LOG4CPP_WARN(log, "MUTEX, UN, R");
+					}
+					printQueuesStatus();
+				}
+			} while ( d_queuesUpdated && !d_doExit );
+
+			if ( !d_uploadOldMessages ) {
+				LOG4CPP_WARN(log, "Old messages upload DISABLED");
+				continue;
+			}
+
 			// Upload each queue in higher priority order
 			for (qIndex=0;
 				qIndex<WSPROXY_UPLOAD_QUEUES &&
@@ -835,13 +944,17 @@ void WSProxyCommandHandler::run(void) {
 				// has been queued, or the system is shutting down...
 				while ( it != d_uploadQueues[qIndex].end() &&
 					!d_queuesUpdated && !d_doExit ) {
-
-					result = callEndPoints( *(*it) );
+					result = callEndPoints( *(*it), WS_MSG_QUEUED );
 					if (result == OK) {
+LOG4CPP_WARN(log, "MUTEX, UQ, W...");
+	d_uqMutex.enterMutex();
+LOG4CPP_WARN(log, "MUTEX, UQ, A");
 						// Removing the SOAP message from the upload queue;
 						LOG4CPP_DEBUG(log, "UPLOAD THREAD: removing message from queue");
 						delete (*it);
 						it = d_uploadQueues[qIndex].erase(it);
+	d_uqMutex.leaveMutex();
+LOG4CPP_WARN(log, "MUTEX, UQ, R");
 					} else {
 						// NOTE the erase already update the iterator to the
 						// next entry! ;-)
@@ -849,8 +962,11 @@ void WSProxyCommandHandler::run(void) {
 					}
 					printQueuesStatus();
 				}
+
 			}
+
 		} while (d_queuesUpdated && !d_doExit);
+
 	} while ( !d_doExit );
 
 	LOG4CPP_WARN(log, "Terminating upload thread...");
@@ -873,6 +989,10 @@ void WSProxyCommandHandler::run(void) {
 
 	LOG4CPP_WARN(log, "Upload queue terminated");
 	d_okToExit = true;
+
+
+	LOG4CPP_WARN(log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	result = l_tdb->unregisterThread(this);
 
 }
 

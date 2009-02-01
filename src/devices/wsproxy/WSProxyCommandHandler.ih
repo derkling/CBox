@@ -12,9 +12,14 @@
 #include <iomanip>
 #include <controlbox/devices/PollEventGenerator.h>
 #include <controlbox/base/QueryRegistry.h>
+#include <controlbox/base/ThreadDB.h>
 #include <controlbox/devices/DeviceInCabin.h>
 #include <controlbox/devices/DeviceDigitalSensors.h>
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceFactory.h>
 
 #include <sstream>
+
+#define EP_WORKING	0
+#define EP_TRYING	3
+#define EP_SUSPEND	4

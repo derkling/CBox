@@ -231,9 +231,11 @@ exitCode DeviceTE::notifyEvents(void) {
 void DeviceTE::run (void) {
 	exitCode downloadExitCode;
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "DeviceTE thread (%u) started", d_pid);
+// 	d_pid = getpid();
+// 	LOG4CPP_INFO(log, "DeviceTE thread (%u) started", d_pid);
+	threadStartNotify("TE");
 
+	d_doExit = false;
 	while ( !d_doExit ) {
 
 		// NOTE by setting d_pollInterval==0 we disable the TE polling query
@@ -263,6 +265,8 @@ void DeviceTE::run (void) {
 		sleep(d_pollInterval);
 
 	}
+
+	threadStopNotify();
 
 }
 

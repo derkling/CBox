@@ -33,17 +33,25 @@ namespace device {
 
 const char *DeviceSignals::intrName[] = {
 	"Device Open Alarm",
-	"ODO-GPS Alarm",
+	"OCG Alarm",
 	"Battery Powered",
-	"MemoryCard detect",
+	"Memory Detect",
 	"Digital Sensors Alarm",
 };
+
+const char *DeviceSignals::intrLevel[] = {
+	"NONE",
+	"LOW",
+	"HIGH",
+	"BOTH",
+};
+
 
 DeviceSignals * DeviceSignals::d_instance = 0;
 
 DeviceSignals::DeviceSignals(std::string const & logName) :
-	Device(Device::DEVICE_SINGALS, logName, logName),
 	CommandGenerator(logName),
+	Device(Device::DEVICE_SINGALS, logName, logName),
 	d_config(Configurator::getInstance()),
 	d_isBatteryPowered(false),
 	log(Device::log) {
@@ -71,7 +79,7 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 
 #ifdef CONTROLBOX_CRIS
 	// Configuring OUTPUT Pins
-	curMask=0x0C;
+	curMask = 0x0C;
 	err = ioctl(fd_dev, _IO(ETRAXGPIO_IOCTYPE, IO_SETGET_OUTPUT), &curMask);
 	if (err == -1) {
 		LOG4CPP_ERROR(log, "Failed to set output lines to [0x%02X], %s", curMask, strerror(errno));
@@ -79,7 +87,7 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 	LOG4CPP_DEBUG(log, "Outputs configuration [0x%02X]", curMask);
 
 	// Configuring INPUT Pins
-	curMask=0xF3;
+	curMask = 0xF3;
 	err = ioctl(fd_dev, _IO(ETRAXGPIO_IOCTYPE, IO_SETGET_INPUT), &curMask);
 	if (err == -1) {
 		LOG4CPP_ERROR(log, "Failed to set input lines to [0x%02X], %s", curMask, strerror(errno));
@@ -101,10 +109,10 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 	// Initializing LIGHT interrupt
 	// NOTE LIGHT interrupt line is LOW when dark (aka device box is closed)
 	d_isDeviceOpen = ( d_levels & (0x1 << DEVICESIGNALS_DEVICEOPEN_LINE) );
-	confInterrupt( (1<<DEVICESIGNALS_DEVICEOPEN_LINE), d_isDeviceOpen);
 	LOG4CPP_INFO(log, "cBox device %s", d_isDeviceOpen ? "OPENED" : "CLOSED" );
 	LOG4CPP_DEBUG(log, "Configuring LIGHT interrupt on PA%d", DEVICESIGNALS_DEVICEOPEN_LINE);
 	handlersNumber[INT_DEVICEOPEN] = 1;
+	confInterrupt( (1<<DEVICESIGNALS_DEVICEOPEN_LINE), d_isDeviceOpen);
 
 // 	// Initializing ODO-GPS interrupt
 // 	// NOTE ODO-GPS interrupt line is LOW when DIGITAL state is changed
@@ -117,18 +125,18 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 	// Initializing BATTERY interrupt
 	// NOTE battery interrupt line is LOW when running on battery
 	d_isBatteryPowered = !( d_levels & (0x1 << DEVICESIGNALS_BATTERY_LINE) );
-	confInterrupt( (1<<DEVICESIGNALS_BATTERY_LINE), !d_isBatteryPowered);
 	LOG4CPP_INFO(log, "cBox %s powered", d_isBatteryPowered ? "BATTERY" : "AC" );
 	LOG4CPP_DEBUG(log, "Configuring BATTERY interrupt on PA%d", DEVICESIGNALS_BATTERY_LINE);
 	handlersNumber[INT_BATTERY] = 1;
+	confInterrupt( (1<<DEVICESIGNALS_BATTERY_LINE), !d_isBatteryPowered);
 
 	// Initializing MMC interrupt
 	// NOTE MMC interrupt line is LOW when MMC is present
 	d_isMmcPresent = !( d_levels & (0x1 << DEVICESIGNALS_MMC_LINE) );
-	confInterrupt( (1<<DEVICESIGNALS_MMC_LINE), !d_isMmcPresent);
 	LOG4CPP_INFO(log, "Memory is %sPRESENT", d_isMmcPresent ? "" : "NOT ");
 	LOG4CPP_DEBUG(log, "Configuring MMC interrupt on PA%d", DEVICESIGNALS_MMC_LINE);
 	handlersNumber[INT_MMC] = 1;
+	confInterrupt( (1<<DEVICESIGNALS_MMC_LINE), !d_isMmcPresent);
 
 // 	// Initializing GPIO interrupt
 // 	// NOTE GPIO interrupt line is LOW when GPIO changed states
@@ -163,6 +171,9 @@ DeviceSignals::~DeviceSignals() {
 	t_hMap::iterator anH;
 
 	LOG4CPP_INFO(log, "Stopping DeviceSignals");
+
+	d_doExit = true;
+	this->ost::Thread::resume();
 
 	::close(fd_dev);
 
@@ -207,7 +218,7 @@ exitCode DeviceSignals::confInterrupt(t_intMask lines, bool onLow) {
 
 
 // NOTE using boLines require to switch the interrupt configuration each times
-//	the input change!!!... otehrwise we will get an endless internet storm!
+//	the input change!!!... otehrwise we will get an endless interrupt storm!
 exitCode DeviceSignals::updateInterrupts(void) {
 	int err = 0;
 	t_intMask curMask = 0x0;
@@ -251,8 +262,6 @@ exitCode DeviceSignals::updateInterrupts(void) {
 exitCode DeviceSignals::registerHandler(unsigned short i, SignalHandler * sh, const char *p_name, t_interruptTrigger l) {
 	t_hMap::iterator anH;
 	t_handler * pHandler;
-// 	int err;
-// 	t_intMask curMask;
 
 	if ( i >= INT_COUNT ) {
 		return INT_LINE_UNK;
@@ -280,29 +289,10 @@ exitCode DeviceSignals::registerHandler(unsigned short i, SignalHandler * sh, co
 	else
 		memset(pHandler->name, 0, DEVICESIGNALS_HANDLER_NAME_MAXLEN);
 	handlers.insert(t_binding(i, pHandler));
+	handlersNumber[i]++;
 
-	LOG4CPP_INFO(log, "Registerd new '%s' signal handler [%s]",
-			intrName[i], p_name[0] ? p_name : "UNK");
-
-
-	switch ( i ) {
-	case INT_ODOGPS:
-		// Initializing ODO-GPS interrupt
-		// NOTE ODO-GPS interrupt line is LOW when DIGITAL state is changed
-		d_isOdoGpsAlarm = !( d_levels & (0x1 << DEVICESIGNALS_ODOGPS_LINE) );
-		confInterrupt( (1<<DEVICESIGNALS_ODOGPS_LINE), !d_isOdoGpsAlarm);
-		LOG4CPP_DEBUG(log, "Configuring ODO-GPS interrupt on PA%d", DEVICESIGNALS_ODOGPS_LINE);
-		handlersNumber[i]++;
-		break;
-	case INT_GPIO:
-		// Initializing GPIO interrupt
-		// NOTE GPIO interrupt line is LOW when GPIO changed states
-		d_isGpioAlarm = !( d_levels & (0x1 << DEVICESIGNALS_GPIO_LINE) );
-		confInterrupt( (1<<DEVICESIGNALS_GPIO_LINE), !d_isGpioAlarm);
-		LOG4CPP_DEBUG(log, "Configuring DS interrupt on PA%d", DEVICESIGNALS_GPIO_LINE);
-		handlersNumber[i]++;
-		break;
-	}
+	LOG4CPP_INFO(log, "Registerd new '%s' signal handler [%s], tirggering on %s level",
+			intrName[i], p_name[0] ? p_name : "UNK", intrLevel[l]);
 
 	// Unlocking the Signal thread
 	this->signalThread(SIGCONT);
@@ -334,17 +324,6 @@ exitCode DeviceSignals::unregisterHandler(SignalHandler * sh) {
 	i = anH->first;
 
 	handlersNumber[i]--;
-	switch ( i ) {
-	case INT_ODOGPS:
-		// Disabling ODO-GPS interrupts
-		// TODO
-		break;
-	case INT_GPIO:
-		// Disabling GPIO interrupts
-		// TODO
-		break;
-	}
-
 
 	level = anH->second->level;
 	delete anH->second;
@@ -354,22 +333,9 @@ exitCode DeviceSignals::unregisterHandler(SignalHandler * sh) {
 }
 
 exitCode DeviceSignals::notifySignal(t_handler & p_handler, t_intMask & levels) {
-// 	int ret = 0;
 	t_intMask lineMask = 0x0;
 	t_intMask lineStatus = 0x0;
 
-// 	// Checking if this line has changed since last notify
-// 	if ( !(p_handler.line & d_changedBits) ) {
-// 		// This line has already been notified
-// 		LOG4CPP_DEBUG(log, "Line [%d] not changed since last reading [%s]",
-// 					p_handler.line,
-// 					(levels & p_handler.line) ? "HIGH" : "LOW"
-// 					);
-// 		return OK;
-// 	}
-
-	// Cheking if the thread require a notification for this signal
-// 	lineStatus = levels & p_handler.line;
 	switch ( p_handler.line ) {
 	case INT_DEVICEOPEN:
 		lineMask = 0x1<<DEVICESIGNALS_DEVICEOPEN_LINE;
@@ -390,6 +356,8 @@ exitCode DeviceSignals::notifySignal(t_handler & p_handler, t_intMask & levels) 
 		lineMask = 0x0;
 	}
 	lineStatus = levels & lineMask;
+
+	// Cheking if the thread require a notification for this signal
 	if ( ( (p_handler.level==INTERRUPT_ON_LOW) &&  lineStatus) ||
 	     ( (p_handler.level==INTERRUPT_ON_HIGH) &&  !lineStatus) ) {
 		// No need to notify this handler
@@ -438,70 +406,76 @@ exitCode DeviceSignals::powerOn(bool on) {
 	return OK;
 }
 
+exitCode DeviceSignals::notifyDeviceOpen(bool open) {
+	comsys::Command * cSgd;
+
+	cSgd = comsys::Command::getCommand(SYSTEM_EVENT,
+		Device::DEVICE_SINGALS, "DEVICE_SINGALS",
+		name());
+	if ( !cSgd ) {
+		LOG4CPP_FATAL(log, "Unable to build a new Command");
+		return OUT_OF_MEMORY;
+	}
+	cSgd->setParam( "dist_evtType", "22");
+	cSgd->setParam( "dist_evtData", open ? "1" : "0" );
+	cSgd->setParam( "timestamp", d_time->time() );
+	cSgd->setPrio(0);
+
+	// Notifying command
+	notify(cSgd);
+
+	return OK;
+}
+
 // NOTE battery input line is LOW when running on battery
 exitCode DeviceSignals::checkInterrupts(t_intMask & levels) {
-	bool acPowered;
 	bool deviceOpen;
+	bool ocgAlarm;
+	bool acPowered;
 	bool mmcPresent;
-// 	t_intMask curMask;
-// 	int err;
+	bool gpioAlarm;
 // 	comsys::Command * cSgd;
 
 //----- Checking DEVICE status
 	deviceOpen = (levels & (0x1 << DEVICESIGNALS_DEVICEOPEN_LINE));
 	if ( d_isDeviceOpen != deviceOpen ) {
-
-		// Reconfiguring DEVICEOPEN interrupt to be triggered on state changing
-		confInterrupt((1<<DEVICESIGNALS_DEVICEOPEN_LINE), deviceOpen);
-
 		d_isDeviceOpen = deviceOpen;
-
 		LOG4CPP_INFO(log, "Device %s",
 			d_isDeviceOpen ? "OPENED" : "CLOSED" );
+		notifyDeviceOpen(d_isDeviceOpen);
 	}
 
+//----- Checking OCG alarm
+	ocgAlarm = ( (levels & (0x1 << DEVICESIGNALS_ODOGPS_LINE)) == 0x00);
+	if ( d_isOdoGpsAlarm != ocgAlarm ) {
+		d_isOdoGpsAlarm = ocgAlarm;
+		LOG4CPP_INFO(log, "OCG Alarm %s",
+			d_isOdoGpsAlarm ? "ON" : "OFF" );
+	}
 
 //----- Checking BATTERY status
 	acPowered = (levels & (0x1 << DEVICESIGNALS_BATTERY_LINE));
 	if ( d_isBatteryPowered == acPowered ) {
-
-		// Reconfiguring BAT interrupt to be triggered on state changing
-		confInterrupt((1<<DEVICESIGNALS_BATTERY_LINE), acPowered);
-
 		d_isBatteryPowered = !acPowered;
-
 		LOG4CPP_INFO(log, "Switched power to %s",
 			d_isBatteryPowered ? "BAT" : "AC" );
-/*
-		cSgd = comsys::Command::getCommand(SYSTEM_EVENT,
-			Device::DEVICE_SINGALS, "DEVICE_SINGALS",
-			name());
-		if ( !cSgd ) {
-			LOG4CPP_FATAL(log, "Unable to build a new Command");
-			return OUT_OF_MEMORY;
-		}
-
-		cSgd->setParam( "dist_evtType", "0xFF");
-		cSgd->setParam( "dist_evtData", d_isBatteryPowered ? "1" : "0" );
-		cSgd->setParam( "timestamp", d_time->time() );
-
-		// Notifying command
-		notify(cSgd);
-*/
-
+		powerOn(d_isBatteryPowered);
 	}
 
 //----- Checking MMC status
 	mmcPresent = !(levels & (0x1 << DEVICESIGNALS_MMC_LINE));
 	if ( d_isMmcPresent != mmcPresent ) {
-
-		// Reconfiguring MMC interrupt to be triggered on state changing
-		confInterrupt((1<<DEVICESIGNALS_MMC_LINE), !mmcPresent);
-
 		d_isMmcPresent = mmcPresent;
-
 		LOG4CPP_INFO(log, "MMC %s",
 			d_isMmcPresent ? "INSERTED" : "REMOVED" );
+	}
+
+//----- Checking GPIO alarm
+	gpioAlarm = ( (levels & (0x1 << DEVICESIGNALS_GPIO_LINE)) == 0x00);
+	if ( d_isGpioAlarm != gpioAlarm ) {
+		d_isGpioAlarm = gpioAlarm;
+		LOG4CPP_INFO(log, "GPIO Alarm %s",
+			d_isGpioAlarm ? "ON" : "OFF" );
 	}
 
 	return OK;
@@ -524,7 +498,7 @@ exitCode DeviceSignals::getLevels(t_intMask & levels) {
 		LOG4CPP_ERROR(log, "Failed to read input lines, %s", strerror(errno));
 		return INT_DEV_FAILED;
 	}
-	LOG4CPP_DEBUG(log, "Inputs levels [0x%02X]", levels);
+	LOG4CPP_ERROR(log, "Inputs levels [0x%02X]", levels);
 #else
 # warning Using WaitForInterrupt DUMMY implementation
 	LOG4CPP_DEBUG(log, "Dummy getLevels return [0x00]");
@@ -564,6 +538,9 @@ exitCode DeviceSignals::waitForIntr(t_intMask & levels) {
 		d_levels = levels;
 	}
 
+//----- Reconfiguring interrupt levels
+
+
 	return result;
 
 #else
@@ -575,17 +552,42 @@ exitCode DeviceSignals::waitForIntr(t_intMask & levels) {
 
 }
 
+exitCode DeviceSignals::updateConf(void) {
+	exitCode result;
+
+
+	// Reading current levels state
+	result = getLevels(d_levels);
+	if ( result != OK ) {
+		return result;
+	}
+
+	// Setting LOW-Interrupt for lines that are HIGH
+	LOG4CPP_DEBUG(log, "Switch intr on LOW for [0x%02X]", d_levels);
+	confInterrupt(d_levels, true);
+
+	// Setting HIGH-Interrupt for lines that are LOW
+	LOG4CPP_DEBUG(log, "Switch intr on HIGH for [0x%02X]", d_levels);
+	confInterrupt(~d_levels, false);
+
+	return OK;
+}
+
 void DeviceSignals::run(void)  {
 	t_intMask levels;
 	t_hMap::iterator anH;
 	t_intMask curMask;
-	exitCode result;
 
-	d_pid = getpid();
-	LOG4CPP_INFO(log, "DeviceSignal thread (%u) started", d_pid);
+// 	d_pid = getpid();
+// 	LOG4CPP_INFO(log, "DeviceSignal thread (%u) started", d_pid);
+	threadStartNotify("SIG");
 
 	sigInstall(SIGCONT);
-	while (1) {
+
+	// FIXME this should be correctly initialized by the base class...
+	// but without this the cycle is not entered
+	d_doExit = false;
+	while ( !d_doExit ) {
 
 		// Waiting for at least one handler to be defined
 		curMask = d_curMask.loLines | d_curMask.hiLines | d_curMask.boLines;
@@ -594,21 +596,25 @@ void DeviceSignals::run(void)  {
 			waitSignal(SIGCONT);
 		}
 
+		// Updating interrupts configuration
+		if (updateConf() != OK ) {
+			LOG4CPP_WARN(log, "Failed updating interrupt configuration");
+			LOG4CPP_DEBUG(log, "Waiting 5s before retrying... ");
+			::sleep(5);
+			continue;
+		}
+
+		// Waiting for next interrupt
 		if (waitForIntr(levels) != OK) {
 			LOG4CPP_DEBUG(log, "lost interrupt?");
 			continue;
 		}
 
-LOG4CPP_ERROR(log, "Levels [0x%02X]", levels);
+		// Checking interrupts locally
+		checkInterrupts(levels);
 
-		// Checking Battery status
-		result = checkInterrupts(levels);
-// 		if ( result == INT_ACBAT_SWITCH ) {
-// 			// This was an AC/BAT switch... continue with signals monitoring...
-// 			continue;
-// 		}
-
-		LOG4CPP_DEBUG(log, "Notifying all registered handlers...");
+		// Checking interrupt for handlers notification
+		LOG4CPP_DEBUG(log, "Notifying registered handlers...");
 		anH = handlers.begin();
 		while (anH != handlers.end()) {
 			notifySignal(*(anH->second), levels);
@@ -616,6 +622,8 @@ LOG4CPP_ERROR(log, "Levels [0x%02X]", levels);
 		}
 
 	}
+
+	threadStopNotify();
 
 	return;
 

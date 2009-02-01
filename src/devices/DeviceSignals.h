@@ -52,7 +52,8 @@ namespace controlbox {
 namespace device {
 
 /// A DeviceSignals.
-class DeviceSignals : public Device, public comsys::CommandGenerator {
+class DeviceSignals : public comsys::CommandGenerator,
+			public Device {
 
 public:
 
@@ -76,8 +77,6 @@ public:
     /// This vector should match t_interrupt's entries
     static const char *intrName[];
 
-    typedef unsigned long t_intMask;
-
     enum interruptTrigger {
     	INTERRUPT_NONE=0,		///> Disable interrupt on this line
 	INTERRUPT_ON_LOW,		///> Signal when the going low
@@ -85,6 +84,12 @@ public:
 	INTERRUPT_ON_BOTH		///> Signal level change
     };
     typedef enum interruptTrigger t_interruptTrigger;
+
+    /// Interrupt levels names
+    /// This vector should match t_interruptTrigger's entries
+    static const char *intrLevel[];
+
+    typedef unsigned long t_intMask;
 
     struct handler {
 	SignalHandler * sh;				///> the signel handler to notify
@@ -180,6 +185,9 @@ public:
     /// Notify Power On Status
     exitCode powerOn(bool on = true);
 
+    /// Notify Device has been opened
+    exitCode notifyDeviceOpen(bool open = true);
+
 
 protected:
 
@@ -210,6 +218,9 @@ protected:
 
     /// Notify a thread with a signal.
     exitCode notifySignal(t_handler & handler, t_intMask & levels);
+
+   /// Update the interrupts configuration based on last readed lines input levels
+    exitCode updateConf(void);
 
     /// Thread body.
     /// This method provide to configure the signal dispatcher and actually start it.

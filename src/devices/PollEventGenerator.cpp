@@ -78,6 +78,7 @@ PollEventGenerator::~PollEventGenerator() {
     // destructor of a class derived from Thread to assure the remaining
     // part of the destructor is called without the thread still executing.
     this->terminate();
+    threadStopNotify();
 
 }
 
@@ -108,8 +109,9 @@ void PollEventGenerator::trigger() {
 
 void   PollEventGenerator::run (void) {
 
-    d_pid = getpid();
-    LOG4CPP_INFO(log, "DevicePoller thread (%u) started", d_pid);
+//     d_pid = getpid();
+//     LOG4CPP_INFO(log, "DevicePoller thread (%u) started", d_pid);
+    threadStartNotify("POLL");
 
     while (true) {
         LOG4CPP_DEBUG(log, "Next poll within %d ms", d_pollTime);
@@ -118,6 +120,7 @@ void   PollEventGenerator::run (void) {
         notify(false);
     }
 
+    threadStopNotify();
 
 }
 

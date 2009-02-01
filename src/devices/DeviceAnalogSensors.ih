@@ -1,5 +1,6 @@
 
 #include "DeviceAnalogSensors.h"
+#include <controlbox/base/ThreadDB.h>
 #include <controlbox/devices/DeviceFactory.h>
 
 #include <iomanip>

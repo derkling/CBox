@@ -372,6 +372,8 @@ DeviceSerial::readSerial(char * resp, int & len, bool blocking) {
 	LOG4CPP_DEBUG(log, "TTY_READ_ASCII [%d bytes]: %s", count, str);
 #endif
 
+	// NULL-Terminating the received buffer
+	resp[count] = 0;
 	len = count;
 
 	if (d_detachedMode && d_gpio) {

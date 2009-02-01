@@ -34,14 +34,17 @@ namespace device {
 
 unsigned int EndPoint::d_epEnabledQueueMask = 0x0;
 
-EndPoint::EndPoint(unsigned int epId,
-			std::string const & paramBase,
-			std::string const & logName) :
+EndPoint::EndPoint(unsigned int p_epId,
+			 t_epType p_epType,
+			std::string const & p_paramBase,
+			std::string const & p_logName) :
         d_configurator(Configurator::getInstance()),
-        d_paramBase(paramBase),
-        d_epId(epId),
+        d_paramBase(p_paramBase),
+        d_epId(p_epId),
+        d_epType(p_epType),
+        d_failures(EP_MIN_FAILS),
         d_qmShiftCount(0),
-        log( log4cpp::Category::getInstance(logName) ) {
+        log( log4cpp::Category::getInstance(p_logName) ) {
 
 	std::ostringstream lable("");
 	std::string str;
@@ -50,8 +53,14 @@ EndPoint::EndPoint(unsigned int epId,
 
 	LOG4CPP_DEBUG(log, "Loading configuration");
 
-// 	lable.str("");
-	lable << paramBase.c_str() << "_qmask";
+	// Loading the EndPoint Name
+	lable.str("");
+	lable << d_paramBase.c_str() << "_name";
+	d_name = d_configurator.param(lable.str().c_str(), "Unspecified");
+
+	// Loading the EndPoint QueueMask
+	lable.str("");
+	lable << d_paramBase.c_str() << "_qmask";
 	str = d_configurator.param(lable.str().c_str(), "0x0");
 	sscanf(str.c_str(), "%i", &d_epQueueMask);
 
