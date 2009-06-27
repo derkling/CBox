@@ -80,7 +80,7 @@ public:
 	exitCode unregisterThread(ost::PosixThread * p_thread);
 
 	/// Print a log with current registerd thread and their status
-	std::string ThreadDB::printDB();
+	std::string printDB();
 
 protected:
 

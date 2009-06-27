@@ -2,10 +2,7 @@
 
 set -x
 mkdir ./config > /dev/null 2>&1
-
-if [ ! -f controlbox ]; then
-	ln -s src controlbox
-fi
+ln -s src controlbox > /dev/null 2>&1
 
 aclocal -I config
 libtoolize --force --copy

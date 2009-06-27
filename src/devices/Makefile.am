@@ -31,8 +31,8 @@ SOURCES+= PollEventGenerator.h PollEventGenerator.ih PollEventGenerator.cpp
 
 noinst_LTLIBRARIES	= libdevices.la
 libdevices_la_SOURCES	= $(SOURCES)
-libdevices_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@ @CCEXT2_CFLAGS@
-libdevices_la_LDFLAGS 	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@ @CCEXT2_LIBS@
+libdevices_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@ @CCEXT2_CFLAGS@ @LOG4CPP_CFLAGS@
+libdevices_la_LDFLAGS 	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@ @CCEXT2_LIBS@ @LOG4CPP_CFLAGS@
 libdevices_la_LIBADD	= te/libte.la \
 				atgps/libatgps.la \
 				gprs/libgprs.la \

@@ -282,11 +282,15 @@ int main (int argc, char *argv[]) {
 
 	cout << " " << endl;
 	cout << "\t\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
-	cout << "\t\t+ cBox v0.9   -   by Patrick Bellasi <derkling@gmail.com>      +" << endl;
+	cout << "\t\t+   ControlBox   -   by Patrick Bellasi <derkling@gmail.com>   +" << endl;
 	cout << "\t\t++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
+	cout << endl;
+
+	// Printing versioning info
+	cout << "S/W ver. " << PACKAGE_VERSION << " (";
+	cout << "Build: " << __DATE__ << " " << __TIME__ << ")" << endl;
 
 	// Initializing Configurator
-	cout << endl;
 	cout << "Using configuration: " << confFilename << "\n" << endl;
 	controlbox::Configurator::getInstance(confFilename);
 	try {
@@ -374,7 +378,7 @@ int main (int argc, char *argv[]) {
 /// Print the Help menu
 void print_usage(char * progname) {
 
-	cout << "cBox ver. " << VERSION << " (";
+	cout << "cBox ver. " << PACKAGE_VERSION << " (";
 	cout << "Build: " << __DATE__ << " " << __TIME__ << ")" << endl;
 	cout << "\tUsage: " << progname << " [options]" << endl;
 	cout << "\tOptions:" << endl;

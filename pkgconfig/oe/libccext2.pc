@@ -1,0 +1,16 @@
+staging=/staging
+
+prefix=/usr
+exec_prefix=/usr
+libdir=/usr/lib
+includedir=/usr/include
+
+slibdir=${staging}${libdir}
+sincludedir=${staging}${includedir}
+
+Name: libccext2
+Description: GNU Common C++ Extension library
+Version: 1.7.3
+Requires: libccgnu2 = 1.7.3
+Libs: -L${slibdir} -lccext2
+

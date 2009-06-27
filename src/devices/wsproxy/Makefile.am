@@ -43,8 +43,8 @@ libwsproxy_la_SOURCES 	= soapH.h soapC.cpp \
 				EndPoint.h EndPoint.ih EndPoint.cpp \
 				FileEndPoint.h FileEndPoint.ih FileEndPoint.cpp \
 				DistEndPoint.h DistEndPoint.ih DistEndPoint.cpp
-libwsproxy_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@
-libwsproxy_la_LDFLAGS	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@
+libwsproxy_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@ @CCEXT2_CFLAGS@ @LOG4CPP_CFLAGS@
+libwsproxy_la_LDFLAGS	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@ @CCEXT2_CFLAGS@ @LOG4CPP_CFLAGS@
 libwsproxy_la_LIBADD	= libgsoapruntime.la
 
 ########################################################################

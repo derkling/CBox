@@ -1,0 +1,16 @@
+staging=/staging
+
+prefix=/usr
+exec_prefix=/usr
+libdir=/usr/lib
+includedir=/usr/include
+
+slibdir=${staging}${libdir}
+sincludedir=${staging}${includedir}
+
+Name: log4cpp
+Description: C++ library for flexible logging, modeled after Log4j
+Version: 1.0
+Libs: -L${slibdir} -llog4cpp  -L${libdir} -lnsl 
+Cflags: -I${sincludedir} -pthread -isystem /usr/local/angstrom/arm/arm-angstrom-linux-gnueabi/usr/include -fexpensive-optimizations -frename-registers -fomit-frame-pointer -02 -fpermissive -fvisibility-inlines-hidden -O2 -DNDEBUG
+

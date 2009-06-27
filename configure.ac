@@ -1,12 +1,16 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT
+define([gitcommit], esyscmd([sh -c "git show --abbrev-commit --pretty=oneline | head -n1 | cut -d' ' -f1 | cut -d'.' -f1 | tr -d '\n'"]))
+AC_INIT([cbox], [0.1-gitcommit], [derkling@gmail.com])
+AC_DEFINE(GIT_COMMIT, "gitcommit", [GIT Commit])
+
 AC_CONFIG_SRCDIR([src/cboxtest.cpp])
+AC_CONFIG_MACRO_DIR([m4])
 
 # Cross-compilation options
 AC_CANONICAL_SYSTEM
 
 # Automake configuration
-AM_INIT_AUTOMAKE(controlbox, 0.9)
+AM_INIT_AUTOMAKE(controlbox, 0.9, [--warnings=no-portability])
 AM_CONFIG_HEADER(src/config.h)
 
 # Language configuration
@@ -94,9 +98,9 @@ AC_ARG_ENABLE(release,
 	AC_HELP_STRING([--enable-release], [whetever to build a release version (default no)]),
 		[release=true],
 		[release=false])
-AM_CONDITIONAL(CONTROLBOX_DEBUG, test x$release = xfalse)
+AM_CONDITIONAL([CONTROLBOX_DEBUG], [test x$release = xfalse])
 if test x$release = xfalse; then
-	AC_DEFINE([CONTROLBOX_DEBUG], [2], [Enable debug code])
+	AC_DEFINE(CONTROLBOX_DEBUG, 2, "Enable debug code")
 	CONTROLBOX_CFLAGS="-g -O0"
 else
 	CONTROLBOX_CFLAGS="-Os"
@@ -107,26 +111,17 @@ AC_ARG_ENABLE(uselan,
 	AC_HELP_STRING([--enable-uselan], [whetever to use LAN connection (default not)]),
 		[uselan=true],
 		[uselan=false])
-AM_CONDITIONAL(USE_LAN, test x$uselan = xtrue)
+AM_CONDITIONAL([USE_LAN], [test x$uselan = xtrue])
 if test x$uselan = xtrue; then
-	AC_DEFINE([CONTROLBOX_USELAN], [], [Use LAN network instead of GPRS])
+	AC_DEFINE(CONTROLBOX_USELAN, 1, "Use LAN network instead of GPRS")
 fi
 
-# cross compile for the CRIS-AXIS platform
-#AC_ARG_ENABLE(cris,
-#	AC_HELP_STRING([--enable-cris],
-#		[whetever to crosscompile for the cris platform]),
-#		[cris=true],
-#		[cris=false])
-#AM_CONDITIONAL(CRIS_COMPILE, test x$cris = xtrue)
 
-if test x$host = xcris-axis-linux-gnu; then
-	cris="true"
-	AC_DEFINE([CONTROLBOX_CRIS], [], [Enable CRIS specific code])
-else
-	cris="false"
-fi
-AM_CONDITIONAL(CRIS_COMPILE, test x$cris = xtrue)
+
+
+
+
+
 
 #-----[ Check for Specific Libraries Presence ]---------------------------------
 
@@ -149,17 +144,55 @@ PKG_CHECK_MODULES(CCEXT2, libccext2 >= 1.3)
 
 #-----[ Handling CrossCompilation Options ]-------------------------------------
 #SOAPCPP_COMPILER=`pkg-config --variable=exec_prefix gsoap++`
-if test x$cris = xfalse; then
-	AXIS_CONFIG=
-	GSOAP_SDK=
-	CONTROLBOX_CFLAGS=
-	CONTROLBOX_LDFLAGS=
-else
+
+# Default compilation flasg
+AXIS_CONFIG=
+GSOAP_SDK=
+CONTROLBOX_CFLAGS=
+CONTROLBOX_LDFLAGS=
+
+# Customizing compilation flags for CRIS
+if test x$host = xcris-axis-linux-gnu; then
+	AC_DEFINE(CONTROLBOX_CRIS, 1, "Enable CRIS specific code")
+#	AM_CONDITIONAL(CRIS_COMPILE, test 1)
 	AXIS_CONFIG="include \$(AXIS_TOP_DIR)/tools/build/Rules.axis"
 	GSOAP_SDK=
 	CONTROLBOX_CFLAGS="-I\$(AXIS_KERNEL_DIR)/include"
 	CONTROLBOX_LDFLAGS=
 fi
+AM_CONDITIONAL([CRIS_COMPILE], [test x$host = xcris-axis-linux-gnu])
+
+# Customizing compilation flags for ARM
+if test x$host = xarm-angstrom-linux-gnueabi; then
+	AC_DEFINE(CONTROLBOX_ARM, 1, "Enable ARM specific code")
+#	AM_CONDITIONAL(ARM_COMPILE, test 1)
+	AXIS_CONFIG=
+	GSOAP_SDK=
+	CONTROLBOX_CFLAGS=
+	CONTROLBOX_LDFLAGS=
+fi
+AM_CONDITIONAL([ARM_COMPILE],  [test x$host = xarm-angstrom-linux-gnueabi])
+
+
+
+
+#if test x$cris = xtrue; then
+#	AXIS_CONFIG="include \$(AXIS_TOP_DIR)/tools/build/Rules.axis"
+#	GSOAP_SDK=
+#	CONTROLBOX_CFLAGS="-I\$(AXIS_KERNEL_DIR)/include"
+#	CONTROLBOX_LDFLAGS=
+#fi
+#if test x$arm = xtrue; then
+#	AXIS_CONFIG=
+#	GSOAP_SDK=
+#	CONTROLBOX_CFLAGS=
+#	CONTROLBOX_LDFLAGS=
+#else
+#	AXIS_CONFIG=
+#	GSOAP_SDK=
+#	CONTROLBOX_CFLAGS=
+#	CONTROLBOX_LDFLAGS=
+#fi
 
 
 #-----[ Applying configuration ]------------------------------------------------
@@ -199,8 +232,8 @@ AC_MSG_NOTICE([Using log4cpp configuration: CFLAGS="${LOG4CPP_CFLAGS}", LIBS="${
 AC_MSG_NOTICE([Using commoncpp2 configuration: CFLAGS="${CCGNU2_CFLAGS}", LIBS="${CCGNU2_LIBS}"])
 #AC_MSG_NOTICE([Using gSOAP configuration: CFLAGS="${GSOAP_CFLAGS}", LIBS="${GSOAP_LIBS}"])
 #AC_MSG_NOTICE([Using gSOAP compiler located on: $SOAPCPP_COMPILER]/bin)
-if test $cris = "true"; then
-	AC_MSG_NOTICE([System configured for cross-compilation with target: $host])
-	AC_MSG_NOTICE([Running 'make cris-axis-linux-gnu nodebug' to enable cross-compilation... ])
-	make cris-axis-linux-gnu nodebug
-fi
+#if test $cris = "true"; then
+#	AC_MSG_NOTICE([System configured for cross-compilation with target: $host])
+#	AC_MSG_NOTICE([Running 'make cris-axis-linux-gnu nodebug' to enable cross-compilation... ])
+#	make cris-axis-linux-gnu nodebug
+#fi

@@ -232,7 +232,7 @@ int cBoxMain(std::string const & conf,
 /// Print the Help menu
 void print_usage(char * progname) {
 
-	cout << "cBox ver. " << VERSION << " (";
+	cout << "cBox ver. " << PACKAGE_VERSION << " (";
 	cout << "Build: " << __DATE__ << " " << __TIME__ << ")" << endl;
 	cout << "\tUsage: " << progname << " [options]" << endl;
 	cout << "\tOptions:" << endl;
@@ -332,7 +332,7 @@ int main (int argc, char *argv[]) {
 
 //-------------------------- MAIN START HERE -----------------------------------
 
-	cout << endl << "\t\t       cBox ver. " << VERSION << endl;
+	cout << endl << "\t\t       cBox ver. " << PACKAGE_VERSION << endl;
 	cout <<         "\t\tby Patrick Bellasi - derkling@gmail.com" << endl << endl;
 
 	// Logger initialization

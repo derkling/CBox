@@ -1,0 +1,19 @@
+staging=/staging
+
+prefix=/usr
+exec_prefix=/usr
+libdir=/usr/lib
+includedir=/usr/include
+sysconfdir=/etc
+modflags=-module -shared -avoid-version
+dynloader=yes
+
+slibdir=${staging}${libdir}
+sincludedir=${staging}${includedir}
+
+Name: libccgnu2
+Description: GNU Common C++ core library
+Version: 1.7.3
+Cflags:  -D_GNU_SOURCE -I${sincludedir}
+Libs:  -L${slibdir} -lccgnu2 -L${libdir} -ldl -lrt -pthread
+

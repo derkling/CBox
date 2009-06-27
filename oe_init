@@ -1,0 +1,12 @@
+. /usr/local/angstrom/arm/environment-setup
+export ARCH=arm
+export CROSS_COMPILE=arm-angstrom-linux-gnueabi-
+export CC="$CROSS_COMPILE"gcc
+export CXX="$CROSS_COMPILE"g++
+export LD="$CROSS_COMPILE"ld
+export AR="$CROSS_COMPILE"ar
+export NM="$CROSS_COMPILE"nm
+export RANLIB="$CROSS_COMPILE"ranlib
+export STRIP="$CROSS_COMPILE"strip
+export PKG_CONFIG_PATH=/usr/local/angstrom/arm/arm-angstrom-linux-gnueabi/usr/lib/pkgconfig
+
