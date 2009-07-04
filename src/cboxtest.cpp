@@ -75,6 +75,7 @@
 using namespace controlbox;
 
 void print_usage(char * progname);
+int test_loglibs(log4cpp::Category & logger);
 int test_comlibs(log4cpp::Category & logger);
 int test_utils(log4cpp::Category & logger);
 int test_devicedb(log4cpp::Category & logger);
@@ -107,6 +108,7 @@ int main (int argc, char *argv[]) {
 			{"sleep", required_argument, 0, 's'},
 			{"conf", required_argument, 0, 'C'},
 			{"cycles", required_argument, 0, 'c'},
+			{"loglibstest", no_argument, 0, 'L'},
 			{"comlibstest", no_argument, 0, 'l'},
 			{"devdbtest", no_argument, 0, 'e'},
 			{"commandtest", no_argument, 0, 'd'},
@@ -122,12 +124,13 @@ int main (int argc, char *argv[]) {
 			{"nocolors", no_argument, 0, 'y'},
 			{0, 0, 0, 0}
 		};
-	static const char * optstring = "abC:c:dehgilnors:tuwy";
+	static const char * optstring = "abC:c:dehgilLnors:tuwy";
 	int c;
 	bool silent = false;
 
 	// TESTS to do
 	bool printHelp = true;
+	bool testLoglibs = false;
 	bool testComlibs = false;
 	bool testUtils = false;
 	bool testDeviceDB = false;
@@ -200,6 +203,10 @@ int main (int argc, char *argv[]) {
 				break;
 			case 'l':
 				testComlibs = true;
+				printHelp = false;
+				break;
+			case 'L':
+				testLoglibs = true;
 				printHelp = false;
 				break;
 			case 'e':
@@ -315,6 +322,10 @@ int main (int argc, char *argv[]) {
 
 	logger.debug("Runnig tests...");
 
+	if (testLoglibs) {
+		logger.debug("----------- Testing loglibs ---");
+		test_loglibs(logger);
+	}
 	if (testComlibs) {
 		logger.debug("----------- Testing comlibs ---");
 		test_comlibs(logger);
@@ -389,6 +400,7 @@ void print_usage(char * progname) {
 	cout << "\t-c, --cycles <count>       Test cycles number" << endl;
 	cout << "\t-y, --nocolors             Disable colors on output" << endl;
 	cout << "\t-l, --comlibstest          Do a Test on comlibs" << endl;
+	cout << "\t-L, --loglibstest          Do a Test on logging libraries" << endl;
 	cout << "\t-u, --utilstest            Do a Test on Utilities" << endl;
 	cout << "\t-e, --devdbtest            Do a Test on DeviceDB" << endl;
 	cout << "\t-d, --commandtest          Do a Test on DaricomCommand" << endl;
@@ -402,6 +414,65 @@ void print_usage(char * progname) {
 	cout << "\t-t, --attest               Do a Test on the AT interface" << endl;
 
 	cout << "\nPatrick Bellasi - derkling@gmail.com\n" << endl;
+
+}
+
+//#include <log4cpp/StringUtil.hh>
+
+/// Loglibs TEST case
+int test_loglibs(log4cpp::Category & logger) {
+	int i;
+	ostringstream ostr("");
+	controlbox::device::FileWriterCommandHandler * fw = 0;
+	const char *pstr;
+	const std::string message;
+	std::string logName("PollEventGenerator");
+	char buffer[1024];
+	log4cpp::Category & log(log4cpp::Category::getInstance(std::string("controlbox.comlibs.command.PollEventGener")));
+
+	logger.info("Initializing a FileWriterCommandHandler... ");
+	fw = new controlbox::device::FileWriterCommandHandler("/tmp/filewriter.log");
+	logger.info("DONE!");
+	logger.info("");
+
+	logger.info("01 - Testing Category::info (static)...");
+	logger.info("This is a plain string");
+	logger.info("This is a string with some parameter, cycles: %d", cycles);
+	logger.info("");
+
+	logger.info("02 - Testing new category...");
+	log.info("new category log sentence");
+	logger.info("");
+
+	logger.info("03 - Testing Category::info (dynamic)...");
+	ostr.str("");
+	for (i=0; i<cycles; i++) {
+		ostr << "1bcd5fghi0";
+		pstr = ostr.str().c_str();
+
+		cout << "COUT ostr: " << (i+1)*10 << " " << ostr.str() << endl;
+		cout << "COUT pstr: " << (i+1)*10 << " " << pstr << endl;
+		logger.info("c %s", pstr);
+	}
+	logger.info("");
+
+	logger.info("04 - Testing macros...");
+	LOG4CPP_DEBUG(log, "Command::setTheParam(lable=%s, logName=%d, cycles=%s)", logName.c_str(), (cycles > 3) ? "Many" : "Few" );
+	logger.info("");
+
+	logger.info("05 - Testing log4cpp using pre-formatted buffer...");
+	snprintf(buffer, 1024, "Command::setTheParam(lable=%s, logName=%d, cycles=%s)", logName.c_str(), cycles, (cycles > 3) ? "Many" : "Few" );
+	cout << "BUFFER: " << buffer << endl;
+	logger.debug(buffer);
+	logger.info("");
+
+	logger.info("06 - Testing log4cpp with on-line formatting...");
+	logger.debug("Command::setTheParam(lable=%-s, logName=%-d, cycles=%-s)", logName.c_str(), cycles, (cycles > 3) ? "Many" : "Few" );
+	logger.info("");
+
+	logger.info("DONE!");
+
+	return 0;
 
 }
 
