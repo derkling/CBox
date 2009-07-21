@@ -312,7 +312,11 @@ DeviceGPIO * DeviceFactory::getDeviceGPIO(std::string const & logName) {
         }
     } else {
         LOG4CPP_DEBUG(log, "Device GPIO not found on DeviceDB: building a new one");
-        devGPIO = DeviceGPIO::getInstance(logName);
+#ifdef CONTROLBOX_CRIS
+        devGPIO = DeviceGPIOAxis::getInstance(logName);
+#else
+	devGPIO = DeviceGPIOLib::getInstance(logName);
+#endif
     }
 
     return devGPIO;

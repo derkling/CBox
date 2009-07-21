@@ -12,11 +12,11 @@
 //******************** Module information **************************************
 //**
 //** Project:       ControlBox (0.1)
-//** Description:   ModuleDescription
+//** Description:   GPIO Interface
 //**
-//** Filename:      Filename
+//** Filename:      DeviceGPIO.h
 //** Owner:         Patrick Bellasi
-//** Creation date:  21/06/2006
+//** Creation date: 11/07/2009
 //**
 //******************************************************************************
 //******************** Revision history ****************************************
@@ -38,7 +38,12 @@
 namespace controlbox {
 namespace device {
 
-/// A DeviceGPIO is a CommandGenerator that...
+/// A DeviceGPIO is an abstract interface for controlling some
+/// specific board devices status.
+//
+/// This interface allows to control GPRS power state, TTY mux selection and
+/// ADC mux selection.
+///
 /// blha blha blha<br>
 /// <br>
 /// <h5>Configuration params used by this class:</h5>
@@ -56,93 +61,86 @@ class DeviceGPIO : public Device {
 //------------------------------------------------------------------------------
 
 public:
-
-    /// Handled Messages
-    enum cmdType {
-	GPIO_EVENT = (DEVICE_GPIO*SERVICES_RANGE)+1,
-    };
-    typedef enum cmdType t_cmdType;
-
-	enum gprsDevice {
-		GPRS1 = 0,
-		GPRS2 = 1,
+	/// Handled Message
+	enum cmdType {
+		GPIO_EVENT = (controlbox::Device::DEVICE_GPIO*SERVICES_RANGE)+1,
 	};
-	typedef enum gprsDevice t_gprsDevice;
+	typedef enum cmdType t_cmdType;
 
-	// bit coding:
-	// p ssss x
-	// p    => port (TTY1,TTY2)
-	// ssss => channel [0-3]
-	// x	=> mux flag (0 single, 1 muxed)
-	enum ttySwitch {
-		TTY_SINGLE = 0,		// Special value: not multiplexed Port
-		TTY_MUX1_PORT1,
-		TTY_MUX1_PORT2,
-		TTY_MUX1_PORT3,
-		TTY_MUX1_PORT4,
-// 		TTY_SINGLE = 0,		// Special value: not multiplexed Port
-// 		TTY1_PORT0 = 1,
-// 		TTY1_PORT1 = 3,
-// 		TTY1_PORT2 = 5,
-// 		TTY1_PORT3 = 7,
-// 		TTY2_PORT0 = 9,
-// 		TTY2_PORT1 = 11,
-// 		TTY2_PORT2 = 13,
-// 		TTY2_PORT3 = 15,
-	};
-	typedef enum ttySwitch t_ttySwitch;
 
 	enum gpioState {
-		GPIO_OFF = 0,
-		GPIO_ON,
-		GPIO_UNDEF,
+		LOW = 0,
+		HIGH,
+		UNDEF,
 	};
 	typedef enum gpioState t_gpioState;
 
-protected:
-
-	enum gpioLine {
-		GPIO_GPRS1_PWR = 0,
-		GPIO_GPRS1_STATE,
-		GPIO_GPRS1_RST,
-		GPIO_GPRS2_PWR,
-		GPIO_GPRS2_STATE,
-		GPIO_GPRS2_RST,
-		GPIO_MUX1_BIT1,
-		GPIO_MUX1_BIT2,
-// 		GPIO_TTY2_MUX1,
-// 		GPIO_TTY2_MUX2,
-	};
-	typedef enum gpioLine t_gpioLine;
-
-	enum ttyMuxDevice {
-		MUX1 = 0,
-// 		MUX2 = 1,
-	};
-	typedef enum ttyMuxDevice t_ttyMuxDevice;
-
 	enum gpioDir {
-		GPIO_OUT = 0,
-		GPIO_IN,
+		DIR_OUT = 0,
+		DIR_IN,
+		DIR_UNDEF,
 	};
 	typedef enum gpioDir t_gpioDir;
 
 	enum gpioOperation {
-		GPIO_SET,
-		GPIO_CLEAR,
-		GPIO_TOGGLE,
-		GPIO_GET,
+		SET,
+		CLEAR,
+		TOGGLE,
+		GET,
 	};
 	typedef enum gpioOperation t_gpioOperation;
 
-	static DeviceGPIO * d_instance;
+	enum gprsDevice {
+		GPRS1 = 0,
+		GPRS2,
+	};
+	typedef enum gprsDevice t_gprsDevice;
+
+
+	// bit coding:
+	// pssssx
+	// p    => port (TTY1,TTY2)
+	// ssss => channel [0-3]
+	// x	=> mux flag (0 single, 1 muxed)
+	enum ttySwitch {
+		TTYMUX_SINGLE = 0,	// Special value: not multiplexed Port
+		TTYMUX_PORT1,
+		TTYMUX_PORT2,
+		TTYMUX_PORT3,
+		TTYMUX_PORT4,
+	};
+	typedef enum ttySwitch t_ttySwitch;
+
+	/// Multiplexed TTY mutex for exclusive access
+	ost::Mutex d_ttyLock;
+
+
+	enum adcSwitch {
+		ACDMUX_SINGLE = 0,	// Special value: not multiplexed Port
+		ADCMUX_PORT1,
+		ADCMUX_PORT2,
+		ADCMUX_PORT3,
+		ADCMUX_PORT4,
+		ADCMUX_PORT5,
+		ADCMUX_PORT6,
+		ADCMUX_PORT7,
+		ADCMUX_PORT8,
+		ADCMUX_PORT9,
+		ADCMUX_PORT10,
+		ADCMUX_PORT11,
+		ADCMUX_PORT12,
+		ADCMUX_PORT13,
+		ADCMUX_PORT14,
+		ADCMUX_PORT15,
+	};
+	typedef enum adcSwitch t_adcSwitch;
+
+	/// Multiplexed ADC mutex for exclusive access
+	ost::Mutex d_adcLock;
+
 
 	/// The Configurator to use for getting configuration params
 	Configurator & d_config;
-
-	/// Multiplexed TTY mutex for exclusive access
-// 	ost::Mutex d_ttyLock[2];
-	ost::Mutex d_ttyLock[1];
 
 	/// The logger to use locally.
 	log4cpp::Category & log;
@@ -152,39 +150,50 @@ protected:
 //------------------------------------------------------------------------------
 public:
 
-    /// Return an instance of a GPIO Device
-    static DeviceGPIO * getInstance(std::string const & logName = "DeviceGPIO");
+	/// Class destructor.
+	~DeviceGPIO(void);
 
-    /// Class destructor.
-    ~DeviceGPIO();
+	// Power On the specified GPRS device
+	virtual exitCode gprsPowerOn(unsigned short gprs);
 
-	/// Power on/off the specified GPRS device
-	exitCode gprsPower(unsigned short gprs, t_gpioState state);
+	// Power Off the specified GPRS device
+	virtual exitCode gprsPowerOff(unsigned short gprs);
+
 	/// Reset the specified GPRS device
-	exitCode gprsReset(unsigned short gprs);
+	virtual exitCode gprsReset(unsigned short gprs) = 0;
+
 	/// Get the power on/off state of the specified GPRS device
-	bool gprsIsPowered(unsigned short gprs);
+	virtual bool gprsPowered(unsigned short gprs) = 0;
+
 
 	/// Lock the TTY mux for the specified port, and select this port
-	exitCode ttyLock(unsigned short port);
+	virtual exitCode ttyLock(unsigned short port);
 
 	/// UnLock the TTY mux for the specified port
-	exitCode ttyUnLock(unsigned short port);
+	virtual exitCode ttyUnLock(unsigned short port);
 
 	/// Switch to the specified TTY multiplexed port
-	exitCode ttySelect(unsigned short port);
+	virtual exitCode ttySelect(unsigned short port) =0;
+
+
+	/// Lock the ADC mux for the specified port, and select this port
+	virtual exitCode adcLock(unsigned short port);
+
+	/// UnLock the ADC mux for the specified port
+	virtual exitCode adcUnLock(unsigned short port);
+
+	/// Switch to the specified ADC multiplexed port
+	virtual exitCode adcSelect(unsigned short port) = 0;
 
 protected:
 
-	/// Create a new DeviceGPIO.
+	/// Create a new DeviceGPIO
 	DeviceGPIO(std::string const & logName);
 
-	exitCode gpioWrite(t_gpioOperation op, t_gpioLine gpio);
-	t_gpioState gpioRead(t_gpioLine gpio);
-
+	/// Switch the GPRS state
+	virtual exitCode gprsSwitch(unsigned short gprs) = 0;
 
 };
-
 
 } //namespace device
 } //namespace controlbox

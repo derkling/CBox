@@ -16,6 +16,12 @@ INCLUDES = -I@top_srcdir@
 
 SOURCES = DeviceFactory.h DeviceFactory.ih DeviceFactory.cpp
 SOURCES+= DeviceGPIO.h DeviceGPIO.ih DeviceGPIO.cpp
+if CRIS_COMPILE
+SOURCES+= DeviceGPIOAxis.h DeviceGPIOAxis.ih DeviceGPIOAxis.cpp
+endif
+if ARM_COMPILE
+SOURCES+= DeviceGPIOLib.h DeviceGPIOLib.ih DeviceGPIOLib.cpp
+endif
 SOURCES+= DeviceAnalogSensors.h DeviceAnalogSensors.ih DeviceAnalogSensors.cpp
 SOURCES+= DeviceDigitalSensors.h DeviceDigitalSensors.ih DeviceDigitalSensors.cpp
 SOURCES+= DeviceI2CBus.h DeviceI2CBus.ih DeviceI2CBus.cpp
@@ -31,8 +37,8 @@ SOURCES+= PollEventGenerator.h PollEventGenerator.ih PollEventGenerator.cpp
 
 noinst_LTLIBRARIES	= libdevices.la
 libdevices_la_SOURCES	= $(SOURCES)
-libdevices_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@ @CCEXT2_CFLAGS@ @LOG4CPP_CFLAGS@
-libdevices_la_LDFLAGS 	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@ @CCEXT2_LIBS@ @LOG4CPP_CFLAGS@
+libdevices_la_CXXFLAGS	= $(CONTROLBOX_CFLAGS) @CCGNU2_CFLAGS@ @CCEXT2_CFLAGS@ @LOG4CPP_CFLAGS@ @SYSFS_CFLAGS@
+libdevices_la_LDFLAGS 	= $(CONTROLBOX_LDFLAGS) @CCGNU2_LIBS@ @CCEXT2_LIBS@ @LOG4CPP_LIBS@ @SYSFS_LIBS@
 libdevices_la_LIBADD	= te/libte.la \
 				atgps/libatgps.la \
 				gprs/libgprs.la \

@@ -1229,12 +1229,12 @@ int test_devicegpio(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("04 - Powering On GPRS... ");
-	devGPIO->gprsPower(device::DeviceGPIO::GPRS1, device::DeviceGPIO::GPIO_ON);
+	devGPIO->gprsPowerOn(device::DeviceGPIO::GPRS1);
 
 	logger.info("05 - Testing TTY's mutex... ");
 
 	logger.info("Locking TTY1... ");
-	devGPIO->ttyLock(device::DeviceGPIO::TTY_MUX1_PORT1);
+	devGPIO->ttyLock(device::DeviceGPIO::TTYMUX_PORT1);
 // 	logger.info("Locking TTY2... ");
 // 	devGPIO->ttyLock(device::DeviceGPIO::TTY2_PORT3);
 
@@ -1242,16 +1242,16 @@ int test_devicegpio(log4cpp::Category & logger) {
 	::sleep(sleeptime);
 
 	logger.info("UnLocking TTY1... ");
-	devGPIO->ttyUnLock(device::DeviceGPIO::TTY_MUX1_PORT1);
+	devGPIO->ttyUnLock(device::DeviceGPIO::TTYMUX_PORT1);
 // 	logger.info("UnLocking TTY2... ");
 // 	devGPIO->ttyUnLock(device::DeviceGPIO::TTY2_PORT3);
 
 	logger.info("06 - Powering Down GPRS... ");
-	devGPIO->gprsPower(device::DeviceGPIO::GPRS1, device::DeviceGPIO::GPIO_OFF);
+	devGPIO->gprsPowerOff(device::DeviceGPIO::GPRS1);
 
 
 	logger.info("07 - Shutting down the DeviceDS... ");
-	delete devGPIO;
+//	delete devGPIO;
 	logger.info("DONE!");
 
 	return 0;

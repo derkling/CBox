@@ -1,7 +1,3 @@
 
 #include "DeviceGPIO.h"
-#include <controlbox/devices/DeviceFactory.h>
 
-#ifdef  CONTROLBOX_CRIS
-# include <linux/gpio_syscalls.h>
-#endif

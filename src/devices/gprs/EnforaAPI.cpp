@@ -136,7 +136,7 @@ EnforaAPI::powerOn(bool reset) {
 		return OK;
 	}
 
-	result = d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_ON);
+	result = d_gpio->gprsPowerOn(d_module);
 	if (result != OK ) {
 		return GPRS_RESET_REQUIRED;
 	}
@@ -147,7 +147,7 @@ EnforaAPI::powerOn(bool reset) {
 exitCode
 EnforaAPI::powerOff() {
 	LOG4CPP_INFO(log, "Powering-off");
-	d_gpio->gprsPower(d_module, device::DeviceGPIO::GPIO_OFF);
+	d_gpio->gprsPowerOff(d_module);
 	return OK;
 }
 

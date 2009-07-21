@@ -2,6 +2,13 @@
 #include "DeviceFactory.h"
 
 //-----[ Supported devices ]----------------------------------------------------
+
+#ifdef CONTROLBOX_CRIS
+#include <controlbox/devices/DeviceGPIOAxis.h>
+#else
+#include <controlbox/devices/DeviceGPIOLib.h>
+#endif
+
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/FileWriterCommandHandler.h>
 #include <controlbox/devices/PollEventGenerator.h>

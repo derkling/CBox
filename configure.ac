@@ -140,6 +140,9 @@ PKG_CHECK_MODULES(CCEXT2, libccext2 >= 1.3)
 ## Check for gsoap
 #PKG_CHECK_MODULES(GSOAP, gsoap++ >= 2.7)
 
+# Check for libsysfs
+PKG_CHECK_MODULES(SYSFS, sysfs >= 2.1)
+
 
 
 #-----[ Handling CrossCompilation Options ]-------------------------------------
@@ -213,6 +216,9 @@ AC_SUBST(CCEXT2_LIBS)
 #AC_SUBST(GSOAP_SDK)
 #AC_SUBST(SOAPCPP_COMPILER)
 
+AC_SUBST(SYSFS_CFLAGS)
+AC_SUBST(SYSFS_LIBS)
+
 AC_SUBST(AXIS_CONFIG)
 
 
@@ -230,6 +236,7 @@ AC_OUTPUT(Makefile \
 
 AC_MSG_NOTICE([Using log4cpp configuration: CFLAGS="${LOG4CPP_CFLAGS}", LIBS="${LOG4CPP_LIBS}"])
 AC_MSG_NOTICE([Using commoncpp2 configuration: CFLAGS="${CCGNU2_CFLAGS}", LIBS="${CCGNU2_LIBS}"])
+AC_MSG_NOTICE([Using sysfs configuration: CFLAGS="${SYSFS_CFLAGS}", LIBS="${SYSFS_LIBS}"])
 #AC_MSG_NOTICE([Using gSOAP configuration: CFLAGS="${GSOAP_CFLAGS}", LIBS="${GSOAP_LIBS}"])
 #AC_MSG_NOTICE([Using gSOAP compiler located on: $SOAPCPP_COMPILER]/bin)
 #if test $cris = "true"; then
