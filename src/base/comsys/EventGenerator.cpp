@@ -40,7 +40,7 @@ EventGenerator::EventGenerator(std::string const & logName, int pri) :
         d_enabled(false),
         d_running(false),
         d_doExit(false),
-        d_pid(0) {
+        d_tid(0) {
 
 	LOG4CPP_DEBUG(log, "EventGenerator::EventGenerator(std::string const & logName)");
 
@@ -132,15 +132,16 @@ exitCode EventGenerator::notify(bool clean) {
 
 exitCode EventGenerator::threadStartNotify(const char * name) {
 	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
-	unsigned short l_pid;
 	exitCode result;
 
-	l_pid = getpid();
+	d_tid = syscall(SYS_gettid);
+	LOG4CPP_INFO(log, "Thread [%s (%d)] started", name, d_tid);
 
-	LOG4CPP_INFO(log, "Thread [%s (%u)] started", name, l_pid);
+	// NOTE use "ps -eLf" to check for thread started
+	prctl(PR_SET_NAME, name, 01, 01, 01);
 
 	this->setName(name);
-	result = l_tdb->registerThread(this, l_pid);
+	result = l_tdb->registerThread(this, d_tid);
 
 	return result;
 
@@ -148,14 +149,12 @@ exitCode EventGenerator::threadStartNotify(const char * name) {
 
 exitCode EventGenerator::threadStopNotify() {
 	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
-	unsigned short l_pid;
-	exitCode result;
+	exitCode result = OK;
 
-	l_pid = getpid();
-
-	LOG4CPP_WARN(log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
-
-	result = l_tdb->unregisterThread(this);
+	if ( d_tid ) {
+		LOG4CPP_WARN(log, "Thread [%s (%d)] terminated", this->getName(), d_tid);
+		result = l_tdb->unregisterThread(this);
+	}
 
 	return result;
 

@@ -231,8 +231,6 @@ exitCode DeviceTE::notifyEvents(void) {
 void DeviceTE::run (void) {
 	exitCode downloadExitCode;
 
-// 	d_pid = getpid();
-// 	LOG4CPP_INFO(log, "DeviceTE thread (%u) started", d_pid);
 	threadStartNotify("TE");
 
 	d_doExit = false;
@@ -262,6 +260,7 @@ void DeviceTE::run (void) {
 
 		}
 
+// TODO we should use a conditional var with timeout instead of this sleep
 		sleep(d_pollInterval);
 
 	}

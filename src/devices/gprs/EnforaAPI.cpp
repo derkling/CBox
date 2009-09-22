@@ -1691,8 +1691,6 @@ EnforaAPI::runParser() {
 void
 EnforaAPI::run (void) {
 
-// 	d_pid = getpid();
-// 	LOG4CPP_INFO(log, "EnforaAPI thread (%u) started", d_pid);
 	threadStartNotify("GPRS");
 
 	do {

@@ -866,15 +866,14 @@ void WSProxyCommandHandler::run(void) {
 	t_uploadList::iterator it;
 	unsigned int qIndex;
 	controlbox::ThreadDB *l_tdb = ThreadDB::getInstance();
-	unsigned short l_pid;
+	int l_tid;
 	exitCode result;
 
-	l_pid = getpid();
-
-	LOG4CPP_INFO(log, "Thread [%s (%u)] started", "UQ", l_pid);
+	l_tid = syscall(SYS_gettid);
+	LOG4CPP_INFO(log, "Thread [%s (%d)] started", "UQ", l_tid);
 
 	this->setName("UQ");
-	result = l_tdb->registerThread(this, l_pid);
+	result = l_tdb->registerThread(this, l_tid);
 
 	do { // While system is running...
 
@@ -991,7 +990,7 @@ LOG4CPP_WARN(log, "MUTEX, UQ, R");
 	d_okToExit = true;
 
 
-	LOG4CPP_WARN(log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	LOG4CPP_WARN(log, "Thread [%s (%d)] terminated", this->getName(), l_tid);
 	result = l_tdb->unregisterThread(this);
 
 }

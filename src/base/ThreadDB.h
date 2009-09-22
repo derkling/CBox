@@ -45,7 +45,7 @@ private:
 
 	struct threadData {
 		ost::PosixThread* thread;
-		unsigned short pid;
+		int tid;
 	};
 	typedef struct threadData t_threadData;
 
@@ -74,7 +74,7 @@ public:
 	/// associated to the specified lable.
 	/// @param owerride set TRUE to override any eventually already saved
 	///		Device's pointer; default FALSE
-	exitCode registerThread(ost::PosixThread * p_thread, unsigned short p_pid);
+	exitCode registerThread(ost::PosixThread * p_thread, int p_tid);
 
 	/// Unregister a device from the DB
 	exitCode unregisterThread(ost::PosixThread * p_thread);

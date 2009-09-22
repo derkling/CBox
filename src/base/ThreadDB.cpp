@@ -64,7 +64,7 @@ ThreadDB::~ThreadDB() {
 
 }
 
-exitCode ThreadDB::registerThread(ost::PosixThread * p_thread, unsigned short p_pid) {
+exitCode ThreadDB::registerThread(ost::PosixThread * p_thread, int p_tid) {
 	ThreadDB::t_threadData l_thread;
 	t_threadDB::iterator l_it;
 
@@ -78,15 +78,15 @@ exitCode ThreadDB::registerThread(ost::PosixThread * p_thread, unsigned short p_
 		l_it++;
 	}
 	if ( l_it != d_threadDB.end() ) {
-		LOG4CPP_WARN(log, "Thread [%hu:%s] already registerd", l_it->pid, p_thread->getName());
+		LOG4CPP_WARN(log, "Thread [%d:%s] already registerd", l_it->tid, p_thread->getName());
 		return OK;
 	}
 
 	l_thread.thread = p_thread;
-	l_thread.pid = p_pid;
+	l_thread.tid = p_tid;
 
 	d_threadDB.push_back(l_thread);
-	LOG4CPP_INFO(log, "Registered new thread [%hu:%s]", p_pid, p_thread->getName());
+	LOG4CPP_INFO(log, "Registered new thread [%d:%s]", p_tid, p_thread->getName());
 
 	return OK;
 
@@ -95,7 +95,7 @@ exitCode ThreadDB::registerThread(ost::PosixThread * p_thread, unsigned short p_
 
 exitCode ThreadDB::unregisterThread(ost::PosixThread * p_thread) {
 	t_threadDB::iterator l_it;
-	unsigned short l_pid;
+	int l_tid;
 
 	LOG4CPP_DEBUG(log, "ThreadDB::unregisterThread(ost::PosixThread * p_thread)");
 
@@ -111,10 +111,10 @@ exitCode ThreadDB::unregisterThread(ost::PosixThread * p_thread) {
 		return OK;
 	}
 
-	l_pid = l_it->pid;
+	l_tid = l_it->tid;
 
 	d_threadDB.erase(l_it);
-	LOG4CPP_WARN(log, "Unregistered thread [%hu:%s]", l_pid, p_thread->getName());
+	LOG4CPP_WARN(log, "Unregistered thread [%d:%s]", l_tid, p_thread->getName());
 
 	return OK;
 
@@ -131,7 +131,7 @@ std::string ThreadDB::printDB() {
 	l_it = d_threadDB.begin();
 	while ( l_it != d_threadDB.end() ) {
 		l_dump << (l_it->thread)->getName();
-		l_dump << "(" << l_it->pid;
+		l_dump << "(" << l_it->tid;
 
 		l_isRunning = (l_it->thread)->isRunning();
 		if ( l_isRunning ) {
@@ -149,15 +149,13 @@ std::string ThreadDB::printDB() {
 }
 
 void ThreadDB::run() {
-	unsigned short l_pid;
+	int l_tid;
 
-	l_pid = getpid();
-
-	LOG4CPP_INFO(log, "Thread [%s (%u)] started", "UQ", l_pid);
+	l_tid = syscall(SYS_gettid);
+	LOG4CPP_INFO(log, "Thread [%s (%d)] started", "UQ", l_tid);
 
 	this->setName("TM");
-	this->registerThread(this, l_pid);
-
+	this->registerThread(this, l_tid);
 
 	LOG4CPP_DEBUG(log, "Thread monitor started");
 	while ( !d_doExit ) {
@@ -166,7 +164,7 @@ void ThreadDB::run() {
 	}
 	LOG4CPP_DEBUG(log, "Thread monitor terminated");
 
-	LOG4CPP_WARN(log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	LOG4CPP_WARN(log, "Thread [%s (%d)] terminated", this->getName(), l_tid);
 	this->unregisterThread(this);
 
 }

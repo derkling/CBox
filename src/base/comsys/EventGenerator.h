@@ -58,8 +58,8 @@ protected:
     /// Set true when thread should terminate
     bool d_doExit;
 
-    /// The Thread PID
-    unsigned int d_pid;
+    /// The Thread ID
+    int d_tid;
 
 
 public:

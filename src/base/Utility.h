@@ -33,6 +33,10 @@
 #include <controlbox/base/Exception.h>
 
 // System call utilities
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/prctl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>

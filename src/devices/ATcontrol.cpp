@@ -257,8 +257,6 @@ Querible * ATcontrol::parseQuery (std::string const & atCommand, Querible::t_que
 
 void ATcontrol::run(void)  {
 
-//     d_pid = getpid();
-//     LOG4CPP_INFO(log, "ATcontrol thread (%u) started", d_pid);
     threadStartNotify("ATCTR");
 
     // NOTE: Handle the case of EOF from input...

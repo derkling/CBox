@@ -33,13 +33,15 @@
 #include <log4cpp/Category.hh>
 #include <log4cpp/Priority.hh>
 #include <log4cpp/BasicConfigurator.hh>
-
+#include <cc++/thread.h>
 
 #define __PROVA__
 
 
 
 #include "controlbox/base/comsys/EventDispatcher.h"
+#include "controlbox/base/comsys/EventGenerator.h"
+#include "controlbox/base/comsys/Dispatcher.h"
 #include "controlbox/base/comsys/CommandDispatcher.h"
 
 #include "controlbox/devices/DeviceFactory.h"
@@ -78,6 +80,7 @@ void print_usage(char * progname);
 int test_loglibs(log4cpp::Category & logger);
 int test_comlibs(log4cpp::Category & logger);
 int test_utils(log4cpp::Category & logger);
+int test_threads(log4cpp::Category & logger);
 int test_devicedb(log4cpp::Category & logger);
 int test_command(log4cpp::Category & logger);
 int test_wsproxy(log4cpp::Category & logger);
@@ -113,6 +116,7 @@ int main (int argc, char *argv[]) {
 			{"devdbtest", no_argument, 0, 'e'},
 			{"commandtest", no_argument, 0, 'd'},
 			{"wsproxytest", no_argument, 0, 'w'},
+			{"threads", no_argument, 0, 'm'},
 			{"gprstest", no_argument, 0, 'n'},
 			{"astest", no_argument, 0, 'a'},
 			{"gpiotest", no_argument, 0, 'o'},
@@ -124,7 +128,7 @@ int main (int argc, char *argv[]) {
 			{"nocolors", no_argument, 0, 'y'},
 			{0, 0, 0, 0}
 		};
-	static const char * optstring = "abC:c:dehgilLnors:tuwy";
+	static const char * optstring = "abC:c:dehgilLmnors:tuwy";
 	int c;
 	bool silent = false;
 
@@ -133,6 +137,7 @@ int main (int argc, char *argv[]) {
 	bool testLoglibs = false;
 	bool testComlibs = false;
 	bool testUtils = false;
+	bool testThreads = false;
 	bool testDeviceDB = false;
 	bool testDaricomCommand = false;
 	bool testWSProxyCommandHandler = false;
@@ -223,6 +228,10 @@ int main (int argc, char *argv[]) {
 				break;
 			case 'g':
 				testDeviceATGPS = true;
+				printHelp = false;
+				break;
+			case 'm':
+				testThreads = true;
 				printHelp = false;
 				break;
 			case 'n':
@@ -334,6 +343,10 @@ int main (int argc, char *argv[]) {
 		logger.debug("----------- Testing Utilities ---");
 		test_utils(logger);
 	}
+	if (testThreads) {
+		logger.debug("----------- Testing Threads ---");
+		test_threads(logger);
+	}
 	if (testDeviceDB) {
 		logger.debug("----------- Testing DeviceDB ---");
 		test_devicedb(logger);
@@ -402,6 +415,7 @@ void print_usage(char * progname) {
 	cout << "\t-l, --comlibstest          Do a Test on comlibs" << endl;
 	cout << "\t-L, --loglibstest          Do a Test on logging libraries" << endl;
 	cout << "\t-u, --utilstest            Do a Test on Utilities" << endl;
+	cout << "\t-m, --threadstest          Do a Test on Threads" << endl;
 	cout << "\t-e, --devdbtest            Do a Test on DeviceDB" << endl;
 	cout << "\t-d, --commandtest          Do a Test on DaricomCommand" << endl;
 	cout << "\t-w, --wsproxytest          Do a Test on WSProxyCommandHandler" << endl;
@@ -781,6 +795,101 @@ int test_utils(log4cpp::Category & logger) {
 	return 0;
 }
 
+/// Threads TEST case
+int test_threads(log4cpp::Category & logger) {
+
+	class SimpleEG : public controlbox::comsys::EventGenerator {
+	protected:
+		unsigned d_cycles;
+		ost::Conditional cond;
+	public:
+	SimpleEG(controlbox::comsys::Dispatcher * dispatcher, bool enabled, std::string const & logName, int pri) :
+		controlbox::comsys::EventGenerator(dispatcher, enabled, logName, pri),
+		d_cycles(2) {
+	}
+
+	// An example of Thread run method
+	void run (void) {
+		exitCode result;
+		unsigned worktime;
+
+		// Every thread should call the start notification method
+		threadStartNotify("SEG");
+
+		d_doExit = false;
+		while( !d_doExit ) {
+
+			LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
+			cond.wait();
+
+			if ( !d_doExit ) {
+				LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
+				// Random number between 1 and 10
+				// (using high-order bits)
+				worktime = 1 + (int) (10.0 * (rand() / (RAND_MAX + 1.0)));
+				LOG4CPP_INFO(log, "Doing some work [%u]\n", worktime);
+				::sleep(worktime);
+			}
+
+		}
+
+		// At thread exit
+		threadStopNotify();
+
+	}
+	void signal(void) {
+		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SIGNALING");
+		cond.signal(false);
+	}
+	void terminate(void) {
+		d_doExit = true;
+		cond.signal(false);
+		join();
+	}
+
+	};
+
+	SimpleEG *seg1 = 0;
+	SimpleEG *seg2 = 0;
+	controlbox::comsys::EventDispatcher * ed = 0;
+	controlbox::device::FileWriterCommandHandler * fw = 0;
+	unsigned cycle;
+
+	logger.info("01 - Initializing a FileWriterCommandHandler... ");
+	fw = new controlbox::device::FileWriterCommandHandler("./filewriter.log");
+	logger.info("DONE!");
+
+	logger.info("02 - Initializing an EventDispatcher... ");
+	ed = new controlbox::comsys::EventDispatcher(fw, false);
+	logger.info("DONE!");
+
+	logger.info("03 - Building the first thread [SEG-1]...");
+	seg1 = new SimpleEG(ed, false, "SEG-1", 1);
+
+	logger.info("04 - Building the second thread [SEG-2]...");
+	seg2 = new SimpleEG(ed, false, "SEG-2", 2);
+
+	logger.info("05 - Running threads...");
+	seg1->enable();
+	seg2->enable();
+
+	::sleep(2);
+	for (cycle=2; cycle; cycle--) {
+
+		logger.info("07 - Sending signal to second thread... ");
+		seg2->signal();
+		logger.info("08 - Sending signal to first thread... ");
+		seg1->signal();
+		logger.info("09 - Waiting 5s seconds... ");
+		::sleep(10);
+	}
+
+
+	logger.info("10 - Waiting for all threads to complete... ");
+	seg1->terminate();
+	seg2->terminate();
+
+}
 
 /// DeviceDB and DeviceFactory TEST case
 int test_devicedb(log4cpp::Category & logger) {

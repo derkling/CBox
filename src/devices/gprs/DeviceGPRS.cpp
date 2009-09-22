@@ -1023,20 +1023,20 @@ DeviceGPRS::MonitorPppd::run(void) {
 
 //----- Thread registration
 	ThreadDB *l_tdb = ThreadDB::getInstance();
-	unsigned short l_pid;
+	int l_tid;
 	exitCode result;
 
-	l_pid = getpid();
-	LOG4CPP_INFO(d_gprs->log, "Thread [%s (%u)] started", "PPPD", l_pid);
+	l_tid = syscall(SYS_gettid);
+	LOG4CPP_INFO(d_gprs->log, "Thread [%s (%d)] started", "PPPD", l_tid);
 
 	this->setName("PPPD");
-	result = l_tdb->registerThread(this, l_pid);
+	result = l_tdb->registerThread(this, l_tid);
 //-------------------------
 
 	d_gprs->pppdMonitor();
 
 //----- Thread un-registration
-	LOG4CPP_WARN(d_gprs->log, "Thread [%s (%u)] terminated", this->getName(), l_pid);
+	LOG4CPP_WARN(d_gprs->log, "Thread [%s (%d)] terminated", this->getName(), l_tid);
 	result = l_tdb->unregisterThread(this);
 //----------------------------
 
