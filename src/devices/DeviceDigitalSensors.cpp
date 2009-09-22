@@ -739,13 +739,10 @@ DeviceDigitalSensors::sensorsNotify (void) {
 
 void
 DeviceDigitalSensors::run (void) {
-// 	exitCode result;
 
-// 	d_pid = getpid();
-// 	LOG4CPP_INFO(log, "DeviceDS thread (%u) started", d_pid);
 	threadStartNotify("DS");
 
-	d_signals->registerHandler(DeviceSignals::INT_GPIO, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
+	d_signals->registerHandler(DeviceSignals::SIGNAL_GPIO, this, name().c_str(), DeviceSignals::TRIGGER_ON_LOW);
 
 	d_doExit = false;
 	while( !d_doExit ) {

@@ -191,7 +191,7 @@ int cBoxMain(std::string const & conf,
 	logger.info("Sending PowerOn Event... ");
 	devSig = df->getDeviceSignals();
 	if (devSig) {
-		devSig->powerOn();
+		devSig->notifyPowerOn();
 	}
 
 	// Starting thread monitor
@@ -202,7 +202,7 @@ int cBoxMain(std::string const & conf,
 
 	logger.info("Sending PowerOff Event... ");
 	if (devSig) {
-		devSig->powerOn(false);
+		devSig->notifyPowerOff();
 	}
 
 	// Deleting Devices to ensure they don't generate new messages

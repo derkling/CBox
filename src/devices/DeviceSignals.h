@@ -39,15 +39,6 @@
 #include <controlbox/base/comsys/Dispatcher.h>
 #include <controlbox/devices/SignalHandler.h>
 
-#define DEVICESIGNALS_HANDLER_NAME_MAXLEN	16
-#define DEVICESIGNALS_DEV_PATH			"/dev/gpioa"
-
-#define DEVICESIGNALS_DEVICEOPEN_LINE		0
-#define DEVICESIGNALS_ODOGPS_LINE		4
-#define DEVICESIGNALS_BATTERY_LINE		5
-#define DEVICESIGNALS_MMC_LINE			6
-#define DEVICESIGNALS_GPIO_LINE			7
-
 namespace controlbox {
 namespace device {
 
@@ -63,38 +54,49 @@ public:
     };
     typedef enum cmdType t_cmdType;
 
-    enum interrupt {
-    	INT_DEVICEOPEN = 0,
-    	INT_ODOGPS,
-    	INT_BATTERY,
-    	INT_MMC,
-    	INT_GPIO,
-    	INT_COUNT	// This must be the last entry
+    enum signalType {
+	SIGNAL_DEVICEOPEN = 0,
+	SIGNAL_OCG,
+	SIGNAL_BATTERY,
+	SIGNAL_MMC,
+	SIGNAL_GPIO,
+	SIGNAL_COUNT,	// This must be the lasry
     };
-    typedef enum interrupt t_interrupt;
+    typedef enum signalType t_signalType;
 
     /// Interrupt line names
-    /// This vector should match t_interrupt's entries
-    static const char *intrName[];
+    /// This vector should match t_signalType's entries
+    static const char *signalTypeName[];
 
-    enum interruptTrigger {
-    	INTERRUPT_NONE=0,		///> Disable interrupt on this line
-	INTERRUPT_ON_LOW,		///> Signal when the going low
-	INTERRUPT_ON_HIGH,		///> Signal when going high
-	INTERRUPT_ON_BOTH		///> Signal level change
+    enum signalTrigger {
+	TRIGGER_ON_NONE = 0,	///> Disable interrupt on this line
+	TRIGGER_ON_LOW,		///> Signal when the going low
+	TRIGGER_ON_HIGH,	///> Signal when going high
+	TRIGGER_ON_BOTH,	///> Signal level change
     };
-    typedef enum interruptTrigger t_interruptTrigger;
+    typedef enum signalTrigger t_signalTrigger;
 
     /// Interrupt levels names
     /// This vector should match t_interruptTrigger's entries
-    static const char *intrLevel[];
+    static const char *signalTriggerName[];
 
-    typedef unsigned long t_intMask;
+    // A mask of signals (bits should match t_signalType)
+    typedef unsigned short t_signalMask;
+
+    // A mask of triggers.
+    // For each signal define if a trigger is configured for HIGH or/and LOW
+    // levels
+    struct triggerMasks {
+        t_signalMask loSignals;      ///> Low  triggered lines
+        t_signalMask hiSignals;      ///> High triggered lines
+    };
+    typedef struct triggerMasks t_triggerMasks;
 
     struct handler {
 	SignalHandler * sh;				///> the signel handler to notify
-	t_intMask line;					///> the interrupt line of interest
-	t_interruptTrigger level;			///> the triggering level
+	t_signalMask signal;				///> the interrupt line of interest
+	t_signalTrigger trigger;			///> the triggering level
+#define DEVICESIGNALS_HANDLER_NAME_MAXLEN	16
 	char name[DEVICESIGNALS_HANDLER_NAME_MAXLEN];	///> the name of this handler
     };
     typedef struct handler t_handler;
@@ -104,17 +106,7 @@ public:
 
     typedef pair<unsigned short, t_handler *> t_binding;
 
-
-    struct masks {
-	t_intMask loLines;	///> Low only triggered lines
-	t_intMask hiLines;	///> High only triggered lines
-	t_intMask boLines;	///> Both only triggered lines
-    };
-    typedef struct masks t_masks;
-
 protected:
-
-    static DeviceSignals * d_instance;
 
     /// The Configurator to use for getting configuration params
     Configurator & d_config;
@@ -122,77 +114,55 @@ protected:
     /// The Time Device to use
     DeviceTime * d_time;
 
-    /// The PortA device filepath.
-    std::string d_devpath;
-
-    /// The PortA device file handler.
-    int fd_dev;
-
     /// Maps interrupt lines to handlers
     t_hMap handlers;
 
-    /// Current enabled interrupt mask
-    t_masks d_curMask;
+    /// Current enabled triggers
+    t_triggerMasks d_curTriggers;
 
-    /// Last readed input levels
-    t_intMask d_levels;
+    /// Current signal value: this is a bitmask where each bit represent
+    ///  the state of the corresponding signal (bits should metch t_signal)
+    t_signalMask d_signalStatus;
 
-    /// Mask of bits Chenged since last reading
-    t_intMask d_changedBits;
+    /// Define TURE for the interrupt lines that are asserted
+    bool d_signalPending[SIGNAL_COUNT];
 
-    /// True if LIGHT alarm is asserted
-    bool d_isDeviceOpen;
-
-    /// True if ODO-GPS alarm is asserted
-    bool d_isOdoGpsAlarm;
-
-    /// True if running on battery
-    bool d_isBatteryPowered;
-
-    /// True if MMC is present
-    bool d_isMmcPresent;
-
-    /// True if DS alarm is asserted
-    bool d_isGpioAlarm;
-
-    unsigned short handlersNumber[INT_COUNT];
+    /// Number of interrupt handlers registered for each interrupt line
+    unsigned short handlersCount[SIGNAL_COUNT];
 
     /// The logger to use locally.
     log4cpp::Category & log;
 
 public:
 
-    /// Get an object instance.
-    /// @param logName the log category
-    static DeviceSignals * getInstance(std::string const & logName = "DeviceSignals");
-
     ~DeviceSignals();
 
+
     /// Register a signal handler.
-    /// @param i the interrupt of interest (@see t_interrupt)
+    /// @param i the signal of interest (@see t_signalType)
     /// @param d the device to notify
     /// @param l trigger level
     /// @return OK on registration success
-    exitCode registerHandler(unsigned short i, SignalHandler * sh, const char *name = 0, t_interruptTrigger l = INTERRUPT_ON_BOTH);
+    exitCode registerHandler(unsigned short s, SignalHandler * sh, const char *name = 0, t_signalTrigger t = TRIGGER_ON_BOTH);
 
     /// Unsubscribe a signal handler.
     /// @param t the thread to deregister
     exitCode unregisterHandler(SignalHandler * sh);
 
+
     /// Return TRUE if the device is battery powered
     bool isBatteryPowered(void);
 
-    /// Notify Power On Status
-    exitCode powerOn(bool on = true);
 
-    /// Notify Device has been opened
-    exitCode notifyDeviceOpen(bool open = true);
+    exitCode notifyPowerOn() {
+	    return notifyPower(true);
+    };
 
+    exitCode notifyPowerOff() {
+	    return notifyPower(false);
+    };
 
 protected:
-
-    /// Init signal device.
-    exitCode initSignals();
 
     /// Create a new DeviceSignals.
     /// In order to get a valid instance of that class
@@ -200,29 +170,31 @@ protected:
     /// @param logName the log category.
     /// @see getInstance
     DeviceSignals(std::string const & logName);
+   
+    /// Notify Power State
+    exitCode notifyPower(bool on);
 
-    /// Return current input levels
-    exitCode getLevels(t_intMask & levels);
-
-    /// Configure lines to generata an interrupt on the specified level.
-    /// @param bitmask of lines to configure
-    /// @param onLow set true to generate an interrupt when lines go low
-    exitCode confInterrupt(t_intMask lines, bool onLow = true);
-
-    /// Reconfigure interrupt lines
-    exitCode updateInterrupts(void);
-
-    exitCode waitForIntr(t_intMask & levels);
-
-    exitCode checkInterrupts(t_intMask & levels);
-
+     /// Notify Device has been opened
+    exitCode notifyDeviceOpen(bool open);
+ 
     /// Notify a thread with a signal.
-    exitCode notifySignal(t_handler & handler, t_intMask & levels);
+    exitCode notifySignal(t_handler & handler, t_signalMask & signals);
 
-   /// Update the interrupts configuration based on last readed lines input levels
-    exitCode updateConf(void);
+    /// Update the triggers levels that must generate an interrupt
+    exitCode updateTriggers(void);
 
-    /// Thread body.
+    /// Verify interrupts locally
+    exitCode checkInterrupts(t_signalMask & curStatus);
+
+    /// Update the current value for each signal
+    virtual exitCode updateSignalStatus(t_signalMask & status) = 0;
+
+    /// Update low-level interrupt configuration
+    virtual exitCode configureInterrupts(void) = 0;
+
+    /// Wait for an interrupt to happens
+    virtual exitCode waitInterrupt(t_signalMask & status) = 0;
+
     /// This method provide to configure the signal dispatcher and actually start it.
     void run(void);
 
@@ -231,3 +203,4 @@ protected:
 } //namespace device
 } //namespace controlbox
 #endif
+

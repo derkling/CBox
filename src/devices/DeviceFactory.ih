@@ -5,8 +5,10 @@
 
 #ifdef CONTROLBOX_CRIS
 #include <controlbox/devices/DeviceGPIOAxis.h>
+#include <controlbox/devices/DeviceSignalsAxis.h>
 #else
 #include <controlbox/devices/DeviceGPIOLib.h>
+#include <controlbox/devices/DeviceSignalsLinuxEvt.h>
 #endif
 
 #include <controlbox/devices/DeviceTime.h>

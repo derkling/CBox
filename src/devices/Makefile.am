@@ -16,11 +16,14 @@ INCLUDES = -I@top_srcdir@
 
 SOURCES = DeviceFactory.h DeviceFactory.ih DeviceFactory.cpp
 SOURCES+= DeviceGPIO.h DeviceGPIO.ih DeviceGPIO.cpp
+SOURCES+= DeviceSignals.h DeviceSignals.ih DeviceSignals.cpp
 if CRIS_COMPILE
 SOURCES+= DeviceGPIOAxis.h DeviceGPIOAxis.ih DeviceGPIOAxis.cpp
+SOURCES+= DeviceSignalsAxis.h DeviceSignalsAxis.ih DeviceSignaslAxis.cpp
 endif
 if ARM_COMPILE
 SOURCES+= DeviceGPIOLib.h DeviceGPIOLib.ih DeviceGPIOLib.cpp
+SOURCES+= DeviceSignalsLinuxEvt.h DeviceSignalsLinuxEvt.ih DeviceSignalsLinuxEvt.cpp
 endif
 SOURCES+= DeviceAnalogSensors.h DeviceAnalogSensors.ih DeviceAnalogSensors.cpp
 SOURCES+= DeviceDigitalSensors.h DeviceDigitalSensors.ih DeviceDigitalSensors.cpp
@@ -31,7 +34,6 @@ SOURCES+= DeviceSerial.h DeviceSerial.ih DeviceSerial.cpp
 SOURCES+= DeviceInCabin.h DeviceInCabin.ih DeviceInCabin.cpp
 SOURCES+= ATcontrol.h ATcontrol.ih ATcontrol.cpp
 SOURCES+= DeviceTime.h DeviceTime.ih DeviceTime.cpp
-SOURCES+= DeviceSignals.h DeviceSignals.ih DeviceSignals.cpp
 SOURCES+= FileWriterCommandHandler.h FileWriterCommandHandler.ih FileWriterCommandHandler.cpp
 SOURCES+= PollEventGenerator.h PollEventGenerator.ih PollEventGenerator.cpp
 

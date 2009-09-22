@@ -74,7 +74,11 @@ DeviceSignals * DeviceFactory::getDeviceSignals(std::string const & logName) {
         }
     } else {
         LOG4CPP_DEBUG(log, "Device SIGNALS not found on DeviceDB: building a new one");
-        devSig = DeviceSignals::getInstance(logName);
+#ifdef CONTROLBOX_CRIS
+        devSig = DeviceSignalsAxis::getInstance(logName);
+#else
+	devSig = DeviceSignalsLinuxEvt::getInstance(logName);
+#endif
     }
 
     return devSig;

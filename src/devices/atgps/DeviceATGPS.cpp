@@ -718,8 +718,6 @@ void DeviceATGPS::signalNotify(void) {
 void DeviceATGPS::run (void) {
 	exitCode result;
 
-// 	d_pid = getpid();
-// 	LOG4CPP_INFO(log, "DeviceATGPS thread (%u) started", d_pid);
 	threadStartNotify("OCG");
 
 	LOG4CPP_DEBUG(log, "Resetting event register");
@@ -729,7 +727,7 @@ void DeviceATGPS::run (void) {
 	}
 
 	LOG4CPP_DEBUG(log, "Register interrupt handler");
-	d_signals->registerHandler(DeviceSignals::INT_ODOGPS, this, name().c_str(), DeviceSignals::INTERRUPT_ON_LOW);
+	d_signals->registerHandler(DeviceSignals::SIGNAL_OCG, this, name().c_str(), DeviceSignals::TRIGGER_ON_LOW);
 
 	d_doExit = false;
 	while( !d_doExit ) {

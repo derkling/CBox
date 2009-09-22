@@ -1,0 +1,15 @@
+
+#include <DeviceSignalsAxis.h>
+
+
+#include <controlbox/devices/DeviceFactory.h>
+
+#include <sys/select.h>
+#include <errno.h>
+
+#ifdef CONTROLBOX_CRIS
+# include <sys/ioctl.h>
+# include <asm/etraxgpio.h>
+# include <asm/etraxi2c.h>
+#endif
+
