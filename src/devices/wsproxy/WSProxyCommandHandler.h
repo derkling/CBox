@@ -361,7 +361,7 @@ public:
     /// The default notify routine.
     /// The implementation in that class does nothing, just generate
     /// log if level is <= DEBUG
-    exitCode notify();
+    exitCode notifyEvent();
 
     /// Command notify routine.
     /// The specified command
@@ -370,7 +370,7 @@ public:
     ///		WS_INCOMPLETE_MESSAGE if the Command is missing some required param.
     /// @throw exceptions::IllegalCommandException never throwed by this
     ///			implementation.
-    exitCode notify(comsys::Command * cmd)
+    exitCode notifyCommand(comsys::Command * cmd)
     throw (exceptions::IllegalCommandException);
 
     /// Start the upload thread.

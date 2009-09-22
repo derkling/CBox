@@ -171,9 +171,6 @@ public:
 	/// Configure the GPRS.
 	exitCode initDeviceGPRS();
 
-	/// Start the parser thread.
-	exitCode runParser();
-
 protected:
 
 	/// Power-on the device using GPIO interface
@@ -235,10 +232,6 @@ protected:
 
 	/// Notify friends servers about a network configuration change.
 	exitCode notifyFriends();
-
-	/// The thread body: this will hear for unsolicited messages coming from
-	/// the modem
-	void run (void);
 
 
 };

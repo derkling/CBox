@@ -66,7 +66,7 @@ public:
     /// Set the default Command to dispatch.
     /// The specified comand will the send to the associated (command) handler,
     /// each time disaptch() is called.
-    /// @param command the default command to dispatch on notify() calls
+    /// @param command the default command to dispatch on notifyCommand() calls
     /// @note any proviously defined default command reference will be lost,
     ///		overwritten by that one, but the previous instance will NOT
     ///		be cleaned by that class: the client must provide to release
@@ -93,7 +93,7 @@ public:
     /// @throw exceptions::InitializationException if ther's not a default command to disaptch
     /// @throw exceptions::OutOfMemoryException while in suspended state, if ther's not
     ///		enought memory to queue the command for delayed dispatching
-    exitCode dispatch(bool clean = true)
+    exitCode dispatchCommand(bool clean = true)
     throw (exceptions::InitializationException,
            exceptions::OutOfMemoryException);
 
@@ -108,7 +108,7 @@ public:
     ///		enought memory to queue the command for delayed dispatching
     /// @note commands queued while the disaptcher is suspended are alwais cleaned
     ///		once have been notified after resume.
-    exitCode dispatch(Command * command, bool clean = true)
+    exitCode dispatchCommand(Command * command, bool clean = true)
     throw (exceptions::OutOfMemoryException);
 
 protected:

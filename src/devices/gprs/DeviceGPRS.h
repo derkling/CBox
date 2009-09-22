@@ -35,8 +35,9 @@
 #  include <map>
 #  include <controlbox/base/Utility.h>
 #  include <controlbox/base/Configurator.h>
-#  include <controlbox/base/comsys/CommandGenerator.h>
+#  include <controlbox/base/Worker.h>
 #  include <controlbox/base/Device.h>
+#  include <controlbox/base/comsys/CommandGenerator.h>
 #  include <controlbox/base/Querible.h>
 #  include <controlbox/devices/DeviceSerial.h>
 
@@ -113,7 +114,9 @@ namespace device {
 /// </ul>
 /// @see CommandHandler
 /// @see DeviceSerial
-class DeviceGPRS:public comsys::CommandGenerator, public Device {
+class DeviceGPRS:public comsys::CommandGenerator,
+		public Device,
+		public Worker {
 
       public:
 
@@ -218,22 +221,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
       protected:
 
-
-	/// A thread for log parsing
-	class MonitorPppd : public ost::PosixThread {
-	public:
-		MonitorPppd(DeviceGPRS * gprs);
-		~MonitorPppd() {};
-		void run (void);
-	protected:
-		DeviceGPRS * d_gprs;
-	};
-	// Allowing inner class to access DeviceAnalogSensors members
-	friend class MonitorPppd;
-
-
-      protected:
-
 	/// The Configurator to use for getting configuration params
 	Configurator & d_config;
 
@@ -246,10 +233,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// The DeviceSerial used to communicate with the modem
 	DeviceSerial * d_tty;
-
-	/// Set to true once we want to terminate the parsing thread and
-	/// destroying the class
-	bool d_doExit;
 
 	/// The GPRS module identification strings
 	t_identification d_ids;
@@ -275,9 +258,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// The PPP configuration
 	t_pppd_configuration d_pppConf;
-
-	/// The thread for parsing pppd log file.
-	MonitorPppd d_monitorPppd;
 
 	/// Whatever the parser thread is running.
 	/// When this is false, all public command methods will fails
@@ -395,9 +375,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 		return d_netStatus;
 	};
 
-	/// Start the parser thread.
-	virtual exitCode runParser();
-
       protected:
 
 	/// Create a new DeviceGPRS initially disabled.
@@ -461,31 +438,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	///		not present, OK otherwise
 	inline exitCode loadAPNConf(unsigned int apnId, std::string & apnName, t_netlink & conf);
 
-#if 0
-// This code has been replaced by the DeviceSerial class
-	/// Open the serial port.
-	/// @return OK on success.
-	/// @see d_tty
-	exitCode openSerial();
-
-	/// Close the serial port.
-	/// @param sync set true to force a flush of input/output buffers before
-	///	closeing the device.
-	/// @return OK on success
-	exitCode closeSerial(bool sync = false);
-
-	/// Send a modem cmd using the TTY port.
-	/// @param cmd the command to send
-	/// @param resp if specified, it will return the modem responce;
-	///		there will be a vector entry for each reponce line.
-	/// @note emtpy lines are discarded from responce lines
-	/// @return OK on success, GPRS_TTY_MODEM_NOT_RESPONDING otherwise.
-	exitCode sendSerial(std::string cmd, t_stringVector * resp = 0);
-
-	/// Read from TTY port.
-	exitCode readSerial(t_stringVector * resp = 0);
-#endif
-
 	exitCode getDeviceIds();
 
 	/// Check if the modem is responding
@@ -496,7 +448,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 
 	/// Notify a network status change.
 	exitCode updateState(t_netStatus state);
-
 
 	/// Callback to notify ppp daemon state change.
 	/// A derived class could implement this method to get a notify on
@@ -515,11 +466,6 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// This method update also the d_pppdLogFile attribute
 	inline std::string pppDaemonLogfile(char *logFile = 0, unsigned int size = 0);
 
-	/// Parse the PPP daemon log file for event generation.
-	/// This method generate net link events recognized by
-	/// parsing the PPP daemon log file.
-	exitCode pppdMonitor();
-
 	/// Parse a PPP daemon log sentence for event generation.
 	/// This method generate net link events if the given sentence has been
 	/// recognized.
@@ -533,10 +479,8 @@ class DeviceGPRS:public comsys::CommandGenerator, public Device {
 	/// by passing the <b>ipparam</b> option.
 	exitCode pppdParseLog(const char *logline);
 
-	/// The thread cycle.
-	/// This implementation is simply empty and is valid for a DUMMY GPRS
-	/// configurtion using ethernet connection.
-	virtual void run(void);
+	/// The PPPD daemon monitoring thread
+	void run(void);
 
 };
 

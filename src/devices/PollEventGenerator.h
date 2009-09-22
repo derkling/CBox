@@ -32,8 +32,9 @@
 
 
 #include <controlbox/base/Utility.h>
-#include <controlbox/base/comsys/EventGenerator.h>
 #include <controlbox/base/Device.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/base/comsys/EventGenerator.h>
 #include <string>
 
 
@@ -48,7 +49,9 @@ namespace device {
 /// class is in the enabled state: otherwise poll events are definitively
 /// lost.
 /// @see EventGenerator
-class PollEventGenerator : public Device, public comsys::EventGenerator {
+class PollEventGenerator : public comsys::EventGenerator,
+			public Device,
+			public Worker {
 
 public:
     /// Generated Messages

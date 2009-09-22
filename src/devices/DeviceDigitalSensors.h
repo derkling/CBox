@@ -33,14 +33,15 @@
 #include <cc++/thread.h>
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/base/Device.h>
+#include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceI2CBus.h>
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/SignalHandler.h>
 #include <controlbox/base/comsys/EventGenerator.h>
 #include <controlbox/base/comsys/EventDispatcher.h>
-#include <controlbox/base/comsys/CommandGenerator.h>
-#include <controlbox/base/Device.h>
 
 #define DS_DEFAULT_SYSFSBASE	"/sys/bus/i2c/devices"
 #define DS_MAX_ATTRIB_LENGTH	16
@@ -85,7 +86,8 @@ namespace device {
 class DeviceDigitalSensors : public comsys::CommandGenerator,
 				private comsys::EventDispatcher,
 				public SignalHandler,
-				public Device {
+				public Device,
+				public Worker {
 
 //------------------------------------------------------------------------------
 //				Class Members

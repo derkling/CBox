@@ -80,6 +80,7 @@ DeviceATGPS * DeviceATGPS::getInstance(std::string const & logName) {
 DeviceATGPS::DeviceATGPS(std::string const & logName) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_ATGPS, 0, logName),
+	Worker(Device::log, "cbw_OCG", 0),
 	d_config(Configurator::getInstance()),
 	d_tty(0),
 	d_notifies(0),
@@ -642,7 +643,7 @@ DeviceATGPS::notifyEvent(unsigned short event) {
 	}
 
 	// Notifying command
-	notify(cSgd);
+	notifyCommand(cSgd);
 
 	return OK;
 
@@ -711,14 +712,15 @@ void DeviceATGPS::signalNotify(void) {
 	}
 
 	LOG4CPP_DEBUG(log, "Resuming notify thread...");
-	this->ost::Thread::resume();
+	//this->ost::Thread::resume();
+	signalWorker();
 
 }
 
 void DeviceATGPS::run (void) {
 	exitCode result;
 
-	threadStartNotify("OCG");
+	//threadStartNotify("OCG");
 
 	LOG4CPP_DEBUG(log, "Resetting event register");
 	result = getLastEvent();
@@ -729,20 +731,19 @@ void DeviceATGPS::run (void) {
 	LOG4CPP_DEBUG(log, "Register interrupt handler");
 	d_signals->registerHandler(DeviceSignals::SIGNAL_OCG, this, name().c_str(), DeviceSignals::TRIGGER_ON_LOW);
 
-	d_doExit = false;
+	//d_doExit = false;
 	while( !d_doExit ) {
 
-		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
-		ost::Thread::suspend();
+		//LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
+		//ost::Thread::suspend();
+		suspendWorker();
 
-		if ( !d_doExit ) {
-			LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
+		if ( !d_doExit )
 			checkAlarms();
-		}
 
 	};
 
-	threadStopNotify();
+	//threadStopNotify();
 
 }
 

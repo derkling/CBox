@@ -43,18 +43,27 @@ Worker::Worker(log4cpp::Category & log, char const *name, int pri) :
 }
 
 void Worker::suspendWorker(void) {
+	LOG4CPP_DEBUG(log, "worker [%s] SUSPENDING", getName());
 	d_notice.wait();
 }
 
 void Worker::pollWorker(unsigned int msec) {
+	LOG4CPP_DEBUG(log, "worker [%s] WAITING [%ums]", getName(), msec);
 	d_notice.wait(msec);
 }
 
 void Worker::signalWorker(void) {
+	LOG4CPP_DEBUG(log, "worker [%s] RESUMING", getName());
 	d_notice.signal(false);
 }
 
+void Worker::runWorker(void) {
+	LOG4CPP_DEBUG(log, "worker [%s] STARTING", getName());
+	this->start();
+}
+
 void Worker::terminateWorker(void) {
+	LOG4CPP_DEBUG(log, "worker [%s] TERMINATING...", getName());
 	d_doExit = true;
 	d_notice.signal(false);	
 	join();

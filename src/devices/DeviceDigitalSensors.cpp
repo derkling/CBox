@@ -46,9 +46,10 @@ DeviceDigitalSensors * DeviceDigitalSensors::getInstance(std::string const & log
 }
 
 DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
-	CommandGenerator(logName, -1),
+	CommandGenerator(logName),
 	SignalHandler(),
 	Device(Device::DEVICE_DS, 0, logName),
+	Worker(Device::log, "cbw_DS", 0),
 	d_config(Configurator::getInstance()),
 	d_sysfsbase(""),
 	d_pcaDevices(0),
@@ -550,7 +551,7 @@ DeviceDigitalSensors::notifySensorEvent(t_digitalSensor & aSensor) {
 	cSgd->setParam( "timestamp", d_time->time() );
 
 	// Notifying command
-	notify(cSgd);
+	notifyCommand(cSgd);
 	return OK;
 }
 
@@ -740,23 +741,13 @@ DeviceDigitalSensors::sensorsNotify (void) {
 void
 DeviceDigitalSensors::run (void) {
 
-	threadStartNotify("DS");
-
 	d_signals->registerHandler(DeviceSignals::SIGNAL_GPIO, this, name().c_str(), DeviceSignals::TRIGGER_ON_LOW);
+	suspendWorker();
 
-	d_doExit = false;
 	while( !d_doExit ) {
-
-		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
-		ost::Thread::suspend();
-
-		if ( !d_doExit ) {
-			sensorsNotify();
-		}
-
+		sensorsNotify();
+		suspendWorker();
 	};
-
-	threadStopNotify();
 
 }
 

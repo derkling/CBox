@@ -49,6 +49,7 @@ const char *DeviceSignals::signalTriggerName[] = {
 DeviceSignals::DeviceSignals(std::string const & logName) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_SINGALS, logName, logName),
+	Worker(Device::log, "cbw_SIG", 0),
 	d_config(Configurator::getInstance()),
 	log(Device::log) {
 	DeviceFactory * df = DeviceFactory::getInstance();
@@ -130,7 +131,7 @@ exitCode DeviceSignals::registerHandler(unsigned short s, SignalHandler * sh, co
 			signalTypeName[s], p_name[0] ? p_name : "UNK", signalTriggerName[t]);
 
 	// Unlocking the Signal thread
-	this->signalThread(SIGCONT);
+	signalWorker();
 
 	return OK;
 }
@@ -185,7 +186,7 @@ exitCode DeviceSignals::notifyPower(bool on) {
 	cSgd->setPrio(0);
 
 	// Notifying command
-	notify(cSgd);
+	notifyCommand(cSgd);
 
 	return OK;
 }
@@ -206,7 +207,7 @@ exitCode DeviceSignals::notifyDeviceOpen(bool open) {
 	cSgd->setPrio(0);
 
 	// Notifying command
-	notify(cSgd);
+	notifyCommand(cSgd);
 
 	return OK;
 }
@@ -322,29 +323,25 @@ void DeviceSignals::run(void)  {
 	t_signalMask curMask;
 	t_signalMask newStatus;
 
-	// Install sighandler
-	sigInstall(SIGCONT);
-
-	// Notify thread monitor about this worker
-	threadStartNotify("SIG");
+	// Wait until at least one client is registered
+	suspendWorker();	
 
 	// FIXME this should be correctly initialized by the base class...
 	// but without this the cycle is not entered
-	d_doExit = false;
 	while ( !d_doExit ) {
 
 		// Waiting for at least one handler to be defined
 		curMask = d_curTriggers.loSignals | d_curTriggers.hiSignals;
 		if ( !curMask ) {
 			LOG4CPP_DEBUG(log, "Waiting for at least one handler installed");
-			waitSignal(SIGCONT);
+			suspendWorker();
 		}
 
 		// Updating interrupts configuration
 		if (updateTriggers() != OK ) {
 			LOG4CPP_WARN(log, "Failed updating interrupt configuration");
 			LOG4CPP_DEBUG(log, "Waiting 5s before retrying... ");
-			::sleep(5);
+			pollWorker(5000);
 			continue;
 		}
 
@@ -354,21 +351,7 @@ void DeviceSignals::run(void)  {
 			continue;
 		}
 
-/*
-		// Checking interrupts locally
-		checkInterrupts(newStatus);
-
-		// Checking interrupt for handlers notification
-		LOG4CPP_DEBUG(log, "Notifying registered handlers...");
-		anH = handlers.begin();
-		while (anH != handlers.end()) {
-			notifySignal(*(anH->second), levels);
-			anH++;
-		}
-*/
 	}
-
-	threadStopNotify();
 
 	return;
 

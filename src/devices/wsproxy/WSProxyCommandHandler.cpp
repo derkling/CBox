@@ -331,21 +331,21 @@ WSProxyCommandHandler::~WSProxyCommandHandler() {
 }
 
 
-exitCode WSProxyCommandHandler::notify() {
+exitCode WSProxyCommandHandler::notifyEvent() {
 
-    LOG4CPP_DEBUG(log, "WSProxyCommandHandler::notify()");
+    LOG4CPP_DEBUG(log, "WSProxyCommandHandler::notifyEvent()");
     return OK;
 
 }
 
 
-exitCode WSProxyCommandHandler::notify(comsys::Command * cmd)
+exitCode WSProxyCommandHandler::notifyCommand(comsys::Command * cmd)
 throw (exceptions::IllegalCommandException) {
     t_cmdParser::iterator it;
     t_wsData * l_wsData = 0;
     exitCode result;
 
-    LOG4CPP_DEBUG(log, "%s:%d WSProxyCommandHandler::notify(Command * cmd)", __FILE__, __LINE__);
+    LOG4CPP_DEBUG(log, "%s:%d WSProxyCommandHandler::notifyCommand(Command * cmd)", __FILE__, __LINE__);
 
     // Checking if the command is supported (aka. a Command Parser has
     // been defined for the current command)
@@ -496,7 +496,7 @@ exitCode WSProxyCommandHandler::updatePoller(bool notifyChange, bool force) {
 
 	if ( notifyChange ) {
 		// Sending a new poll message to represent the state changed
-		notify(d_pollCmd);
+		notifyCommand(d_pollCmd);
 	}
 
 	LOG4CPP_DEBUG(log, "Built new DevicePoller(%d)", d_pollTime*1000);

@@ -37,7 +37,9 @@ ATcontrol * ATcontrol::d_instance = 0;
 
 ATcontrol::ATcontrol(std::string const & logName) :
         DeviceInCabin(logName, DeviceInCabin::IC_ATCONTROL),
-        d_configurator(Configurator::getInstance()) {
+	Worker(Device::log, "cbw_AT", 0),
+        d_configurator(Configurator::getInstance()),
+	log(Device::log) {
 
     initATcontrol();
 
@@ -257,8 +259,6 @@ Querible * ATcontrol::parseQuery (std::string const & atCommand, Querible::t_que
 
 void ATcontrol::run(void)  {
 
-    threadStartNotify("ATCTR");
-
     // NOTE: Handle the case of EOF from input...
     // on that cases shuld be correct to destroy restart the parsing
     // so that the input channel will be reopened...
@@ -275,8 +275,6 @@ void ATcontrol::run(void)  {
     }
 
     d_isParsing = false;
-
-    threadStopNotify();
 
 }
 

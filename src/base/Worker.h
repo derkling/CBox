@@ -78,6 +78,9 @@ public:
     /// new work to do.
     void signalWorker(void);
 
+    /// Start the execution of the worker task
+    void runWorker(void);
+
     /// Signal the worker that must terminate and wait for it to exit.
     /// Note: this method return only once the worker stop working.
     void terminateWorker(void);
@@ -91,7 +94,6 @@ protected:
     /// The worker thread finalization method
     /// This method is called by a thread that is self terminating
     void final(void);
-
 
 };
 

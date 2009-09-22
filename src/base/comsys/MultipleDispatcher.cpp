@@ -50,11 +50,11 @@ int MultipleDispatcher::handlersCount() {
 	return 0;
 }
 
-exitCode dispatch() {
+exitCode dispatchEvent() {
 	return OK;
 }
 
-exitCode dispatch(Command * command) {
+exitCode dispatchCommand(Command * command) {
 	return OK;
 }
 

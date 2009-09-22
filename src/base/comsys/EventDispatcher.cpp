@@ -76,7 +76,7 @@ exitCode EventDispatcher::resume(bool discard) {
 
         LOG4CPP_INFO(log, "Disaptching [%d] queued events", d_waiting);
         while ( d_waiting-- && !d_suspended ) {
-            d_handler->notify();
+            d_handler->notifyEvent();
         }
 
     } else {
@@ -110,13 +110,13 @@ exitCode EventDispatcher::suspend() {
 }
 
 
-exitCode EventDispatcher::dispatch(bool clean) {
+exitCode EventDispatcher::dispatchEvent(bool clean) {
 
     LOG4CPP_DEBUG(log, "EventDispatcher::dispatch()");
 
     if ( !d_suspended ) {
         LOG4CPP_INFO(log, "Disaptching new event");
-        d_handler->notify();
+        d_handler->notifyEvent();
         return OK;
     } else {
         d_waiting++;

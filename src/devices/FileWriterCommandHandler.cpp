@@ -81,7 +81,7 @@ FileWriterCommandHandler::~FileWriterCommandHandler() {
 }
 
 
-exitCode FileWriterCommandHandler::notify() {
+exitCode FileWriterCommandHandler::notifyEvent() {
 
     LOG4CPP_INFO(log, "\t --- Notify received [%d]", d_cnotify++ );
     return OK;
@@ -89,11 +89,11 @@ exitCode FileWriterCommandHandler::notify() {
 }
 
 
-exitCode FileWriterCommandHandler::notify(comsys::Command * command)
+exitCode FileWriterCommandHandler::notifyCommand(comsys::Command * command)
 throw (exceptions::IllegalCommandException) {
     std::string xmlCommand;
 
-    LOG4CPP_DEBUG(log, "FileWriterCommandHandler::notify(Command * command)");
+    LOG4CPP_DEBUG(log, "FileWriterCommandHandler::notifyCommand(Command * command)");
 
     command->xmlDump(xmlCommand);
     d_fwcategory->info("%s", xmlCommand.c_str());

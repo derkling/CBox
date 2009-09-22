@@ -46,7 +46,7 @@ DeviceTE::DeviceTE(t_teModels model, std::string const & logName)
 	throw (exceptions::SerialDeviceException*) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_TE, model, logName),
-	d_doExit(false),
+	Worker(Device::log, "cbw_TE", 0),
 	d_config(Configurator::getInstance()),
 	d_model(model),
 	d_tty(0),
@@ -207,7 +207,7 @@ exitCode DeviceTE::notifyEvents(void) {
 			//cSgd->setParam( "event",  formatEvent(*l_event));
 
 			// Notifying the command
-			notify(cSgd);
+			notifyCommand(cSgd);
 
 			if (l_event->type != UNDEF) {
 				rawNotify = true;
@@ -231,9 +231,9 @@ exitCode DeviceTE::notifyEvents(void) {
 void DeviceTE::run (void) {
 	exitCode downloadExitCode;
 
-	threadStartNotify("TE");
+	//threadStartNotify("TE");
 
-	d_doExit = false;
+	//d_doExit = false;
 	while ( !d_doExit ) {
 
 		// NOTE by setting d_pollInterval==0 we disable the TE polling query
@@ -261,11 +261,12 @@ void DeviceTE::run (void) {
 		}
 
 // TODO we should use a conditional var with timeout instead of this sleep
-		sleep(d_pollInterval);
+		//sleep(d_pollInterval);
+		pollWorker(d_pollInterval);
 
 	}
 
-	threadStopNotify();
+	//threadStopNotify();
 
 }
 

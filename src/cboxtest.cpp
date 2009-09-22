@@ -582,7 +582,7 @@ int test_comlibs(log4cpp::Category & logger) {
 			}
 		}
 		logger.warn("DISPATCH -#%03d...", cycles);
-		cd->dispatch(command);
+		cd->dispatchCommand(command);
 
 		usleep(sleeptime);
 
@@ -798,14 +798,17 @@ int test_utils(log4cpp::Category & logger) {
 /// Threads TEST case
 int test_threads(log4cpp::Category & logger) {
 
-	class SimpleEG : public controlbox::comsys::EventGenerator {
+	class SimpleEG : public controlbox::comsys::EventGenerator,
+			public controlbox::Worker {
 	protected:
 		unsigned d_cycles;
-		ost::Conditional cond;
+		log4cpp::Category & log;
 	public:
-	SimpleEG(controlbox::comsys::Dispatcher * dispatcher, bool enabled, std::string const & logName, int pri) :
-		controlbox::comsys::EventGenerator(dispatcher, enabled, logName, pri),
-		d_cycles(2) {
+	SimpleEG(controlbox::comsys::Dispatcher * dispatcher, bool enabled, std::string const & logName) :
+		controlbox::comsys::EventGenerator(dispatcher, enabled, logName),
+		Worker(Object::log, "cbw_SEG", 0),
+		d_cycles(2),
+		log(Object::log) {
 	}
 
 	// An example of Thread run method
@@ -813,38 +816,18 @@ int test_threads(log4cpp::Category & logger) {
 		exitCode result;
 		unsigned worktime;
 
-		// Every thread should call the start notification method
-		threadStartNotify("SEG");
-
-		d_doExit = false;
+		suspendWorker();
 		while( !d_doExit ) {
 
-			LOG4CPP_DEBUG(log, "NOTIFY THREAD: SUSPENDING");
-			cond.wait();
+			// Random number between 1 and 10
+			// (using high-order bits)
+			worktime = 1 + (int) (10.0 * (rand() / (RAND_MAX + 1.0)));
+			LOG4CPP_INFO(log, "Doing some work [%u]\n", worktime);
 
-			if ( !d_doExit ) {
-				LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
-				// Random number between 1 and 10
-				// (using high-order bits)
-				worktime = 1 + (int) (10.0 * (rand() / (RAND_MAX + 1.0)));
-				LOG4CPP_INFO(log, "Doing some work [%u]\n", worktime);
-				::sleep(worktime);
-			}
+			pollWorker(worktime*1000);
 
 		}
 
-		// At thread exit
-		threadStopNotify();
-
-	}
-	void signal(void) {
-		LOG4CPP_DEBUG(log, "NOTIFY THREAD: SIGNALING");
-		cond.signal(false);
-	}
-	void terminate(void) {
-		d_doExit = true;
-		cond.signal(false);
-		join();
 	}
 
 	};
@@ -864,30 +847,30 @@ int test_threads(log4cpp::Category & logger) {
 	logger.info("DONE!");
 
 	logger.info("03 - Building the first thread [SEG-1]...");
-	seg1 = new SimpleEG(ed, false, "SEG-1", 1);
+	seg1 = new SimpleEG(ed, true, "SEG-1");
 
 	logger.info("04 - Building the second thread [SEG-2]...");
-	seg2 = new SimpleEG(ed, false, "SEG-2", 2);
+	seg2 = new SimpleEG(ed, true, "SEG-2");
 
 	logger.info("05 - Running threads...");
-	seg1->enable();
-	seg2->enable();
+	seg1->runWorker();
+	seg2->runWorker();
 
 	::sleep(2);
 	for (cycle=2; cycle; cycle--) {
 
 		logger.info("07 - Sending signal to second thread... ");
-		seg2->signal();
+		seg2->signalWorker();
 		logger.info("08 - Sending signal to first thread... ");
-		seg1->signal();
+		seg1->signalWorker();
 		logger.info("09 - Waiting 5s seconds... ");
 		::sleep(10);
 	}
 
 
 	logger.info("10 - Waiting for all threads to complete... ");
-	seg1->terminate();
-	seg2->terminate();
+	seg1->terminateWorker();
+	seg2->terminateWorker();
 
 }
 
@@ -1042,7 +1025,7 @@ int test_wsproxy(log4cpp::Category & logger) {
 	logger.debug("DONE!");
 
 	logger.debug("04 - Sending the TEST TITLE command... ");
-	proxy->notify(command);
+	proxy->notifyCommand(command);
 	logger.debug("DONE!");
 
 /*

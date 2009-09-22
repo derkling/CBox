@@ -53,7 +53,7 @@ public:
     /// the class namespace "controlbox.comlibs.cg"
     /// @param logName the log category, this name is prepended by the
     ///		class namespace "controlbox.comlibs."
-    CommandGenerator(std::string const & logName = "CommandGenerator", int pri = 0);
+    CommandGenerator(std::string const & logName = "CommandGenerator");
 
     /// Create a new CommandGenerator associated to the specified Dispatcher
     /// The new CommandGenerator, as default logger category, has
@@ -62,13 +62,13 @@ public:
     /// @param enabled set false if the generator has to be initially disabled (default true)
     /// @param logName the log category, this name is prepended by the
     ///		class namespace "controlbox.comlibs."
-    CommandGenerator(Dispatcher * dispatcher, bool enabled = true,  std::string const & logName = "CommandGenerator", int pri = 0);
+    CommandGenerator(Dispatcher * dispatcher, bool enabled = true,  std::string const & logName = "CommandGenerator");
 
     /// Class destructor
     ~CommandGenerator() {};
 
 
-    exitCode notify(Command * command, bool clean = true);
+    exitCode notifyCommand(Command * command, bool clean = true);
 
 };
 

@@ -33,12 +33,13 @@
 #include <cc++/thread.h>
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/base/Device.h>
+#include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceSignals.h>
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/SignalHandler.h>
-#include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceSerial.h>
-#include <controlbox/base/Device.h>
 #include <controlbox/devices/DeviceOdometer.h>
 #include <controlbox/devices/DeviceGPS.h>
 
@@ -83,9 +84,10 @@ namespace device {
 /// </ul>
 /// @see CommandHandler
 class DeviceATGPS : public comsys::CommandGenerator,
-			public Device,
-			public DeviceOdometer,
 			public SignalHandler,
+			public Device,
+			public Worker,
+			public DeviceOdometer,
 			public DeviceGPS {
 
 //------------------------------------------------------------------------------

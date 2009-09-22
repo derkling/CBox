@@ -84,13 +84,13 @@ public:
 
     /// If not suspended, dispatch an event to the associated EventHandler.
     /// Otherwise the event is counted for future dispatching.
-    exitCode dispatch(bool clean = true);
+    exitCode dispatchEvent(bool clean = true);
 
 protected:
 
     /// In this implementation of Dispatcher this method is simply
     /// an empty one doing noting
-    inline exitCode dispatch(Command * command, bool clean = true) {
+    inline exitCode dispatchCommand(Command * command, bool clean = true) {
         return OK;
     }
 

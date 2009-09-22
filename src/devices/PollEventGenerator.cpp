@@ -35,6 +35,7 @@ namespace device {
 
 PollEventGenerator::PollEventGenerator(timeout_t p_pollTime, std::string const & logName) :
         Device(Device::EG_POLLER, p_pollTime, logName),
+	Worker(Device::log, "cbw_POL", 0),
         comsys::EventGenerator(logName),
         d_pollTime(p_pollTime),
         log(Device::log) {
@@ -53,6 +54,7 @@ PollEventGenerator::PollEventGenerator(timeout_t p_pollTime, comsys::Dispatcher 
                                        bool enabled,
                                        std::string const & logName) :
         Device(Device::EG_POLLER, p_pollTime, logName),
+	Worker(Device::log, "cbw_POL", 0),
         // NOTE we must ensure the pollTime is set correctly before starting the thread (if enabled)
         comsys::EventGenerator(dispatcher, false, logName),
         d_pollTime(p_pollTime),
@@ -78,7 +80,6 @@ PollEventGenerator::~PollEventGenerator() {
     // destructor of a class derived from Thread to assure the remaining
     // part of the destructor is called without the thread still executing.
     this->terminate();
-    threadStopNotify();
 
 }
 
@@ -109,16 +110,16 @@ void PollEventGenerator::trigger() {
 
 void   PollEventGenerator::run (void) {
 
-    threadStartNotify("POLL");
+	pollWorker(d_pollTime);
+	
+	while ( !d_doExit ) {
 
-    while (true) {
-        LOG4CPP_DEBUG(log, "Next poll within %d ms", d_pollTime);
-        sleep(d_pollTime);
-        LOG4CPP_DEBUG(log, "Polling");
-        notify(false);
-    }
+        	LOG4CPP_DEBUG(log, "Polling");
+		notify(false);
 
-    threadStopNotify();
+		LOG4CPP_DEBUG(log, "Next poll within %d ms", d_pollTime);
+		pollWorker(d_pollTime);
+	}
 
 }
 

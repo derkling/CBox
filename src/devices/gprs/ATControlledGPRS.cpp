@@ -1393,7 +1393,7 @@ DeviceGPRS::updateState(t_netStatus state) {
 	//cGprsState->setParam( "descr",  sstate[state]);
 
 	// Notifying command
-	notify(cGprsState);
+	notifyCommand(cGprsState);
 
 	return OK;
 

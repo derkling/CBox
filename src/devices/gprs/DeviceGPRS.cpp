@@ -45,15 +45,14 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 			throw (exceptions::SerialDeviceException*) :
 			CommandGenerator(logName),
 			Device(Device::DEVICE_GPRS, module, logName),
+			Worker(Device::log, "cbw_GPRS", 0),
 			d_config(Configurator::getInstance()),
 			d_module(module),
 			d_model(model),
 			d_tty(0),
-			d_doExit(false),
 			d_curNetlinkName(0),
 			d_mode(DEVICEGPRS_MODE_COMMAND),
 			d_netStatus(DeviceGPRS::LINK_DOWN),
-			d_monitorPppd(this),
 			d_parserRunning(false),
 			d_pppdPid(0),
 			d_localIP(""),
@@ -70,28 +69,11 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 
 	if (d_model!=DEVICEGPRS_MODEL_DUMMY) {
 
-#if 0
-// This code has been replaced by the usage of DeviceSerial
-		// modem's params
-		// Loading the TTY port configuration string
-		d_ttyConfig = d_config.param(paramName("tty"), DEVICEGPRS_DEFAULT_GPRS_DEVICE);
-
-		sscanf(d_config.param(paramName("atDelay"),
-					DEVICEGPRS_DEFAULT_AT_RESPONCE_DELAY).c_str(),
-			"%i", &d_atResponceDelay);
-
-		d_atCmdEscape = d_config.param(paramName("cmdEscape"),
-					DEVICEGPRS_DEFAULT_AT_CMD_ESCAPE);
-
-		d_atInitString = d_config.param(paramName("atInitString"),
-					DEVICEGPRS_DEFAULT_AT_INIT_STRING);
-#else
 		d_tty = new DeviceSerial(lable);
 		if (!d_tty) {
 			LOG4CPP_FATAL(log, "Failed to build a DeviceSerial");
 			throw new exceptions::SerialDeviceException("Unable to build a SerialDevice");
 		}
-#endif
 
 		d_pppdLogFolder = d_config.param(paramName("pppd", "logpath"),
 			   DEVICEGPRS_DEFAULT_PPPD_LOGPATH);
@@ -723,7 +705,7 @@ DeviceGPRS::updateState(t_netStatus state) {
 	cGprsState->setParam( "descr",  d_netStatusStr[state]);
 
 	// Notifying command
-	notify(cGprsState);
+	notifyCommand(cGprsState);
 
 	return OK;
 
@@ -920,8 +902,8 @@ DeviceGPRS::pppdParseLog(const char *logline) {
 	return GPRS_PPPD_UNKNOWED_SENTENCE;
 }
 
-exitCode
-DeviceGPRS::pppdMonitor() {
+void
+DeviceGPRS::run(void) {
 	std::string logFile = pppDaemonLogfile();
 	std::ifstream ifsLog;
 	int d_fd;
@@ -937,7 +919,7 @@ DeviceGPRS::pppdMonitor() {
 	// a fifo, otherwise we have to rebuild it
 	if (checkPipe(logFile.c_str())) {
 		LOG4CPP_FATAL(log, "error on monitoring pppd process");
-		return GPRS_PPPD_PIPE_FAILURE;
+		return;
 	}
 
 	d_parserRunning = true;
@@ -949,14 +931,14 @@ OPENFIFO:
 		LOG4CPP_ERROR(log,
 			      "Trick failed! Unable to open PPPD (piped) logfile [%s], %s",
 			      logFile.c_str(), strerror(errno));
-		return GPRS_PPPD_LOGFILE_FAILURE;
+		return;
 	}
 	// Building the log file stream to be used by fgets
 	d_fs = fdopen(d_fd, "r");
 	if (!d_fs) {
 		LOG4CPP_ERROR(log, "Failed to buil file stream, %s",
 			      strerror(errno));
-		return GPRS_PPPD_LOGFILE_FAILURE;
+		return;
 	}
 	// Configuring for poll syscall
 	plog.fd = d_fd;
@@ -971,7 +953,7 @@ OPENFIFO:
 			if (!d_doExit) {
 				LOG4CPP_ERROR(log, "poll on logfile failed, %s",
 					strerror(errno));
-					sleep(1000);
+					pollWorker(1000);
 			}
 			continue;
 		}
@@ -988,7 +970,7 @@ OPENFIFO:
 				goto OPENFIFO;
 			}
 			LOG4CPP_ERROR(log, "Error on reading file stream");
-			sleep(1000);
+			pollWorker(1000);
 			continue;
 		}
 		// Ignoring empty lines (for next test be valid)
@@ -1008,49 +990,7 @@ OPENFIFO:
 	} // While
 
 	d_parserRunning = false;
-	return OK;
 
-}
-
-
-DeviceGPRS::MonitorPppd::MonitorPppd(DeviceGPRS * gprs) :
-	d_gprs(gprs) {
-// 	LOG4CPP_DEBUG(log, "Build PPPD monitor thread");
-}
-
-void
-DeviceGPRS::MonitorPppd::run(void) {
-
-//----- Thread registration
-	ThreadDB *l_tdb = ThreadDB::getInstance();
-	int l_tid;
-	exitCode result;
-
-	l_tid = syscall(SYS_gettid);
-	LOG4CPP_INFO(d_gprs->log, "Thread [%s (%d)] started", "PPPD", l_tid);
-
-	this->setName("PPPD");
-	result = l_tdb->registerThread(this, l_tid);
-//-------------------------
-
-	d_gprs->pppdMonitor();
-
-//----- Thread un-registration
-	LOG4CPP_WARN(d_gprs->log, "Thread [%s (%d)] terminated", this->getName(), l_tid);
-	result = l_tdb->unregisterThread(this);
-//----------------------------
-
-}
-
-exitCode
-DeviceGPRS::runParser() {
-	LOG4CPP_DEBUG(log, "Running DUMMY GPRS configuration");
-	return OK;
-};
-
-void
-DeviceGPRS::run(void) {
-	LOG4CPP_DEBUG(log, "Running DUMMY GPRS configuration");
 }
 
 

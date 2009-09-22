@@ -153,7 +153,7 @@ exitCode DeviceInCabin::qh_SendGenericData (t_query & p_query) {
         cSgd->setParam( "timestamp", d_time->time() );
 
         // Notifying command
-        notify(cSgd);
+        notifyCommand(cSgd);
     }
 
     return OK;
@@ -216,7 +216,7 @@ exitCode DeviceInCabin::qh_SendCodedEvent (t_query & p_query) {
         cSgd->setParam( "timestamp", d_time->time() );
 
         // Notifying command
-        notify(cSgd);
+        notifyCommand(cSgd);
 
     }
 

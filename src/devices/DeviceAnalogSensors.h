@@ -33,9 +33,11 @@
 #include <cc++/thread.h>
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/base/Device.h>
+#include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceTime.h>
 #include <controlbox/devices/DeviceI2CBus.h>
-#include <controlbox/base/comsys/CommandGenerator.h>
 
 #define AS_DEFAULT_DEVICE	"/dev/i2c"
 #define AS_DEFAULT_SYSFSBASE	"/sys/bus/i2c/devices"
@@ -87,7 +89,9 @@ namespace device {
 ///	</li>
 /// </ul>
 /// @see CommandHandler
-class DeviceAnalogSensors : public comsys::CommandGenerator, public Device {
+class DeviceAnalogSensors : public comsys::CommandGenerator,
+			public Device,
+			public Worker {
 
 //------------------------------------------------------------------------------
 //				Class Members

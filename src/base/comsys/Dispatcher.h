@@ -70,8 +70,8 @@ public:
 
     /// Notify the associated handler about a new happening
     /// This is usually done with a call to
-    /// Handler::notify()
-    virtual exitCode dispatch(bool clean = true) = 0;
+    /// Handler::notifyEvent()
+    virtual exitCode dispatchEvent(bool clean = true) = 0;
 
     /// Dispatch a command to Handler.
     /// If not suspended, dispatch the default command (or the specified one) to the associated Handler.
@@ -79,7 +79,7 @@ public:
     /// The default command, if needed, must be built by the subclasses's constructors.
     /// @param the Command to dispatch, if NULL the default command will be dispatched (default NULL)
     /// @return Core:OK on success, Core::DIS_SUSPENDED if the Command has been queued.
-    virtual exitCode dispatch(Command * command, bool clean = true) = 0;
+    virtual exitCode dispatchCommand(Command * command, bool clean = true) = 0;
 
 };
 

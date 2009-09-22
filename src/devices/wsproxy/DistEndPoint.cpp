@@ -55,8 +55,9 @@ DistEndPoint::DistEndPoint(std::string const & paramBase, std::string const & lo
 	}
 
 	// Starting the GPRS device thread
-	LOG4CPP_DEBUG(log, "Starting GPRS device thread...");
-	d_devGPRS->runParser();
+	//LOG4CPP_DEBUG(log, "Starting GPRS device thread...");
+	//d_devGPRS->runParser();
+	//THIS THREAD IS SIMPLY EMPTY AND DOES NOTING!!!
 
 	// Load EndPoint Configuration
 	lable.str("");

@@ -34,8 +34,9 @@
 
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
-#include <controlbox/devices/DeviceTime.h>
+#include <controlbox/base/Worker.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
+#include <controlbox/devices/DeviceTime.h>
 #include <controlbox/base/comsys/Dispatcher.h>
 #include <controlbox/devices/SignalHandler.h>
 
@@ -44,7 +45,8 @@ namespace device {
 
 /// A DeviceSignals.
 class DeviceSignals : public comsys::CommandGenerator,
-			public Device {
+			public Device,
+			public Worker {
 
 public:
 

@@ -48,6 +48,7 @@ DeviceAnalogSensors * DeviceAnalogSensors::getInstance(std::string const & logNa
 DeviceAnalogSensors::DeviceAnalogSensors(std::string const & logName) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_AS, 0, logName),
+	Worker(Device::log, "cbw_AS", 0),
 	d_config(Configurator::getInstance()),
 	loadI2C(false),
 	alarmEnables(false),
@@ -683,7 +684,7 @@ DeviceAnalogSensors::notifySensorEvent(t_analogSensor & aSensor) {
 	cSgd->setParam( "sevent", getAlarmStrEvent(aSensor));
 
 	// Notifying command
-	notify(cSgd);
+	notifyCommand(cSgd);
 
 	return OK;
 }
@@ -810,12 +811,9 @@ float DeviceAnalogSensors::value(std::string asId, bool update) {
 
 void DeviceAnalogSensors::run(void) {
 
-	threadStartNotify("AS-L");
-
 	// Eventually start the monitor threads (that could generat events)
 	startMonitors();
 
-	threadStopNotify();
 }
 
 

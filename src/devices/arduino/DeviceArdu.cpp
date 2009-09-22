@@ -357,7 +357,7 @@ DeviceArdu::notifyOdoEvent(unsigned short event) {
 	cOdoEvent->setParam( "event",   eventCode);
 
 	// Notifying command
-	notify(cOdoEvent);
+	notifyCommand(cOdoEvent);
 
 	return OK;
 

@@ -68,8 +68,8 @@ public:
 
     /// Notify each associated handler about a new happening
     /// This is usually done with a call to
-    /// Handler::notify() on each associated hendler
-    exitCode dispatch();
+    /// Handler::notifyEvent() on each associated hendler
+    exitCode dispatchEvent();
 
     /// Dispatch a command to each associated handler.
     /// If not suspended, dispatch the default command (or the specified one) to the associated Handler.
@@ -77,7 +77,7 @@ public:
     /// The default command, if needed, must be built by the subclasses's constructors.
     /// @param the Command to dispatch, if NULL the default command will be dispatched (default NULL)
     /// @return Core:OK on success, Core::DIS_SUSPENDED if the Command has been queued.
-    exitCode dispatch(Command * command);
+    exitCode dispatchCommand(Command * command);
 
 };
 

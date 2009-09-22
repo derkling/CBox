@@ -34,28 +34,28 @@ namespace controlbox {
 namespace comsys {
 
 
-CommandGenerator::CommandGenerator(std::string const & logName, int pri) :
-        EventGenerator(0, false, logName, pri) {
+CommandGenerator::CommandGenerator(std::string const & logName) :
+        EventGenerator(0, false, logName) {
 
 	LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(std::string const & logName)");
 
 }
 
 
-CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName, int pri) :
-        EventGenerator(dispatcher, enabled, logName, pri) {
+CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName) :
+        EventGenerator(dispatcher, enabled, logName) {
 
 	LOG4CPP_DEBUG(log, "CommandGenerator::CommandGenerator(Dispatcher * dispatcher, bool enabled,  std::string const & logName)");
 
 }
 
-exitCode CommandGenerator::notify(Command * command, bool clean) {
+exitCode CommandGenerator::notifyCommand(Command * command, bool clean) {
 
-	LOG4CPP_DEBUG(log, "CommandGenerator::notify()");
+	LOG4CPP_DEBUG(log, "CommandGenerator::notifyCommand()");
 
 	if (d_enabled) {
 		LOG4CPP_INFO(log, "Command dispatching");
-		d_dispatcher->dispatch(command, clean);
+		d_dispatcher->dispatchCommand(command, clean);
 		return OK;
 	}
 

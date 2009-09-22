@@ -92,7 +92,7 @@ exitCode CommandDispatcher::suspend() {
 }
 
 
-exitCode CommandDispatcher::dispatch(bool clean)
+exitCode CommandDispatcher::dispatchCommand(bool clean)
 throw (exceptions::InitializationException,
        exceptions::OutOfMemoryException) {
 
@@ -104,13 +104,13 @@ throw (exceptions::InitializationException,
 	}
 
 	LOG4CPP_INFO(log, "Default command disaptching");
-	dispatch(d_command, clean);
+	dispatchCommand(d_command, clean);
 
 	return OK;
 }
 
 
-exitCode CommandDispatcher::dispatch(Command * command, bool clean)
+exitCode CommandDispatcher::dispatchCommand(Command * command, bool clean)
 throw (exceptions::OutOfMemoryException) {
 
     LOG4CPP_DEBUG(log, "CommandDispatcher::dispatch(Command * command)");
@@ -124,7 +124,7 @@ throw (exceptions::OutOfMemoryException) {
     }
 
     // Dispatching command immediatly
-    d_handler->notify(command);
+    d_handler->notifyCommand(command);
     if ( clean ) {
     	delete command;
     }
@@ -169,7 +169,7 @@ exitCode CommandDispatcher::flushQueue(bool discard) {
 		LOG4CPP_INFO(log, "Flushing Command Queue: Notifying all commands");
 
 		while ( !d_queuedCommands.empty() && !d_suspended ) {
-			d_handler->notify( d_queuedCommands.front() );
+			d_handler->notifyCommand( d_queuedCommands.front() );
 			d_queuedCommands.pop();
 		}
 	}

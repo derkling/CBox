@@ -86,7 +86,7 @@ public:
     /// The default notify routine
     /// The implementation in that class does nothing, just generate
     /// log if level is <= DEBUG
-    exitCode notify();
+    exitCode notifyEvent();
 
     /// Command notify routine
     /// The specified command's content will be dumped into the
@@ -95,7 +95,7 @@ public:
     /// @return OK on success Command's dumping
     /// @throw exceptions::IllegalCommandException never throwed by this
     ///			implementation.
-    exitCode notify(comsys::Command * command)
+    exitCode notifyCommand(comsys::Command * command)
     throw (exceptions::IllegalCommandException);
 
 

@@ -48,7 +48,7 @@ public:
     virtual ~Handler() {};
 
     /// The default notify routine
-    virtual exitCode notify() = 0;
+    virtual exitCode notifyEvent() = 0;
 
     /// Command notify routine
     /// Process the specified command if related to an exported service.
@@ -62,7 +62,7 @@ public:
     /// @throw exceptions::IllegalCommandException if the concrete class
     ///		is not eligible for handling the Command required
     /// @see checkService
-    virtual exitCode notify(Command * command)
+    virtual exitCode notifyCommand(Command * command)
     throw(exceptions::IllegalCommandException) = 0;
 
 };

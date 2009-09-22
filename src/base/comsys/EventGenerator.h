@@ -52,16 +52,6 @@ protected:
     /// associated Dispatcher
     bool d_enabled;
 
-    /// Set TRUE if the associated Thread is running
-    bool d_running;
-
-    /// Set true when thread should terminate
-    bool d_doExit;
-
-    /// The Thread ID
-    int d_tid;
-
-
 public:
 
     /// Create a new EventGenerator initially disabled.
@@ -70,7 +60,7 @@ public:
     /// the class namespace "controlbox.comlibs.eg"
     /// @param logName the log category, this name is prepended by the
     ///		class namespace "controlbox.comlibs."
-    EventGenerator(std::string const & logName = "EventGenerator", int pri = 0);
+    EventGenerator(std::string const & logName = "EventGenerator");
 
     /// Create a new EventGenerator associated to the specified Dispatcher
     /// The new EventGenerator, as default logger category, has
@@ -79,7 +69,7 @@ public:
     /// @param enabled set false if the generator has to be initially disabled (default true)
     /// @param logName the log category, this name is prepended by the
     ///		class namespace "controlbox.comlibs."
-    EventGenerator(Dispatcher * dispatcher, bool enabled = true,  std::string const & logName = "EventGenerator", int pri = 0);
+    EventGenerator(Dispatcher * dispatcher, bool enabled = true,  std::string const & logName = "EventGenerator");
 
     /// Class destructor.
     /// @note this destructor ensume the associated thread will be terminated
@@ -110,18 +100,7 @@ protected:
     /// Notify the associated event dispatcher about a new event
     /// This is usually done with a call to
     /// Dispatcher::dispatch() or Dispatcher::dispatch(Command)
-    exitCode notify(bool clean = true);
-
-    /// Processing start notifier
-    /// This method must be called by subclasses at the beginning of their
-    /// execution thread
-    /// @param name the thread name (it should noe exceed 5 chars
-    exitCode threadStartNotify(const char * name);
-
-    /// Processing end notifier
-    /// This method must be called by subclasses at the end of their
-    /// execution thread
-    exitCode threadStopNotify();
+    exitCode notifyEvent(bool clean = true);
 
 };
 

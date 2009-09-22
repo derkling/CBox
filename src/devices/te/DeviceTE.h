@@ -34,6 +34,8 @@
 #include <cc++/serial.h>
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/base/Device.h>
 #include <controlbox/base/comsys/CommandGenerator.h>
 #include <controlbox/devices/DeviceSerial.h>
 #include <controlbox/devices/DeviceTime.h>
@@ -101,7 +103,9 @@ namespace device {
 ///	</li>
 /// </ul>
 /// @see CommandHandler
-class DeviceTE : public comsys::CommandGenerator, public Device  {
+class DeviceTE : public comsys::CommandGenerator,
+			public Device,
+			public Worker {
 
   public:
 
@@ -172,7 +176,7 @@ class DeviceTE : public comsys::CommandGenerator, public Device  {
 
 	/// Set to true once we want to terminate the polling thread and
 	///	destroying the class
-	bool d_doExit;
+	//bool d_doExit;
 
 	/// The Configurator to use for getting configuration params
 	Configurator & d_config;

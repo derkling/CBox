@@ -31,8 +31,9 @@
 #define _ATCONTROL_H
 
 #include <controlbox/base/Utility.h>
-#include <controlbox/devices/DeviceInCabin.h>
 #include <controlbox/base/Configurator.h>
+#include <controlbox/base/Worker.h>
+#include <controlbox/devices/DeviceInCabin.h>
 #include<cc++/serial.h>
 
 #define ATCONTROL_DEFAULT_DEVICE 	"/dev/ttyUSB0:9600:8:n:1"
@@ -83,7 +84,8 @@ namespace device {
 ///	</li>
 /// </ul>
 /// @see Querible
-class ATcontrol : public DeviceInCabin  {
+class ATcontrol : public DeviceInCabin,
+		public Worker {
 //------------------------------------------------------------------------------
 //				PUBLIC TYPES
 //------------------------------------------------------------------------------
@@ -122,6 +124,10 @@ protected:
 
     /// Whatever send exitCode
     bool d_sendExitCode;
+
+    /// The logger to use locally.
+    log4cpp::Category & log;
+
 
 //------------------------------------------------------------------------------
 //				PUBLIC METHODS

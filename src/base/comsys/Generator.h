@@ -31,7 +31,6 @@
 #define _GENERATOR_H
 
 #include <controlbox/base/Object.h>
-#include <cc++/thread.h>
 #include <controlbox/base/Utility.h>
 #include <controlbox/base/comsys/Dispatcher.h>
 
@@ -42,11 +41,11 @@ namespace comsys {
 /// A Generator is an object that could notify a Dispatcher about something happening.
 /// The Generator could be enabled or disabled.
 /// Events generated while the Generator is disabled are not notified and become definitively lost.
-class Generator : protected ost::PosixThread {
+class Generator {
 
 public:
 
-    Generator(int pri = 0) : ost::PosixThread(pri) {};
+    Generator() {};
 
     virtual ~Generator() {};
 
@@ -75,7 +74,7 @@ protected:
     /// Notify the associated event dispatcher about a new event
     /// This is usually done with a call to
     /// Dispatcher::dispatch() or Dispatcher::dispatch(Command)
-    virtual exitCode notify(bool clean = true) = 0;
+    virtual exitCode notifyEvent(bool clean = true) = 0;
 
 };
 
