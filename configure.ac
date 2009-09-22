@@ -132,10 +132,10 @@ AC_MSG_NOTICE([Using pkgconfig files into: $PKG_CONFIG_PATH])
 PKG_CHECK_MODULES(LOG4CPP, log4cpp >= 0.3)
 
 # Check for ccgnu2
-PKG_CHECK_MODULES(CCGNU2, libccgnu2 >= 1.3)
+PKG_CHECK_MODULES(CCGNU2, libccgnu2 = 1.6.3)
 
 # Check for ccext2
-PKG_CHECK_MODULES(CCEXT2, libccext2 >= 1.3)
+PKG_CHECK_MODULES(CCEXT2, libccext2 = 1.6.3)
 
 ## Check for gsoap
 #PKG_CHECK_MODULES(GSOAP, gsoap++ >= 2.7)

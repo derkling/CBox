@@ -34,3 +34,5 @@ soapStub.h
 stamp-h1
 *.swp
 src/src
+cscope*
+src/cscope*
