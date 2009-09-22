@@ -14,6 +14,7 @@ INCLUDES = -I@top_srcdir@
 SOURCES = Configurator.h Configurator.ih Configurator.cpp
 SOURCES+= Device.h Device.ih Device.cpp
 SOURCES+= DeviceDB.h DeviceDB.ih DeviceDB.cpp
+SOURCES+= Worker.h Worker.ih Worker.cpp
 SOURCES+= ThreadDB.h ThreadDB.ih ThreadDB.cpp
 SOURCES+= Object.h Object.ih Object.cpp
 SOURCES+= Querible.h Querible.ih Querible.cpp
