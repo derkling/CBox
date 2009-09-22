@@ -303,16 +303,18 @@ exitCode DeviceGPIOLib::gprsReset(unsigned short gprs) {
 		LOG4CPP_INFO(log, "Resetting GPRS-%s",
 				(gprs==GPRS1) ? "1" : "2");
 
-		result = setGpioVal(GPRS_RST, 0);
-		if ( result ) {
-			LOG4CPP_ERROR(log, "resetting GPRS failed (set val 0)");
-			return GPRS_DEVICE_RESET_FAILURE;
-		}
 		result = setGpioDir(GPRS_RST, DIR_OUT);
 		if ( result ) {
 			LOG4CPP_ERROR(log, "resetting GPRS failed (set dir out)");
 			return GPRS_DEVICE_RESET_FAILURE;
 		}
+
+		result = setGpioVal(GPRS_RST, 0);
+		if ( result ) {
+			LOG4CPP_ERROR(log, "resetting GPRS failed (set val 0)");
+			return GPRS_DEVICE_RESET_FAILURE;
+		}
+
 		::sleep(2);
 		result = setGpioDir(GPRS_RST, DIR_IN);
 		if ( result ) {
