@@ -285,6 +285,7 @@ int main (int argc, char *argv[]) {
 	// Checking required params and setting default values
 	if (testDeviceGPRS) {
 		sleeptime = sleeptime ? sleeptime : 30;
+		cycles = cycles ? cycles : 1;
 	}
 	if (testDeviceAS) {
 		sleeptime = sleeptime ? sleeptime : 6;
@@ -822,7 +823,7 @@ int test_threads(log4cpp::Category & logger) {
 			// Random number between 1 and 10
 			// (using high-order bits)
 			worktime = 1 + (int) (10.0 * (rand() / (RAND_MAX + 1.0)));
-			LOG4CPP_INFO(log, "Doing some work [%u]\n", worktime);
+			LOG4CPP_INFO(log, "Doing some work [%u]", worktime);
 
 			pollWorker(worktime*1000);
 
@@ -863,7 +864,7 @@ int test_threads(log4cpp::Category & logger) {
 		seg2->signalWorker();
 		logger.info("08 - Sending signal to first thread... ");
 		seg1->signalWorker();
-		logger.info("09 - Waiting 5s seconds... ");
+		logger.info("09 - Waiting 10s seconds... ");
 		::sleep(10);
 	}
 
@@ -1209,7 +1210,7 @@ int test_devicegprs(log4cpp::Category & logger) {
 
 	logger.info("---- The system is ready for network testing! Repeatly connection [%d times, one time each %d seconds]...", cycles, sleeptime);
 	while ( cycles-- ) {
-		sleep(sleeptime);
+		::sleep(sleeptime);
 		if ( devGPRS->connect("tinlink") == OK ) {
 			logger.info("---- Connection UP AND RUNNRING");
 		} else {

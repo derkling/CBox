@@ -83,6 +83,9 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 
 	}
 
+	// Starting the PPPD monitor thread
+	runWorker();
+
 	// Registering device into the DeviceDB
 	dbReg();
 

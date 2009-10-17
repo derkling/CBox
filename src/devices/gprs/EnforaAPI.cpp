@@ -646,7 +646,7 @@ EnforaAPI::getResponce(t_apiResponce & resp, unsigned int timeout) {
 	tv.tv_usec = 0;
 
 // 	LOG4CPP_DEBUG(log, "API, select timeout [%hu]s", timeout);
-	if (log.	isDebugEnabled()) {
+	if (log.isDebugEnabled()) {
 		std::ostringstream formatter("%s:%d - ");
 		log.log(::log4cpp::Priority::DEBUG, "%25s:%05d - " "API, select timeout [%hu]s", __FILE__, __LINE__, timeout);
 	}

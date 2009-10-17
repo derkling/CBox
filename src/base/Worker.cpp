@@ -70,9 +70,15 @@ void Worker::runWorker(void) {
 
 void Worker::terminateWorker(void) {
 	LOG4CPP_DEBUG(log, "worker [%s] TERMINATING...", getName());
+	if ( !runningWorker() ) {
+		LOG4CPP_WARN(log, "terminating not running worker [%s]", getName());
+		return;
+	}
+
 	d_doExit = true;
-	d_notice.signal(false);	
+	d_notice.signal(false);
 	join();
+
 }
 
 void Worker::initial(void) {

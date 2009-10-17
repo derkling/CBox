@@ -198,7 +198,7 @@ Device * DeviceDB::getDevice(Device::t_deviceType const & type) {
     it = find (type);
     // Eventuallu avoid device duplication (if overriding is not required)
     if ( it == d_deviceDB.end() ) {
-        LOG4CPP_INFO(log, "There is no one device of the required class [%d] registerd", type);
+        LOG4CPP_DEBUG(log, "There is no one device of the required class [%d] registerd", type);
         return 0;
     }
 
