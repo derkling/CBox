@@ -806,7 +806,7 @@ int test_threads(log4cpp::Category & logger) {
 	public:
 	SimpleEG(controlbox::comsys::Dispatcher * dispatcher, bool enabled, std::string const & logName) :
 		controlbox::comsys::EventGenerator(dispatcher, enabled, logName),
-		Worker(Object::log, "cbw_SEG", 0),
+		Worker(Object::log, logName, 0),
 		d_cycles(2),
 		log(Object::log) {
 	}

@@ -49,7 +49,7 @@ const char *DeviceSignals::signalTriggerName[] = {
 DeviceSignals::DeviceSignals(std::string const & logName) :
 	CommandGenerator(logName),
 	Device(Device::DEVICE_SINGALS, logName, logName),
-	Worker(Device::log, "cbw_SIG", 0),
+	Worker(Device::log, "SIG", 0),
 	d_config(Configurator::getInstance()),
 	log(Device::log) {
 	DeviceFactory * df = DeviceFactory::getInstance();

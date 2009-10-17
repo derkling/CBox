@@ -61,7 +61,7 @@ private:
 public:
 
     /// The constructor
-    Worker(log4cpp::Category & log, char const *name, int prio);
+    Worker(log4cpp::Category & log, std::string const & name, int prio);
 
     /// Sleep the current worker until a signal is received.
     /// The current worker is suspended until a signal is received.
@@ -86,6 +86,11 @@ public:
     void terminateWorker(void);
 
 protected:
+
+    /// Return true if the worker has to stop as soon as possible.
+    bool runningWorker(void) {
+	return isRunning() && !d_doExit;
+    };
 
     /// The worker thread initialization method
     /// This method is invoked by a newly created thread when it starts execution

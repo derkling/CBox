@@ -31,25 +31,31 @@
 
 namespace controlbox {
 
-Worker::Worker(log4cpp::Category & log, char const *name, int pri) :
+Worker::Worker(log4cpp::Category & log, std::string const & name, int pri) :
 	d_doExit(false),
 	d_tid(0),
 	log(log) {
+	std::string l_name("cbw_");
 
-	LOG4CPP_DEBUG(log, "Worker(%s, %d)", name, pri);
+	l_name += name;
+	LOG4CPP_DEBUG(log, "Worker(%s, %d)", l_name.c_str(), pri);
 
-	setName(name);
+	setName(l_name.c_str());
 
 }
 
 void Worker::suspendWorker(void) {
-	LOG4CPP_DEBUG(log, "worker [%s] SUSPENDING", getName());
-	d_notice.wait();
+	if ( runningWorker() ) {
+		LOG4CPP_DEBUG(log, "worker [%s] SUSPENDING", getName());
+		d_notice.wait();
+	}
 }
 
 void Worker::pollWorker(unsigned int msec) {
-	LOG4CPP_DEBUG(log, "worker [%s] WAITING [%ums]", getName(), msec);
-	d_notice.wait(msec);
+	if ( runningWorker() ) {
+		LOG4CPP_DEBUG(log, "worker [%s] WAITING [%ums]", getName(), msec);
+		d_notice.wait(msec);
+	}
 }
 
 void Worker::signalWorker(void) {

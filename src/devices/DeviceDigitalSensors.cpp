@@ -49,7 +49,7 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 	CommandGenerator(logName),
 	SignalHandler(),
 	Device(Device::DEVICE_DS, 0, logName),
-	Worker(Device::log, "cbw_DS", 0),
+	Worker(Device::log, "DS", 0),
 	d_config(Configurator::getInstance()),
 	d_sysfsbase(""),
 	d_pcaDevices(0),

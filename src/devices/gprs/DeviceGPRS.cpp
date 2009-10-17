@@ -45,7 +45,7 @@ DeviceGPRS::DeviceGPRS(short module, t_gprs_models model, std::string const
 			throw (exceptions::SerialDeviceException*) :
 			CommandGenerator(logName),
 			Device(Device::DEVICE_GPRS, module, logName),
-			Worker(Device::log, "cbw_GPRS", 0),
+			Worker(Device::log, "GPRS", 0),
 			d_config(Configurator::getInstance()),
 			d_module(module),
 			d_model(model),
