@@ -34,7 +34,7 @@ namespace device {
 DeviceI2CBus * DeviceI2CBus::d_instance = 0;
 
 DeviceI2CBus::DeviceI2CBus(std::string const & logName) :
-	Device(Device::DEVICE_SINGALS, logName, logName),
+	Device(Device::DEVICE_I2CBUS, logName, logName),
 	d_config(Configurator::getInstance()),
 	d_devAddr(0x00),
 	log(Device::log) {
