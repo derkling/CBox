@@ -40,15 +40,11 @@ DeviceTime::DeviceTime(std::string const & logName) :
 	d_devGPS(0),
 	d_devGPRS(0),
 	log(Device::log) {
-	DeviceFactory * df;
 
 	LOG4CPP_DEBUG(log, "DeviceTime(logName=%s)", logName.c_str());
 
 	// Registering device into the DeviceDB
 	dbReg();
-
-	// Linking here all systems that could be used to get a time
-	df = DeviceFactory::getInstance();
 
 }
 
@@ -56,7 +52,6 @@ DeviceTime * DeviceTime::getInstance(std::string const & logName) {
 
 	if ( !d_instance ) {
 		d_instance = new DeviceTime(logName);
-		d_instance->dbReg();
 	}
 
 	LOG4CPP_DEBUG(d_instance->log, "DeviceTime::getInstance()");
