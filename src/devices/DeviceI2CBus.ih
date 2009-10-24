@@ -4,6 +4,11 @@
 
 #include <controlbox/devices/DeviceFactory.h>
 
+#ifdef CONTROLBOX_ARM
+#include <sys/ioctl.h>
+#include <linux/i2c.h>
+#endif
+
 #ifdef CONTROLBOX_CRIS
 # include <sys/ioctl.h>
 # include <asm/etraxi2c.h>

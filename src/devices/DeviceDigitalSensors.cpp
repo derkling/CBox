@@ -81,6 +81,8 @@ DeviceDigitalSensors::DeviceDigitalSensors(std::string const & logName) :
 // 	d_intrLine = atoi(d_config.param("DigitalSensor_PA_intrline", DS_DEFAULT_PA_INTRLINE).c_str());
 // 	LOG4CPP_DEBUG(log, "Using PA interrupt line [%d]", d_intrLine);
 
+	/// Starting the notification thread
+	runWorker();
 }
 
 
@@ -90,8 +92,7 @@ DeviceDigitalSensors::~DeviceDigitalSensors() {
 	t_pcaStateList::iterator aDeviceState;
 
 	// Terminating upload thread
-	d_doExit = true;
-	this->ost::Thread::resume();
+	terminateWorker();
 
 	// Destroing digital sensors map
 	aSensor = sensors.begin();
@@ -565,8 +566,8 @@ DeviceDigitalSensors::notifySensorChange(t_digitalSensor & aSensor, t_digitalSen
 		return OK;
 	}
 
-	LOG4CPP_INFO(log, "Changes on sensor [%s], new state [%d=%s]",
-			aSensor.id, p_state, descr[p_state]);
+	LOG4CPP_INFO(log, "Changes on sensor [%s - %s], new state [%d=%s]",
+			aSensor.id, aSensor.description, p_state, descr[p_state]);
 
 	aSensor.lastState = p_state;
 
@@ -673,7 +674,10 @@ DeviceDigitalSensors::updateSensors(void) {
 		// TODO we should use this timestamp the notification
 		l_state[i].timestamp = std::time(0);
 
+
 		regs = 0x00;
+		LOG4CPP_DEBUG(log, "reagind I2C [0x%02X] input PORT0 [0x%02X]...",
+				d_pcaAddrs[i], regs);
 		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
 		if ( result != OK ) {
 			LOG4CPP_ERROR(log, "Failed reading Port0 PCA9555@0x%02X", d_pcaAddrs[i]);
@@ -682,6 +686,8 @@ DeviceDigitalSensors::updateSensors(void) {
 		l_state[i].port0 = val;
 
 		regs = 0x01;
+		LOG4CPP_DEBUG(log, "reagind I2C [0x%02X] input PORT1 [0x%02X]...",
+				d_pcaAddrs[i], regs);
 		result = d_i2cBus->read(d_pcaAddrs[i], &regs, len, &val, 1);
 		if ( result != OK ) {
 			LOG4CPP_ERROR(log, "Failed reading Port1 PCA9555@0x%02X", d_pcaAddrs[i]);
@@ -698,7 +704,7 @@ DeviceDigitalSensors::updateSensors(void) {
 	d_pcaStateList.push_back(l_state);
 
 	LOG4CPP_DEBUG(log, "Resuming notify thread...");
-	this->ost::Thread::resume();
+	signalWorker();
 
 	return OK;
 
@@ -720,8 +726,8 @@ DeviceDigitalSensors::sensorsNotify (void) {
 // 	t_pcaStateVect l_state;
 	t_attrMap::iterator anAttr;
 
-	LOG4CPP_DEBUG(log, "NOTIFY THREAD: RESUMED");
-	while ( !d_pcaStateList.empty() ) {
+	while ( !d_pcaStateList.empty() &&
+			runningWorker() ) {
 
 		d_pcaNextState = d_pcaStateList.front();
 		LOG4CPP_DEBUG(log, "Notify sensors change...");
@@ -741,10 +747,10 @@ DeviceDigitalSensors::sensorsNotify (void) {
 void
 DeviceDigitalSensors::run (void) {
 
-	d_signals->registerHandler(DeviceSignals::SIGNAL_GPIO, this, name().c_str(), DeviceSignals::TRIGGER_ON_LOW);
+	d_signals->registerHandler(DeviceSignals::SIGNAL_GPIO, this, name().c_str(), DeviceSignals::TRIGGER_ON_BOTH);
 	suspendWorker();
 
-	while( !d_doExit ) {
+	while( runningWorker() ) {
 		sensorsNotify();
 		suspendWorker();
 	};

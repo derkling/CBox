@@ -32,11 +32,11 @@ namespace controlbox {
 namespace device {
 
 const char *DeviceSignals::signalTypeName[] = {
-	"Device Open Alarm",
-	"OCG Alarm",
 	"Battery Powered",
-	"Memory Detect",
+	"OCG Alarm",
 	"Digital Sensors Alarm",
+	"Device Open Alarm",
+	"Memory Detect",
 };
 
 const char *DeviceSignals::signalTriggerName[] = {
@@ -72,18 +72,13 @@ DeviceSignals::DeviceSignals(std::string const & logName) :
 	// handler.
 	// In that case an abort will happens!!!
 
-	// Start the working thread
-	this->start();
-
 }
 
 DeviceSignals::~DeviceSignals() {
 	t_hMap::iterator anH;
 
-	LOG4CPP_INFO(log, "Stopping DeviceSignals");
-
-	d_doExit = true;
-	this->ost::Thread::resume();
+	// Terminate the notification thread
+	terminateWorker();
 
 	// Cleaning up mappings
 	anH = handlers.begin();
@@ -256,11 +251,11 @@ exitCode DeviceSignals::checkInterrupts(t_signalMask & curStatus) {
 #define SIGNAL_VALUE(_signal) \
 	( (d_signalStatus & (0x1<<_signal)) ? 1 : 0 )
 
-//----- Checking DEVICE status
-	if ( SIGNAL_CHANGED(SIGNAL_DEVICEOPEN) ) {
-		LOG4CPP_INFO(log, "Device %s",
-			SIGNAL_VALUE(SIGNAL_DEVICEOPEN) ? "OPENED" : "CLOSED" );
-		notifyDeviceOpen(SIGNAL_VALUE(SIGNAL_DEVICEOPEN));
+//----- Checking BATTERY status
+	if ( SIGNAL_CHANGED(SIGNAL_BATTERY) ) {
+		LOG4CPP_INFO(log, "Switched power to %s",
+			SIGNAL_VALUE(SIGNAL_BATTERY) ? "BAT" : "AC" );
+		notifyPower(SIGNAL_VALUE(SIGNAL_BATTERY));
 	}
 
 //----- Checking OCG alarm
@@ -269,11 +264,17 @@ exitCode DeviceSignals::checkInterrupts(t_signalMask & curStatus) {
 			SIGNAL_VALUE(SIGNAL_OCG) ? "ON" : "OFF" );
 	}
 
-//----- Checking BATTERY status
-	if ( SIGNAL_CHANGED(SIGNAL_BATTERY) ) {
-		LOG4CPP_INFO(log, "Switched power to %s",
-			SIGNAL_VALUE(SIGNAL_BATTERY) ? "BAT" : "AC" );
-		notifyPower(SIGNAL_VALUE(SIGNAL_BATTERY));
+//----- Checking GPIO alarm
+	if (  SIGNAL_CHANGED(SIGNAL_GPIO) ) {
+		LOG4CPP_INFO(log, "GPIO Alarm %s",
+			SIGNAL_VALUE(SIGNAL_GPIO) ? "ON" : "OFF" );
+	}
+
+//----- Checking DEVICE status
+	if ( SIGNAL_CHANGED(SIGNAL_DEVICEOPEN) ) {
+		LOG4CPP_INFO(log, "Device %s",
+			SIGNAL_VALUE(SIGNAL_DEVICEOPEN) ? "OPENED" : "CLOSED" );
+		notifyDeviceOpen(SIGNAL_VALUE(SIGNAL_DEVICEOPEN));
 	}
 
 //----- Checking MMC status
@@ -282,11 +283,6 @@ exitCode DeviceSignals::checkInterrupts(t_signalMask & curStatus) {
 			SIGNAL_VALUE(SIGNAL_MMC) ? "INSERTED" : "REMOVED" );
 	}
 
-//----- Checking GPIO alarm
-	if (  SIGNAL_CHANGED(SIGNAL_GPIO) ) {
-		LOG4CPP_INFO(log, "GPIO Alarm %s",
-			SIGNAL_VALUE(SIGNAL_GPIO) ? "ON" : "OFF" );
-	}
 	return OK;
 
 }
@@ -318,38 +314,30 @@ exitCode DeviceSignals::updateTriggers(void) {
 
 
 void DeviceSignals::run(void)  {
-	t_signalMask levels;
 	t_hMap::iterator anH;
-	t_signalMask curMask;
-	t_signalMask newStatus;
-
-	// Wait until at least one client is registered
-	suspendWorker();	
+	t_signalMask newStatus = 0x00;
+	/* FIXME: we should check the initial line status */
 
 	// FIXME this should be correctly initialized by the base class...
 	// but without this the cycle is not entered
-	while ( !d_doExit ) {
-
-		// Waiting for at least one handler to be defined
-		curMask = d_curTriggers.loSignals | d_curTriggers.hiSignals;
-		if ( !curMask ) {
-			LOG4CPP_DEBUG(log, "Waiting for at least one handler installed");
-			suspendWorker();
-		}
-
-		// Updating interrupts configuration
-		if (updateTriggers() != OK ) {
-			LOG4CPP_WARN(log, "Failed updating interrupt configuration");
-			LOG4CPP_DEBUG(log, "Waiting 5s before retrying... ");
-			pollWorker(5000);
-			continue;
-		}
+	while ( runningWorker() ) {
 
 		// Waiting for next interrupt
-		if (waitInterrupt(d_signalStatus) != OK) {
+		if (waitInterrupt(newStatus) != OK) {
 			LOG4CPP_DEBUG(log, "lost interrupt?");
 			continue;
 		}
+
+		// Checking local interrups
+		checkInterrupts(newStatus);
+
+                // Checking interrupt for handlers notification
+                LOG4CPP_DEBUG(log, "Notifying registered handlers...");
+                anH = handlers.begin();
+                while (anH != handlers.end()) {
+                        notifySignal(*(anH->second), newStatus);
+                        anH++;
+                }
 
 	}
 

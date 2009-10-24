@@ -37,6 +37,7 @@ DeviceI2CBus::DeviceI2CBus(std::string const & logName) :
 	Device(Device::DEVICE_I2CBUS, logName, logName),
 	d_config(Configurator::getInstance()),
 	d_devAddr(0x00),
+	d_busLock("i2cBusMtx"),
 	log(Device::log) {
 
 	LOG4CPP_DEBUG(log, "DeviceI2CBus(logName=%s)", logName.c_str());
@@ -58,6 +59,8 @@ exitCode DeviceI2CBus::initDevice() {
 		fd_dev = 0;
 		return I2C_DEV_FAILED;
 	}
+
+	LOG4CPP_DEBUG(log, "i2c adapter device [%s] succesfully opened", d_devpath.c_str());
 
 	return OK;
 
@@ -87,16 +90,20 @@ exitCode DeviceI2CBus::selectDevice(int addr) {
 		return I2C_DEV_NOT_OPEN;
 	}
 
-	LOG4CPP_DEBUG(log, "Select device [0x%02X]", addr);
+	LOG4CPP_DEBUG(log, "selecting device [0x%02X]...", addr);
 
-	if ( addr == d_devAddr )
+	if ( addr == d_devAddr ) {
+		LOG4CPP_DEBUG(log, "device [0x%02X] already selected", addr);
 		return OK;
+	}
 
-#ifdef CONTROLBOX_CRIS
+#if defined(CONTROLBOX_CRIS) || defined(CONTROLBOX_ARM)
 	result = ioctl(fd_dev, I2C_SLAVE_FORCE, addr);
+#else
+# warning using dummy I2C bus selection
 #endif
 	if ( result < 0) {
-		LOG4CPP_ERROR(log, "Slave 0x%02X access error: %s\n", addr, strerror(errno));
+		LOG4CPP_ERROR(log, "slave 0x%02X access error: %s\n", addr, strerror(errno));
 		return I2C_DEV_ACCESS_ERROR;
 	}
 
@@ -107,8 +114,9 @@ exitCode DeviceI2CBus::selectDevice(int addr) {
 
 exitCode DeviceI2CBus::read(int addr, t_i2cCommand * cmd, short & cmdLen, t_i2cReg * reg, short regLen) {
 	short i;
-	int result;
+	exitCode result = OK;
 
+	LOG4CPP_DEBUG(log, "entering I2C bus mutex...");
 	d_busLock.enterMutex();
 
 	selectDevice(addr);
@@ -116,27 +124,31 @@ exitCode DeviceI2CBus::read(int addr, t_i2cCommand * cmd, short & cmdLen, t_i2cR
 	i = 0;
 	while ( (i < cmdLen) && (i < regLen) ) {
 
-		result = ::write(fd_dev, &cmd[i], 1);
-		if ( result != 1) {
+		LOG4CPP_DEBUG(log, "sending I2C command [0x%02X] to device [0x%02X]",
+				cmd[i], addr);
+
+		if ( 1 != ::write(fd_dev, &cmd[i], 1) ) {
 			LOG4CPP_ERROR(log, "Write cmd [0x%02X] failed: %s\n", reg[i], strerror(errno));
 			cmdLen = i;
-			return I2C_DEV_ACCESS_ERROR;
+			result = I2C_DEV_ACCESS_ERROR;
+			goto out_error;
 		}
 
-		result = ::read(fd_dev, &reg[i], 1);
-		if ( result != 1) {
+		if ( 1 != ::read(fd_dev, &reg[i], 1) ) {
 			LOG4CPP_ERROR(log, "Read cmd [0x%02X] failed: %s\n", reg[i], strerror(errno));
 			cmdLen = i;
-			return I2C_DEV_ACCESS_ERROR;
+			result = I2C_DEV_ACCESS_ERROR;
+			goto out_error;
 		}
 
 		i++;
 
 	}
 
-	d_busLock.leaveMutex();
+out_error:
 
-	return OK;
+	d_busLock.leaveMutex();
+	return result;
 }
 
 }// namespace device

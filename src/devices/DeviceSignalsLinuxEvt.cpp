@@ -44,6 +44,10 @@ DeviceSignalsLinuxEvt::DeviceSignalsLinuxEvt(std::string const & logName) :
 		LOG4CPP_ERROR(log, "failed to open input event interface [%s], %s\n", d_eventsPath.c_str(), strerror(errno));
 		d_fdEvents = 0;
 	}
+
+	// Start the notification thread
+	runWorker();
+
 }
 
 
@@ -82,11 +86,15 @@ exitCode DeviceSignalsLinuxEvt::updateSignalStatus(t_signalMask & status) {
 
 exitCode DeviceSignalsLinuxEvt::waitInterrupt(t_signalMask & status) {
 	fd_set set;
-	int result;
-	struct input_event event;
+	int i, result;
+	struct input_event event[2];
 
-	if (!d_fdEvents)
+	if (!d_fdEvents) {
+		LOG4CPP_ERROR(log, "input event file interface not initialized");
 		return INT_DEV_FAILED;
+	}
+
+	LOG4CPP_DEBUG(log, "Waiting for an event...");
 
 	FD_ZERO(&set);
 	FD_SET(d_fdEvents, &set);
@@ -99,15 +107,26 @@ exitCode DeviceSignalsLinuxEvt::waitInterrupt(t_signalMask & status) {
 	}
 
 	// Reading input event
-	result = ::read(d_fdEvents, &event, sizeof(struct input_event));
-	if ( result<=0 ) {
-		LOG4CPP_ERROR(log, "failed reading input event");
-		return INT_SELECT_FAILED;
+	for (i=0; i<2; i++) {
+		result = ::read(d_fdEvents, &event[i], sizeof(struct input_event));
+		if ( result<=0 ) {
+			LOG4CPP_ERROR(log, "failed reading input event %d", i);
+			return INT_SELECT_FAILED;
+		}
 	}
 
 	LOG4CPP_DEBUG(log, "input event, time: %ld.%ld, type: 0x%X, code: 0x%X, value: %d",
-			event.time.tv_sec, event.time.tv_usec,
-			event.type, event.code, event.value);
+			event[0].time.tv_sec, event[0].time.tv_usec,
+			event[0].type, event[0].code, event[0].value);
+
+	if ( event[0].value ) {
+		status |= 0x1<<event[0].code;
+	} else {
+		status &= ~(0x1<<event[0].code);
+	}
+
+
+	LOG4CPP_DEBUG(log, "current lines status [0x%02X]", status);
 
 	return OK;
 }

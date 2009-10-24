@@ -57,11 +57,11 @@ public:
     typedef enum cmdType t_cmdType;
 
     enum signalType {
-	SIGNAL_DEVICEOPEN = 0,
+	SIGNAL_BATTERY = 0,
 	SIGNAL_OCG,
-	SIGNAL_BATTERY,
-	SIGNAL_MMC,
 	SIGNAL_GPIO,
+	SIGNAL_DEVICEOPEN,
+	SIGNAL_MMC,
 	SIGNAL_COUNT,	// This must be the lasry
     };
     typedef enum signalType t_signalType;
